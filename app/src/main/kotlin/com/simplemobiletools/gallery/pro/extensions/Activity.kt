@@ -43,6 +43,7 @@ import com.simplemobiletools.gallery.pro.dialogs.PickDirectoryDialog
 import com.simplemobiletools.gallery.pro.dialogs.ResizeMultipleImagesDialog
 import com.simplemobiletools.gallery.pro.dialogs.ResizeWithPathDialog
 import com.simplemobiletools.gallery.pro.helpers.DIRECTORY
+import com.simplemobiletools.gallery.pro.helpers.EncryptionHelper
 import com.simplemobiletools.gallery.pro.helpers.RECYCLE_BIN
 import com.simplemobiletools.gallery.pro.models.DateTaken
 import com.squareup.picasso.Picasso
@@ -305,7 +306,42 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
         val destination = it
         handleSAFDialog(source) {
             if (it) {
-                copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden, callback)
+                copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden) {
+                    val isSourceEncrypted = config.isFolderEncrypted(source)
+                    val isDestEncrypted = config.isFolderEncrypted(destination)
+                    
+                    if (!isSourceEncrypted && isDestEncrypted) {
+                        ensureBackgroundThread {
+                            fileDirItems.forEach { item ->
+                                val copiedFile = File(destination, item.name)
+                                if (copiedFile.exists() && !copiedFile.name.endsWith(".enc")) {
+                                    val encryptedFile = File(destination, "${item.name}.enc")
+                                    EncryptionHelper.encryptFile(this@tryCopyMoveFilesTo, copiedFile, encryptedFile)
+                                    copiedFile.delete()
+                                    item.name = "${item.name}.enc"
+                                    item.path = "${destination}/${item.name}"
+                                }
+                            }
+                            runOnUiThread { callback(destination) }
+                        }
+                    } else if (isSourceEncrypted && !isDestEncrypted) {
+                        ensureBackgroundThread {
+                            fileDirItems.forEach { item ->
+                                val copiedFile = File(destination, item.name)
+                                if (copiedFile.exists() && copiedFile.name.endsWith(".enc")) {
+                                    val decryptedFile = File(destination, copiedFile.name.removeSuffix(".enc"))
+                                    EncryptionHelper.decryptFile(this@tryCopyMoveFilesTo, copiedFile, decryptedFile)
+                                    copiedFile.delete()
+                                    item.name = item.name.removeSuffix(".enc")
+                                    item.path = "${destination}/${item.name}"
+                                }
+                            }
+                            runOnUiThread { callback(destination) }
+                        }
+                    } else {
+                        callback(destination)
+                    }
+                }
             }
         }
     }

@@ -405,6 +405,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 R.id.temporarily_show_excluded -> tryToggleTemporarilyShowExcluded()
                 R.id.stop_showing_excluded -> tryToggleTemporarilyShowExcluded()
                 R.id.create_new_folder -> createNewFolder()
+                R.id.add_remote_server -> addRemoteServer()
                 R.id.open_recycle_bin -> openRecycleBin()
                 R.id.column_count -> changeColumnCount()
                 R.id.set_as_default_folder -> setAsDefaultFolder()
@@ -629,6 +630,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private fun toggleTemporarilyShowHidden(show: Boolean) {
         mLoadedInitialPhotos = false
         config.temporarilyShowHidden = show
+        config.temporarilyShowHiddenOnly = show
         binding.directoriesGrid.adapter = null
         getDirectories()
         refreshMenuItems()
@@ -790,6 +792,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     gotDirectories(addTempFolderIfNeeded(getCurrentlyDisplayedDirs()))
                 }
             }
+        }
+    }
+
+    private fun addRemoteServer() {
+        com.simplemobiletools.gallery.pro.dialogs.AddRemoteServerDialog(this) {
+            binding.directoriesGrid.adapter = null
+            getDirectories()
         }
     }
 
@@ -1257,6 +1266,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val distinctDirs = dirs.distinctBy { it.path.getDistinctPath() }.toMutableList() as ArrayList<Directory>
         val sortedDirs = getSortedDirectories(distinctDirs)
         var dirsToShow = getDirsToShow(sortedDirs, mDirs, mCurrentPathPrefix).clone() as ArrayList<Directory>
+        if (config.temporarilyShowHiddenOnly) {
+            dirsToShow = dirsToShow.filter { !isRestrictedWithSAFSdk30(it.path) }.toMutableList() as ArrayList<Directory>
+        }
 
         if (currAdapter == null || forceRecreate) {
             mDirsIgnoringSearch = dirs

@@ -11,13 +11,17 @@ import android.provider.MediaStore
 import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
 import android.text.format.DateFormat
+import com.jcraft.jsch.ChannelSftp
+import com.jcraft.jsch.JSch
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.*
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.extensions.*
 import com.simplemobiletools.gallery.pro.models.Medium
+import com.simplemobiletools.gallery.pro.models.RemoteServer
 import com.simplemobiletools.gallery.pro.models.ThumbnailItem
 import com.simplemobiletools.gallery.pro.models.ThumbnailSection
+import org.apache.commons.net.ftp.FTPClient
 import java.io.File
 import java.util.Calendar
 import java.util.Locale
@@ -37,7 +41,9 @@ class MediaFetcher(val context: Context) {
         }
 
         val curMedia = ArrayList<Medium>()
-        if (context.isPathOnOTG(curPath)) {
+        if (curPath.startsWith("remote://")) {
+            curMedia.addAll(getRemoteFiles(curPath, isPickImage, isPickVideo, filterMedia))
+        } else if (context.isPathOnOTG(curPath)) {
             if (context.hasOTGConnected()) {
                 val newMedia = getMediaOnOTG(curPath, isPickImage, isPickVideo, filterMedia, favoritePaths, getVideoDurations)
                 curMedia.addAll(newMedia)
@@ -79,6 +85,96 @@ class MediaFetcher(val context: Context) {
 
         sortMedia(curMedia, context.config.getFolderSorting(curPath))
         return curMedia
+    }
+
+    private fun getRemoteFiles(curPath: String, isPickImage: Boolean, isPickVideo: Boolean, filterMedia: Int): ArrayList<Medium> {
+        val media = ArrayList<Medium>()
+        val parts = curPath.removePrefix("remote://").split("/", limit = 3)
+        if (parts.size < 2) return media
+
+        val protocol = parts[0]
+        val serverId = parts[1].toLongOrNull() ?: return media
+        val remotePath = if (parts.size == 3) "/${parts[2]}" else "/"
+
+        val server = context.config.parseRemoteServers().find { it.id == serverId } ?: return media
+
+        try {
+            if (protocol == "ftp") {
+                val ftpClient = FTPClient()
+                ftpClient.connect(server.host, server.port)
+                ftpClient.login(server.username, server.passwordHash)
+                ftpClient.changeWorkingDirectory(remotePath)
+                val files = ftpClient.listFiles()
+                files.forEach { file ->
+                    if (file.isFile) {
+                        val path = "$curPath/${file.name}"
+                        if (path.isMediaFile()) {
+                            val type = when {
+                                path.isVideoFast() -> TYPE_VIDEOS
+                                path.isGif() -> TYPE_GIFS
+                                path.isRawFast() -> TYPE_RAWS
+                                path.isSvg() -> TYPE_SVGS
+                                path.isPortrait() -> TYPE_PORTRAITS
+                                else -> TYPE_IMAGES
+                            }
+
+                            if ((type == TYPE_IMAGES && isPickVideo) || (type == TYPE_VIDEOS && isPickImage)) {
+                                return@forEach
+                            }
+
+                            val medium = Medium(
+                                null, file.name, path, curPath, file.timestamp.timeInMillis, file.timestamp.timeInMillis,
+                                file.size, type, 0, false, 0L, 0L
+                            )
+                            media.add(medium)
+                        }
+                    }
+                }
+                ftpClient.logout()
+                ftpClient.disconnect()
+            } else if (protocol == "sftp") {
+                val jsch = JSch()
+                val session = jsch.getSession(server.username, server.host, server.port)
+                session.setPassword(server.passwordHash)
+                session.setConfig("StrictHostKeyChecking", "no")
+                session.connect()
+                val channel = session.openChannel("sftp") as ChannelSftp
+                channel.connect()
+                val files = channel.ls(remotePath)
+                files.forEach {
+                    val file = it as ChannelSftp.LsEntry
+                    if (!file.attrs.isDir) {
+                        val path = "$curPath/${file.filename}"
+                        if (path.isMediaFile()) {
+                            val type = when {
+                                path.isVideoFast() -> TYPE_VIDEOS
+                                path.isGif() -> TYPE_GIFS
+                                path.isRawFast() -> TYPE_RAWS
+                                path.isSvg() -> TYPE_SVGS
+                                path.isPortrait() -> TYPE_PORTRAITS
+                                else -> TYPE_IMAGES
+                            }
+
+                            if ((type == TYPE_IMAGES && isPickVideo) || (type == TYPE_VIDEOS && isPickImage)) {
+                                return@forEach
+                            }
+
+                            val medium = Medium(
+                                null, file.filename, path, curPath, file.attrs.mTime * 1000L, file.attrs.mTime * 1000L,
+                                file.attrs.size, type, 0, false, 0L, 0L
+                            )
+                            media.add(medium)
+                        }
+                    }
+                }
+                channel.disconnect()
+                session.disconnect()
+            }
+        } catch (e: Exception) {
+            context.showErrorToast(e)
+        }
+
+        return media
     }
 
     fun getFoldersToScan(): ArrayList<String> {
@@ -127,11 +223,18 @@ class MediaFetcher(val context: Context) {
                 folderNoMediaStatuses["$folder/$NOMEDIA"] = true
             }
 
-            distinctPaths.filter {
+            val resultFolders = distinctPaths.filter {
                 it.shouldFolderBeVisible(excludedPaths, includedPaths, shouldShowHidden, folderNoMediaStatuses) { path, hasNoMedia ->
                     folderNoMediaStatuses[path] = hasNoMedia
                 }
             }.toMutableList() as ArrayList<String>
+
+            context.config.parseRemoteServers().forEach {
+                val protocol = if (it.type == com.simplemobiletools.gallery.pro.models.RemoteServer.TYPE_FTP) "ftp" else "sftp"
+                resultFolders.add("remote://$protocol/${it.id}${it.remotePath}")
+            }
+
+            resultFolders
         } catch (e: Exception) {
             ArrayList()
         }
@@ -323,8 +426,9 @@ class MediaFetcher(val context: Context) {
             val isGif = if (isImage || isVideo) false else path.isGif()
             val isRaw = if (isImage || isVideo || isGif) false else path.isRawFast()
             val isSvg = if (isImage || isVideo || isGif || isRaw) false else path.isSvg()
+            val isEncrypted = if (isImage || isVideo || isGif || isRaw || isSvg) false else path.endsWith(".enc")
 
-            if (!isImage && !isVideo && !isGif && !isRaw && !isSvg) {
+            if (!isImage && !isVideo && !isGif && !isRaw && !isSvg && !isEncrypted) {
                 if (showPortraits && file.name.startsWith("img_", true) && file.isDirectory) {
                     val portraitFiles = file.listFiles() ?: continue
                     val cover = portraitFiles.firstOrNull { it.name.contains("cover", true) } ?: portraitFiles.firstOrNull()
@@ -355,6 +459,9 @@ class MediaFetcher(val context: Context) {
             if (isSvg && filterMedia and TYPE_SVGS == 0)
                 continue
 
+            if (isEncrypted && filterMedia and (TYPE_IMAGES or TYPE_VIDEOS) == 0)
+                continue
+
             val filename = file.name
             if (!showHidden && filename.startsWith('.'))
                 continue
@@ -381,6 +488,15 @@ class MediaFetcher(val context: Context) {
                     media.add(this)
                 }
             } else {
+                val type = when {
+                    isEncrypted -> TYPE_IMAGES
+                    isVideo -> TYPE_VIDEOS
+                    isGif -> TYPE_GIFS
+                    isRaw -> TYPE_RAWS
+                    isSvg -> TYPE_SVGS
+                    isPortrait -> TYPE_PORTRAITS
+                    else -> TYPE_IMAGES
+                }
                 var lastModified: Long
                 var newLastModified = lastModifieds.remove(path)
                 if (newLastModified == null) {

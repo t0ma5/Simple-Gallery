@@ -151,8 +151,8 @@ class PickDirectoryDialog(
         directoriesFastscroller.beVisibleIf(directoriesEmptyPlaceholder.isGone())
     }
 
-    private fun fetchDirectories(forceShowHiddenAndExcluded: Boolean) {
-        activity.getCachedDirectories(forceShowHidden = forceShowHiddenAndExcluded, forceShowExcluded = forceShowHiddenAndExcluded) {
+    private fun fetchDirectories(forceShowHidden: Boolean) {
+        activity.getCachedDirectories(forceShowHidden = forceShowHidden, forceShowExcluded = false) {
             if (it.isNotEmpty()) {
                 it.forEach {
                     it.subfoldersMediaCount = it.mediaCnt

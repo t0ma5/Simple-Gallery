@@ -31,11 +31,11 @@ class ExcludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
         super.onResume()
         setupToolbar(binding.manageFoldersToolbar, NavigationIcon.Arrow)
     }
-
-    private fun updateFolders() {
-        val folders = ArrayList<String>()
-        config.excludedFolders.mapTo(folders) { it }
-        var placeholderText = getString(R.string.excluded_activity_placeholder)
+private fun updateFolders() {
+    val folders = ArrayList<Any>()
+    config.excludedFolders.mapTo(folders) { it }
+    var placeholderText = getString(R.string.excluded_activity_placeholder)
+...
         binding.manageFoldersPlaceholder.apply {
             beVisibleIf(folders.isEmpty())
             setTextColor(getProperTextColor())

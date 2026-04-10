@@ -5,7 +5,10 @@ import com.simplemobiletools.commons.extensions.beVisibleIf
 import com.simplemobiletools.commons.extensions.getProperTextColor
 import com.simplemobiletools.commons.extensions.viewBinding
 import com.simplemobiletools.commons.helpers.NavigationIcon
+import com.simplemobiletools.commons.dialogs.RadioGroupDialog
 import com.simplemobiletools.commons.interfaces.RefreshRecyclerViewListener
+import com.simplemobiletools.commons.models.RadioItem
+import com.simplemobiletools.gallery.pro.dialogs.AddRemoteServerDialog
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.adapters.ManageFoldersAdapter
 import com.simplemobiletools.gallery.pro.databinding.ActivityManageFoldersBinding
@@ -33,8 +36,10 @@ class IncludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
     }
 
     private fun updateFolders() {
-        val folders = ArrayList<String>()
+        val folders = ArrayList<Any>()
         config.includedFolders.mapTo(folders) { it }
+        folders.addAll(config.parseRemoteServers())
+
         binding.manageFoldersPlaceholder.apply {
             text = getString(R.string.included_activity_placeholder)
             beVisibleIf(folders.isEmpty())
@@ -60,7 +65,24 @@ class IncludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
     }
 
     private fun addFolder() {
-        showAddIncludedFolderDialog {
+        val items = arrayListOf(
+            RadioItem(0, getString(R.string.local_folder)),
+            RadioItem(1, getString(R.string.remote_server))
+        )
+
+        RadioGroupDialog(this, items) {
+            if (it == 0) {
+                showAddIncludedFolderDialog {
+                    updateFolders()
+                }
+            } else {
+                addRemoteServer()
+            }
+        }
+    }
+
+    private fun addRemoteServer() {
+        AddRemoteServerDialog(this) {
             updateFolders()
         }
     }

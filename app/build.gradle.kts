@@ -102,10 +102,13 @@ android {
 
 dependencies {
     implementation(libs.simple.tools.commons)
+    implementation(libs.commons.net)
+    implementation(libs.jsch)
     implementation(libs.android.image.cropper)
     implementation(libs.exif)
     implementation(libs.android.gif.drawable)
     implementation(libs.androidx.constraintlayout)
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.sdk.panowidget)
     implementation(libs.sdk.videowidget)

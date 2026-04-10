@@ -63,6 +63,22 @@
     <string name="add_folder">Add folder</string>
     <string name="included_activity_placeholder">If you have some folders which contain media, but were not recognized by the app, you can add them manually here.\n\nAdding some items here will not exclude any other folder.</string>
     <string name="no_media_add_included">No media files have been found. You can solve it by adding the folders containing media files manually.</string>
+    <string name="local_folder">Local folder</string>
+    <string name="remote_server">FTP/SFTP server</string>
+    <string name="add_remote_server">Add FTP/SFTP server</string>
+    <string name="host">Host</string>
+    <string name="port">Port</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="remote_path">Remote path</string>
+    <string name="ftp">FTP</string>
+    <string name="sftp">SFTP</string>
+    <string name="encrypt_selection">Encrypt selection</string>
+    <string name="decrypt_selection">Decrypt selection</string>
+    <string name="encrypting">Encrypting…</string>
+    <string name="decrypting">Decrypting…</string>
+    <string name="encryption_finished">Encryption finished</string>
+    <string name="decryption_finished">Decryption finished</string>
 
     <!-- Resizing -->
     <string name="resize_and_save">Resize selection and save</string>

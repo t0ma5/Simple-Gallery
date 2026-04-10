@@ -11,9 +11,11 @@ import com.simplemobiletools.commons.interfaces.RefreshRecyclerViewListener
 import com.simplemobiletools.commons.views.MyRecyclerView
 import com.simplemobiletools.gallery.pro.databinding.ItemManageFolderBinding
 import com.simplemobiletools.gallery.pro.extensions.config
+import com.simplemobiletools.gallery.pro.models.RemoteServer
+import com.google.gson.Gson
 
 class ManageFoldersAdapter(
-    activity: BaseSimpleActivity, var folders: ArrayList<String>, val isShowingExcludedFolders: Boolean, val listener: RefreshRecyclerViewListener?,
+    activity: BaseSimpleActivity, var folders: ArrayList<Any>, val isShowingExcludedFolders: Boolean, val listener: RefreshRecyclerViewListener?,
     recyclerView: MyRecyclerView, itemClick: (Any) -> Unit
 ) : MyRecyclerViewAdapter(activity, recyclerView, itemClick) {
 
@@ -59,14 +61,20 @@ class ManageFoldersAdapter(
 
     override fun getItemCount() = folders.size
 
-    private fun getSelectedItems() = folders.filter { selectedKeys.contains(it.hashCode()) } as ArrayList<String>
+    private fun getSelectedItems() = folders.filter { selectedKeys.contains(it.hashCode()) } as ArrayList<Any>
 
-    private fun setupView(view: View, folder: String) {
+    private fun setupView(view: View, folder: Any) {
+        val title = when (folder) {
+            is String -> folder
+            is RemoteServer -> "${if (folder.type == RemoteServer.TYPE_FTP) "FTP" else "SFTP"}: ${folder.name} (${folder.host})"
+            else -> ""
+        }
+
         ItemManageFolderBinding.bind(view).apply {
             root.setupViewBackground(activity)
             manageFolderHolder.isSelected = selectedKeys.contains(folder.hashCode())
             manageFolderTitle.apply {
-                text = folder
+                text = title
                 setTextColor(context.getProperTextColor())
             }
 
@@ -81,7 +89,7 @@ class ManageFoldersAdapter(
         }
     }
 
-    private fun showPopupMenu(view: View, folder: String) {
+    private fun showPopupMenu(view: View, folder: Any) {
         finishActMode()
         val theme = activity.getPopupMenuTheme()
         val contextTheme = ContextThemeWrapper(activity, theme)
@@ -110,15 +118,25 @@ class ManageFoldersAdapter(
     }
 
     private fun removeSelection() {
-        val removeFolders = ArrayList<String>(selectedKeys.size)
+        val removeFolders = ArrayList<Any>(selectedKeys.size)
         val positions = getSelectedItemPositions()
 
         getSelectedItems().forEach {
             removeFolders.add(it)
-            if (isShowingExcludedFolders) {
-                config.removeExcludedFolder(it)
-            } else {
-                config.removeIncludedFolder(it)
+            when (it) {
+                is String -> {
+                    if (isShowingExcludedFolders) {
+                        config.removeExcludedFolder(it)
+                    } else {
+                        config.removeIncludedFolder(it)
+                    }
+                }
+
+                is RemoteServer -> {
+                    val servers = config.parseRemoteServers()
+                    servers.removeAll { s -> s.id == it.id }
+                    config.remoteServers = Gson().toJson(servers)
+                }
             }
         }
 

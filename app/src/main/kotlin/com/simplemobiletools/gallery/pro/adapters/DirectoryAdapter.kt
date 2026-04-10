@@ -114,6 +114,9 @@ class DirectoryAdapter(
             findItem(R.id.cab_lock).isVisible = selectedPaths.any { !config.isFolderProtected(it) }
             findItem(R.id.cab_unlock).isVisible = selectedPaths.any { config.isFolderProtected(it) }
 
+            findItem(R.id.cab_encrypt).isVisible = selectedPaths.any { !config.isFolderEncrypted(it) }
+            findItem(R.id.cab_decrypt).isVisible = selectedPaths.any { config.isFolderEncrypted(it) }
+
             findItem(R.id.cab_empty_recycle_bin).isVisible = isOneItemSelected && selectedPaths.first() == RECYCLE_BIN
             findItem(R.id.cab_empty_disable_recycle_bin).isVisible = isOneItemSelected && selectedPaths.first() == RECYCLE_BIN
 
@@ -144,6 +147,8 @@ class DirectoryAdapter(
             R.id.cab_exclude -> tryExcludeFolder()
             R.id.cab_lock -> tryLockFolder()
             R.id.cab_unlock -> unlockFolder()
+            R.id.cab_encrypt -> tryEncryptFolder()
+            R.id.cab_decrypt -> tryDecryptFolder()
             R.id.cab_copy_to -> copyFilesTo()
             R.id.cab_move_to -> moveFilesTo()
             R.id.cab_select_all -> selectAll()
@@ -403,6 +408,62 @@ class DirectoryAdapter(
                     finishActMode()
                     listener?.updateDirectories(newDirs)
                 }
+            }
+        }
+    }
+
+    private fun tryEncryptFolder() {
+        activity.handleHiddenFolderPasswordProtection {
+            activity.toast(R.string.encrypting)
+            ensureBackgroundThread {
+                getSelectedPaths().forEach { path ->
+                    encryptFolder(path)
+                    config.addEncryptedFolder(path)
+                }
+                activity.runOnUiThread {
+                    activity.toast(R.string.encryption_finished)
+                    listener?.refreshItems()
+                    finishActMode()
+                }
+            }
+        }
+    }
+
+    private fun encryptFolder(path: String) {
+        val folder = File(path)
+        folder.listFiles()?.forEach { file ->
+            if (file.isFile && !file.name.endsWith(".enc")) {
+                val outputFile = File(path, "${file.name}.enc")
+                EncryptionHelper.encryptFile(activity, file, outputFile)
+                file.delete()
+            }
+        }
+    }
+
+    private fun tryDecryptFolder() {
+        activity.handleHiddenFolderPasswordProtection {
+            activity.toast(R.string.decrypting)
+            ensureBackgroundThread {
+                getSelectedPaths().forEach { path ->
+                    decryptFolder(path)
+                    config.removeEncryptedFolder(path)
+                }
+                activity.runOnUiThread {
+                    activity.toast(R.string.decryption_finished)
+                    listener?.refreshItems()
+                    finishActMode()
+                }
+            }
+        }
+    }
+
+    private fun decryptFolder(path: String) {
+        val folder = File(path)
+        folder.listFiles()?.forEach { file ->
+            if (file.isFile && file.name.endsWith(".enc")) {
+                val outputFile = File(path, file.name.removeSuffix(".enc"))
+                EncryptionHelper.decryptFile(activity, file, outputFile)
+                file.delete()
             }
         }
     }

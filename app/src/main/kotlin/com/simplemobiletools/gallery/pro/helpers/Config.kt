@@ -71,6 +71,10 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(TEMPORARILY_SHOW_HIDDEN, false)
         set(temporarilyShowHidden) = prefs.edit().putBoolean(TEMPORARILY_SHOW_HIDDEN, temporarilyShowHidden).apply()
 
+    var temporarilyShowHiddenOnly: Boolean
+        get() = prefs.getBoolean("temporarily_show_hidden_only", false)
+        set(temporarilyShowHiddenOnly) = prefs.edit().putBoolean("temporarily_show_hidden_only", temporarilyShowHiddenOnly).apply()
+
     var temporarilyShowExcluded: Boolean
         get() = prefs.getBoolean(TEMPORARILY_SHOW_EXCLUDED, false)
         set(temporarilyShowExcluded) = prefs.edit().putBoolean(TEMPORARILY_SHOW_EXCLUDED, temporarilyShowExcluded).apply()
@@ -566,4 +570,31 @@ class Config(context: Context) : BaseConfig(context) {
     var lastExportedFavoritesFolder: String
         get() = prefs.getString(LAST_EXPORTED_FAVORITES_FOLDER, "")!!
         set(lastExportedFavoritesFolder) = prefs.edit().putString(LAST_EXPORTED_FAVORITES_FOLDER, lastExportedFavoritesFolder).apply()
+
+    var remoteServers: String
+        get() = prefs.getString("remote_servers", "")!!
+        set(remoteServers) = prefs.edit().putString("remote_servers", remoteServers).apply()
+
+    var encryptedFolders: MutableSet<String>
+        get() = prefs.getStringSet("encrypted_folders", HashSet())!!
+        set(encryptedFolders) = prefs.edit().remove("encrypted_folders").putStringSet("encrypted_folders", encryptedFolders).apply()
+
+    fun addEncryptedFolder(path: String) {
+        val currEncryptedFolders = HashSet<String>(encryptedFolders)
+        currEncryptedFolders.add(path)
+        encryptedFolders = currEncryptedFolders
+    }
+
+    fun removeEncryptedFolder(path: String) {
+        val currEncryptedFolders = HashSet<String>(encryptedFolders)
+        currEncryptedFolders.remove(path)
+        encryptedFolders = currEncryptedFolders
+    }
+
+    fun isFolderEncrypted(path: String) = encryptedFolders.contains(path)
+
+    fun parseRemoteServers(): ArrayList<com.simplemobiletools.gallery.pro.models.RemoteServer> {
+        val listType = object : TypeToken<List<com.simplemobiletools.gallery.pro.models.RemoteServer>>() {}.type
+        return Gson().fromJson<ArrayList<com.simplemobiletools.gallery.pro.models.RemoteServer>>(remoteServers, listType) ?: ArrayList(1)
+    }
 }
