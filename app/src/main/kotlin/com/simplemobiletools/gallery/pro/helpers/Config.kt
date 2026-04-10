@@ -8,6 +8,8 @@ import com.google.gson.reflect.TypeToken
 import com.simplemobiletools.commons.helpers.*
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.models.AlbumCover
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import java.util.Arrays
 
 class Config(context: Context) : BaseConfig(context) {
@@ -596,5 +598,24 @@ class Config(context: Context) : BaseConfig(context) {
     fun parseRemoteServers(): ArrayList<com.simplemobiletools.gallery.pro.models.RemoteServer> {
         val listType = object : TypeToken<List<com.simplemobiletools.gallery.pro.models.RemoteServer>>() {}.type
         return Gson().fromJson<ArrayList<com.simplemobiletools.gallery.pro.models.RemoteServer>>(remoteServers, listType) ?: ArrayList(1)
+    }
+
+    private val encryptedPrefs by lazy {
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        EncryptedSharedPreferences.create(
+            "secure_prefs",
+            masterKeyAlias,
+            context,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    fun saveRemoteServerPassword(serverId: Long, password: String) {
+        encryptedPrefs.edit().putString("remote_password_$serverId", password).apply()
+    }
+
+    fun getRemoteServerPassword(serverId: Long): String {
+        return encryptedPrefs.getString("remote_password_$serverId", "") ?: ""
     }
 }

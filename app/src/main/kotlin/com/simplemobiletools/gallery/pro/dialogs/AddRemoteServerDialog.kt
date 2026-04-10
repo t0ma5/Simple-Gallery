@@ -39,7 +39,9 @@ class AddRemoteServerDialog(val activity: BaseSimpleActivity, val callback: () -
                             return@setOnClickListener
                         }
 
-                        val server = RemoteServer(System.currentTimeMillis(), type, name, host, port, username, password, remotePath)
+                        val serverId = System.currentTimeMillis()
+                        val server = RemoteServer(serverId, type, name, host, port, username, "", remotePath)
+                        activity.config.saveRemoteServerPassword(serverId, password)
                         val servers = activity.config.parseRemoteServers()
                         servers.add(server)
                         activity.config.remoteServers = Gson().toJson(servers)

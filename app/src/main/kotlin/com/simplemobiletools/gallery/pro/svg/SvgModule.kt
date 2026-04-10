@@ -11,10 +11,14 @@ import com.caverock.androidsvg.SVG
 
 import java.io.InputStream
 
+import com.simplemobiletools.gallery.pro.extensions.config
+
 @GlideModule
 class SvgModule : AppGlideModule() {
     override fun registerComponents(context: Context, glide: Glide, registry: Registry) {
-        registry.register(SVG::class.java, PictureDrawable::class.java, SvgDrawableTranscoder()).append(InputStream::class.java, SVG::class.java, SvgDecoder())
+        registry.register(SVG::class.java, PictureDrawable::class.java, SvgDrawableTranscoder())
+            .append(InputStream::class.java, SVG::class.java, SvgDecoder())
+            .append(String::class.java, InputStream::class.java, com.simplemobiletools.gallery.pro.helpers.RemoteModelLoaderFactory(context.config))
     }
 
     override fun isManifestParsingEnabled() = false

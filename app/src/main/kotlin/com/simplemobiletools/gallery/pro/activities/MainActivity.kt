@@ -288,6 +288,14 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        config.temporarilyShowHidden = false
+        config.temporarilyShowHiddenOnly = false
+        config.temporarilyShowExcluded = false
+        mTrackingTopBottomScroll = false
+        removeRecyclerScrollListener()
+        ensureBackgroundThread {
+            java.io.File(cacheDir, "temp_decrypted").deleteRecursively()
+        }
         if (!isChangingConfigurations) {
             config.temporarilyShowHidden = false
             config.temporarilyShowExcluded = false
@@ -908,12 +916,39 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun itemClicked(path: String) {
-        handleLockedFolderOpening(path) { success ->
-            if (success) {
-                Intent(this, MediaActivity::class.java).apply {
-                    putExtra(SKIP_AUTHENTICATION, true)
-                    putExtra(DIRECTORY, path)
-                    handleMediaIntent(this)
+        if (config.isFolderEncrypted(path)) {
+            handleHiddenFolderPasswordProtection {
+                toast(R.string.decrypting)
+                ensureBackgroundThread {
+                    val tempCacheFolder = java.io.File(cacheDir, "temp_decrypted/${java.io.File(path).name}")
+                    tempCacheFolder.deleteRecursively()
+                    tempCacheFolder.mkdirs()
+
+                    val files = java.io.File(path).listFiles()
+                    files?.forEach { file ->
+                        if (file.isFile && file.name.endsWith(".enc")) {
+                            val decryptedFile = java.io.File(tempCacheFolder, file.name.removeSuffix(".enc"))
+                            com.simplemobiletools.gallery.pro.helpers.EncryptionHelper.decryptFile(this@MainActivity, file, decryptedFile)
+                        }
+                    }
+
+                    runOnUiThread {
+                        Intent(this@MainActivity, MediaActivity::class.java).apply {
+                            putExtra(SKIP_AUTHENTICATION, true)
+                            putExtra(DIRECTORY, tempCacheFolder.absolutePath)
+                            handleMediaIntent(this)
+                        }
+                    }
+                }
+            }
+        } else {
+            handleLockedFolderOpening(path) { success ->
+                if (success) {
+                    Intent(this, MediaActivity::class.java).apply {
+                        putExtra(SKIP_AUTHENTICATION, true)
+                        putExtra(DIRECTORY, path)
+                        handleMediaIntent(this)
+                    }
                 }
             }
         }
