@@ -25,44 +25,46 @@ data class Medium(
     @ColumnInfo(name = "video_duration") var videoDuration: Int,
     @ColumnInfo(name = "is_favorite") var isFavorite: Boolean,
     @ColumnInfo(name = "deleted_ts") var deletedTS: Long,
-    @ColumnInfo(name = "media_store_id") var mediaStoreId: Long,
-
-    @Ignore var gridPosition: Int = 0   // used at grid view decoration at Grouping enabled
+    @ColumnInfo(name = "media_store_id") var mediaStoreId: Long
 ) : Serializable, ThumbnailItem() {
 
-    constructor() : this(null, "", "", "", 0L, 0L, 0L, 0, 0, false, 0L, 0L, 0)
+    @Ignore var gridPosition: Int = 0
+
+    constructor() : this(null, "", "", "", 0L, 0L, 0L, 0, 0, false, 0L, 0L)
 
     companion object {
         private const val serialVersionUID = -6553149366975655L
     }
 
-    fun isWebP() = name.isWebP()
+    fun isWebP(): Boolean = name.lowercase().endsWith(".webp")
 
-    fun isGIF() = type == TYPE_GIFS
+    fun isGIF(): Boolean = type == TYPE_GIFS
 
-    fun isImage() = type == TYPE_IMAGES
+    fun isImage(): Boolean = type == TYPE_IMAGES
 
-    fun isVideo() = type == TYPE_VIDEOS
+    fun isVideo(): Boolean = type == TYPE_VIDEOS
 
-    fun isRaw() = type == TYPE_RAWS
+    fun isRaw(): Boolean = type == TYPE_RAWS
 
-    fun isSVG() = type == TYPE_SVGS
+    fun isSVG(): Boolean = type == TYPE_SVGS
 
-    fun isPortrait() = type == TYPE_PORTRAITS
+    fun isPortrait(): Boolean = type == TYPE_PORTRAITS
 
-    fun isApng() = name.isApng()
+    fun isApng(): Boolean = name.lowercase().endsWith(".apng")
 
-    fun isHidden() = name.startsWith('.')
+    fun isHidden(): Boolean = name.startsWith('.')
 
-    fun isHeic() = name.toLowerCase().endsWith(".heic") || name.toLowerCase().endsWith(".heif")
+    fun isHeic(): Boolean = name.lowercase().endsWith(".heic") || name.lowercase().endsWith(".heif")
 
-    fun getBubbleText(sorting: Int, context: Context, dateFormat: String, timeFormat: String) = when {
-        sorting and SORT_BY_NAME != 0 -> name
-        sorting and SORT_BY_PATH != 0 -> path
-        sorting and SORT_BY_SIZE != 0 -> size.formatSize()
-        sorting and SORT_BY_DATE_MODIFIED != 0 -> modified.formatDate(context, dateFormat, timeFormat)
-        sorting and SORT_BY_RANDOM != 0 -> name
-        else -> taken.formatDate(context)
+    fun getBubbleText(sorting: Int, context: Context, dateFormat: String, timeFormat: String): String {
+        return when {
+            sorting and SORT_BY_NAME != 0 -> name
+            sorting and SORT_BY_PATH != 0 -> path
+            sorting and SORT_BY_SIZE != 0 -> formatSize(size)
+            sorting and SORT_BY_DATE_MODIFIED != 0 -> formatDate(modified, context, dateFormat, timeFormat)
+            sorting and SORT_BY_RANDOM != 0 -> name
+            else -> formatDate(taken, context)
+        }
     }
 
     fun getGroupingKey(groupBy: Int): String {
@@ -72,13 +74,13 @@ data class Medium(
             groupBy and GROUP_BY_DATE_TAKEN_DAILY != 0 -> getDayStartTS(taken, false)
             groupBy and GROUP_BY_DATE_TAKEN_MONTHLY != 0 -> getDayStartTS(taken, true)
             groupBy and GROUP_BY_FILE_TYPE != 0 -> type.toString()
-            groupBy and GROUP_BY_EXTENSION != 0 -> name.getFilenameExtension().toLowerCase()
+            groupBy and GROUP_BY_EXTENSION != 0 -> getFilenameExtension().lowercase()
             groupBy and GROUP_BY_FOLDER != 0 -> parentPath
             else -> ""
         }
     }
 
-    fun getIsInRecycleBin() = deletedTS != 0L
+    fun getIsInRecycleBin(): Boolean = deletedTS != 0L
 
     private fun getDayStartTS(ts: Long, resetDays: Boolean): String {
         val calendar = Calendar.getInstance(Locale.ENGLISH).apply {
@@ -108,5 +110,28 @@ data class Medium(
 
     fun getKey() = ObjectKey(getSignature())
 
-    fun toFileDirItem() = FileDirItem(path, name, false, 0, size, modified, mediaStoreId)
+    fun toFileDirItem() = FileDirItem(path, name, false, 0, size)
+
+    private fun formatSize(size: Long): String {
+        return when {
+            size < 1024 -> "$size B"
+            size < 1024 * 1024 -> "${size / 1024} KB"
+            size < 1024 * 1024 * 1024 -> "${size / (1024 * 1024)} MB"
+            else -> "${size / (1024 * 1024 * 1024)} GB"
+        }
+    }
+
+    private fun formatDate(ts: Long, context: Context): String {
+        val calendar = Calendar.getInstance().apply { timeInMillis = ts }
+        return "${calendar.get(Calendar.DAY_OF_MONTH)}/${calendar.get(Calendar.MONTH) + 1}/${calendar.get(Calendar.YEAR)}"
+    }
+
+    private fun formatDate(ts: Long, context: Context, dateFormat: String, timeFormat: String): String {
+        return formatDate(ts, context)
+    }
+
+    private fun getFilenameExtension(): String {
+        val lastDot = name.lastIndexOf('.')
+        return if (lastDot >= 0) name.substring(lastDot + 1) else ""
+    }
 }

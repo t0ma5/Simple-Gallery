@@ -3,6 +3,33 @@
     <string name="app_name">Simple Gallery</string>
     <string name="app_launcher_name">Gallery</string>
     <string name="edit">Edit</string>
+    <string name="save">Save</string>
+    <string name="resize">Resize</string>
+    <string name="random">Random</string>
+    <string name="lock_folder">Lock folder</string>
+    <string name="move_to_top">Move to top</string>
+    <string name="move_to_bottom">Move to bottom</string>
+    <string name="create_shortcut">Create shortcut</string>
+    <string name="exclude">Exclude</string>
+    <string name="unlock_folder">Unlock folder</string>
+    <string name="change_cover_image">Change cover image</string>
+    <string name="select_photo">Select photo</string>
+    <string name="use_default">Use default</string>
+    <string name="edit_with">Edit with</string>
+    <string name="change_view_type">Change view type</string>
+    <string name="temporarily_show_excluded">Temporarily show excluded</string>
+    <string name="stop_showing_excluded">Stop showing excluded</string>
+    <string name="open_the_recycle_bin">Open the Recycle Bin</string>
+    <string name="column_count">Column count</string>
+    <string name="more_apps_from_us">More apps from us</string>
+    <string name="toggle_filename">Toggle filename</string>
+    <string name="print">Print</string>
+    <string name="sort_numeric_parts">Sort numeric parts as numbers</string>
+    <string name="grid">Grid</string>
+    <string name="list">List</string>
+    <string name="skip_the_recycle_bin">Skip the Recycle Bin</string>
+    <string name="filename_without_txt">Filename (without .txt)</string>
+    <string name="gps_coordinates">GPS coordinates</string>
     <string name="open_camera">Open camera</string>
     <string name="hidden">(hidden)</string>
     <string name="excluded">(excluded)</string>
@@ -59,6 +86,7 @@
 
     <!-- Include folders -->
     <string name="include_folders">Included folders</string>
+    <string name="excluded_folders">Excluded folders</string>
     <string name="manage_included_folders">Manage included folders</string>
     <string name="add_folder">Add folder</string>
     <string name="included_activity_placeholder">If you have some folders which contain media, but were not recognized by the app, you can add them manually here.\n\nAdding some items here will not exclude any other folder.</string>
@@ -181,6 +209,9 @@
     <string name="show_folder_name">Show folder name</string>
 
     <!-- Settings -->
+    <string name="language">Language</string>
+    <string name="color_customization">Color customization</string>
+    <string name="general_settings">General settings</string>
     <string name="autoplay_videos">Play videos automatically</string>
     <string name="remember_last_video_position">Remember last video playback position</string>
     <string name="loop_videos">Loop videos</string>
@@ -255,6 +286,15 @@
     <string name="manage_bottom_actions">Manage visible bottom actions</string>
     <string name="toggle_favorite">Toggle favorite</string>
     <string name="toggle_file_visibility">Toggle file visibility</string>
+
+    <!-- Settings -->
+    <string name="change_date_and_time_format">Change date and time format</string>
+    <string name="manage_excluded_folders">Manage excluded folders</string>
+    <string name="password_protect_file_deletion">Password protect file deletion</string>
+    <string name="migrating">Migrating…</string>
+    <string name="clear_cache">Clear cache</string>
+    <string name="export_settings">Export settings</string>
+    <string name="import_settings">Import settings</string>
 
     <!-- New editor strings -->
     <string name="pesdk_transform_button_freeCrop">Custom</string>

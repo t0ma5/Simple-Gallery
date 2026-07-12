@@ -62,8 +62,7 @@
             <com.qtalk.recyclerviewfastscroller.RecyclerViewFastScroller
                 android:id="@+id/directories_fastscroller"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:supportSwipeToRefresh="true">
+                android:layout_height="wrap_content">
 
                 <com.simplemobiletools.commons.views.MyRecyclerView
                     android:id="@+id/directories_grid"

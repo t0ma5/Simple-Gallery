@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <dimen name="one_dp">1dp</dimen>
+    <dimen name="min_radio_checkbox_height">48dp</dimen>
+    <dimen name="divider_height">1dp</dimen>
+    <dimen name="fab_size">56dp</dimen>
+    <dimen name="smaller_margin">4dp</dimen>
     <dimen name="dir_tmb_size">150dp</dimen>
     <dimen name="medium_tmb_size">100dp</dimen>
     <dimen name="sd_card_icon_size">20dp</dimen>

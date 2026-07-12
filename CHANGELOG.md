@@ -1,6 +1,14 @@
 Changelog
 ==========
 
+Version 6.28.2 *(2026-05-02)*
+----------------------------
+
+ * Repository cleanup
+ * Rewrote README with simpler format
+ * Cleaned up .gitignore entries
+ * Removed development notes (WIW.md, wiw2.md)
+
 Version 6.28.1 *(2023-10-09)*
 ----------------------------
 

@@ -8,7 +8,6 @@ plugins {
     alias(libs.plugins.android)
     alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.imgly).apply(false)
 }
 
 val keystorePropertiesFile: File = rootProject.file("keystore.properties")
@@ -24,8 +23,8 @@ android {
         applicationId = libs.versions.app.version.appId.get()
         minSdk = project.libs.versions.app.build.minimumSDK.get().toInt()
         targetSdk = project.libs.versions.app.build.targetSDK.get().toInt()
-        versionName = project.libs.versions.app.version.versionName.get()
-        versionCode = project.libs.versions.app.version.versionCode.get().toInt()
+        versionName = libs.versions.app.version.versionName.get()
+        versionCode = libs.versions.app.version.versionCode.get().toInt()
         setProperty("archivesBaseName", "gallery-$versionCode")
     }
 
@@ -93,7 +92,7 @@ android {
         abortOnError = false
     }
 
-    packagingOptions {
+    packaging {
         resources {
             excludes += "META-INF/library_release.kotlin_module"
         }
@@ -101,7 +100,15 @@ android {
 }
 
 dependencies {
-    implementation(libs.simple.tools.commons)
+    implementation(libs.simple.tools.commons) {
+        exclude(group = "com.booking", module = "rtlviewpager")
+        exclude(group = "com.duolingo.open", module = "rtl-viewpager")
+        exclude(group = "com.andrognito.patternlockview", module = "patternlockview")
+        exclude(group = "com.github.duolingo", module = "rtl-viewpager")
+    }
+
+    implementation("com.github.naveensingh:androidphotofilters:193f2ae509")
+    implementation("com.bignerdranch.android:recyclerview-multiselect:0.2")
     implementation(libs.commons.net)
     implementation(libs.jsch)
     implementation(libs.android.image.cropper)
@@ -110,10 +117,7 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.sdk.panowidget)
-    implementation(libs.sdk.videowidget)
     implementation(libs.sanselan)
-    implementation(libs.imagefilters)
     implementation(libs.androidsvg.aar)
     implementation(libs.gestureviews)
     implementation(libs.subsamplingscaleimageview)
@@ -126,11 +130,19 @@ dependencies {
     }
     compileOnly(libs.okhttp)
 
-    ksp(libs.glide.compiler)
     implementation(libs.zjupure.webpdecoder)
+
+    ksp(libs.glide.compiler)
 
     implementation(libs.bundles.room)
     ksp(libs.androidx.room.compiler)
+
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.incremental", "false")
+    arg("room.expandProjection", "true")
 }
 
 // Apply the PESDKPlugin
