@@ -185,9 +185,9 @@ class PickDirectoryDialog(
     }
 
     private fun gotDirectories(newDirs: ArrayList<Directory>) {
-        if (allDirectories.isEmpty()) {
-            allDirectories = newDirs.clone() as ArrayList<Directory>
-        }
+        // Always keep allDirectories in sync with the latest fetch so the search source
+        // (which filters allDirectories) retains folders revealed via the eye-icon.
+        allDirectories = newDirs.clone() as ArrayList<Directory>
 
         val distinctDirs = newDirs.filter { showFavoritesBin || (!it.isRecycleBin() && !it.areFavorites()) }.distinctBy { it.path.getDistinctPath() }
             .toMutableList() as ArrayList<Directory>

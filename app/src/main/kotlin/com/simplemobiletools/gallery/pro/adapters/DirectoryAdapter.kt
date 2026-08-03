@@ -413,56 +413,71 @@ class DirectoryAdapter(
     }
 
     private fun tryEncryptFolder() {
-        activity.handleHiddenFolderPasswordProtection {
-            activity.toast(R.string.encrypting)
-            ensureBackgroundThread {
+        val firstPath = getSelectedPaths().first()
+        // Encrypt "as part of lock": require a lock pattern/pin and use its hash as the secret.
+        SecurityDialog(activity, config.getFolderProtectionHash(firstPath), config.getFolderProtectionType(firstPath)) { hash, type, success ->
+            if (success) {
                 getSelectedPaths().forEach { path ->
-                    encryptFolder(path)
-                    config.addEncryptedFolder(path)
+                    if (!config.isFolderProtected(path)) {
+                        config.addFolderProtection(path, hash, type)
+                    }
+                    config.setFolderEncryptionSecret(path, hash)
                 }
-                activity.runOnUiThread {
-                    activity.toast(R.string.encryption_finished)
-                    listener?.refreshItems()
-                    finishActMode()
+
+                activity.toast(R.string.encrypting)
+                ensureBackgroundThread {
+                    getSelectedPaths().forEach { path ->
+                        encryptFolder(path, hash)
+                        config.addEncryptedFolder(path)
+                    }
+                    activity.runOnUiThread {
+                        activity.toast(R.string.encryption_finished)
+                        listener?.refreshItems()
+                        finishActMode()
+                    }
                 }
             }
         }
     }
 
-    private fun encryptFolder(path: String) {
+    private fun encryptFolder(path: String, secret: String) {
         val folder = File(path)
         folder.listFiles()?.forEach { file ->
             if (file.isFile && !file.name.endsWith(".enc")) {
                 val outputFile = File(path, "${file.name}.enc")
-                EncryptionHelper.encryptFile(activity, file, outputFile)
+                EncryptionHelper.encryptFile(activity, file, outputFile, secret)
                 file.delete()
             }
         }
     }
 
     private fun tryDecryptFolder() {
-        activity.handleHiddenFolderPasswordProtection {
-            activity.toast(R.string.decrypting)
-            ensureBackgroundThread {
-                getSelectedPaths().forEach { path ->
-                    decryptFolder(path)
-                    config.removeEncryptedFolder(path)
-                }
-                activity.runOnUiThread {
-                    activity.toast(R.string.decryption_finished)
-                    listener?.refreshItems()
-                    finishActMode()
+        val firstPath = getSelectedPaths().first()
+        SecurityDialog(activity, config.getFolderProtectionHash(firstPath), config.getFolderProtectionType(firstPath)) { hash, _, success ->
+            if (success) {
+                activity.toast(R.string.decrypting)
+                ensureBackgroundThread {
+                    getSelectedPaths().forEach { path ->
+                        decryptFolder(path, hash)
+                        config.removeEncryptedFolder(path)
+                        config.clearFolderEncryptionSecret(path)
+                    }
+                    activity.runOnUiThread {
+                        activity.toast(R.string.decryption_finished)
+                        listener?.refreshItems()
+                        finishActMode()
+                    }
                 }
             }
         }
     }
 
-    private fun decryptFolder(path: String) {
+    private fun decryptFolder(path: String, secret: String) {
         val folder = File(path)
         folder.listFiles()?.forEach { file ->
             if (file.isFile && file.name.endsWith(".enc")) {
                 val outputFile = File(path, file.name.removeSuffix(".enc"))
-                EncryptionHelper.decryptFile(activity, file, outputFile)
+                EncryptionHelper.decryptFile(activity, file, outputFile, secret)
                 file.delete()
             }
         }

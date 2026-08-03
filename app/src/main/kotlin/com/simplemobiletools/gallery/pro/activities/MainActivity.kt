@@ -291,8 +291,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         config.temporarilyShowHidden = false
         config.temporarilyShowHiddenOnly = false
         config.temporarilyShowExcluded = false
-        mTrackingTopBottomScroll = false
-        removeRecyclerScrollListener()
         ensureBackgroundThread {
             java.io.File(cacheDir, "temp_decrypted").deleteRecursively()
         }
@@ -917,7 +915,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     private fun itemClicked(path: String) {
         if (config.isFolderEncrypted(path)) {
-            handleHiddenFolderPasswordProtection {
+            requestFolderSecret(path) { secret ->
+                if (secret.isNullOrEmpty()) return@requestFolderSecret
                 toast(R.string.decrypting)
                 ensureBackgroundThread {
                     val tempCacheFolder = java.io.File(cacheDir, "temp_decrypted/${java.io.File(path).name}")
@@ -928,7 +927,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                     files?.forEach { file ->
                         if (file.isFile && file.name.endsWith(".enc")) {
                             val decryptedFile = java.io.File(tempCacheFolder, file.name.removeSuffix(".enc"))
-                            com.simplemobiletools.gallery.pro.helpers.EncryptionHelper.decryptFile(this@MainActivity, file, decryptedFile)
+                            com.simplemobiletools.gallery.pro.helpers.EncryptionHelper.decryptFile(this@MainActivity, file, decryptedFile, secret)
                         }
                     }
 

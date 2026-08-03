@@ -11,6 +11,7 @@ import com.bumptech.glide.signature.ObjectKey
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
 import org.apache.commons.net.ftp.FTPClient
+import java.io.File
 import java.io.InputStream
 
 class RemoteModelLoader(private val config: Config) : ModelLoader<String, InputStream> {
@@ -108,5 +109,53 @@ class RemoteDataFetcher(private val curPath: String, private val config: Config)
 
     override fun getDataSource(): DataSource {
         return DataSource.REMOTE
+    }
+}
+
+/**
+ * Downloads a remote:// media file to a temp file in [cacheDir] and returns its path.
+ * Used by the video player (media3) which cannot open remote:// URLs directly.
+ * Returns null if the download fails.
+ */
+fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): String? {
+    return try {
+        val parts = curPath.removePrefix("remote://").split("/", limit = 3)
+        if (parts.size < 3) return null
+
+        val protocol = parts[0]
+        val serverId = parts[1].toLongOrNull() ?: return null
+        val remotePath = "/${parts[2]}"
+
+        val server = config.parseRemoteServers().find { it.id == serverId } ?: return null
+        val password = config.getRemoteServerPassword(serverId)
+
+        val tempFile = File(cacheDir, "remote_${serverId}_${remotePath.hashCode()}.tmp")
+        val inputStream: java.io.InputStream? = if (protocol == "ftp") {
+            val ftpClient = FTPClient()
+            ftpClient.connect(server.host, server.port)
+            ftpClient.login(server.username, password)
+            ftpClient.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
+            val stream = ftpClient.retrieveFileStream(remotePath)
+            // ensure the stream is closed when the temp file is fully written
+            stream
+        } else if (protocol == "sftp") {
+            val jsch = JSch()
+            val session = jsch.getSession(server.username, server.host, server.port)
+            session.setPassword(password)
+            session.setConfig("StrictHostKeyChecking", "no")
+            session.connect()
+            val channel = session.openChannel("sftp") as ChannelSftp
+            channel.connect()
+            channel.get(remotePath)
+        } else {
+            null
+        }
+
+        inputStream?.use { src ->
+            tempFile.outputStream().use { out -> src.copyTo(out) }
+        }
+        if (tempFile.exists() && tempFile.length() > 0) tempFile.absolutePath else null
+    } catch (e: Exception) {
+        null
     }
 }

@@ -100,6 +100,7 @@ class SettingsActivity : SimpleActivity() {
         setupShowRecycleBinLast()
         setupEmptyRecycleBin()
         updateTextColors(binding.settingsHolder)
+        binding.settingsHolder.setBackgroundColor(getProperBackgroundColor())
         setupClearCache()
         setupExportFavorites()
         setupImportFavorites()

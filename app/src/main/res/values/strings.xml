@@ -4,6 +4,9 @@
     <string name="app_launcher_name">Gallery</string>
     <string name="edit">Edit</string>
     <string name="save">Save</string>
+    <string name="save_copy">Save copy</string>
+    <string name="overwrite">Overwrite</string>
+    <string name="save_overwrite_confirm">Save changes to %s?</string>
     <string name="resize">Resize</string>
     <string name="random">Random</string>
     <string name="lock_folder">Lock folder</string>

@@ -312,28 +312,53 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
                     
                     if (!isSourceEncrypted && isDestEncrypted) {
                         ensureBackgroundThread {
-                            fileDirItems.forEach { item ->
+                            fileDirItems.forEachIndexed { index, item ->
                                 val copiedFile = File(destination, item.name)
                                 if (copiedFile.exists() && !copiedFile.name.endsWith(".enc")) {
                                     val encryptedFile = File(destination, "${item.name}.enc")
-                                    EncryptionHelper.encryptFile(this@tryCopyMoveFilesTo, copiedFile, encryptedFile)
+                                    val secret = config.getFolderEncryptionSecret(destination)
+                                    if (secret != null) {
+                                        EncryptionHelper.encryptFile(this@tryCopyMoveFilesTo, copiedFile, encryptedFile, secret)
+                                    } else {
+                                        EncryptionHelper.encryptFile(this@tryCopyMoveFilesTo, copiedFile, encryptedFile)
+                                    }
                                     copiedFile.delete()
-                                    item.name = "${item.name}.enc"
-                                    item.path = "${destination}/${item.name}"
+                                    fileDirItems[index] = FileDirItem(
+                                        path = "$destination/${item.name}.enc",
+                                        name = "${item.name}.enc",
+                                        isDirectory = item.isDirectory,
+                                        children = item.children,
+                                        size = item.size,
+                                        modified = item.modified,
+                                        mediaStoreId = item.mediaStoreId
+                                    )
                                 }
                             }
                             runOnUiThread { callback(destination) }
                         }
                     } else if (isSourceEncrypted && !isDestEncrypted) {
                         ensureBackgroundThread {
-                            fileDirItems.forEach { item ->
+                            fileDirItems.forEachIndexed { index, item ->
                                 val copiedFile = File(destination, item.name)
                                 if (copiedFile.exists() && copiedFile.name.endsWith(".enc")) {
-                                    val decryptedFile = File(destination, copiedFile.name.removeSuffix(".enc"))
-                                    EncryptionHelper.decryptFile(this@tryCopyMoveFilesTo, copiedFile, decryptedFile)
+                                    val decryptedName = item.name.removeSuffix(".enc")
+                                    val decryptedFile = File(destination, decryptedName)
+                                    val secret = config.getFolderEncryptionSecret(destination)
+                                    if (secret != null) {
+                                        EncryptionHelper.decryptFile(this@tryCopyMoveFilesTo, copiedFile, decryptedFile, secret)
+                                    } else {
+                                        EncryptionHelper.decryptFile(this@tryCopyMoveFilesTo, copiedFile, decryptedFile)
+                                    }
                                     copiedFile.delete()
-                                    item.name = item.name.removeSuffix(".enc")
-                                    item.path = "${destination}/${item.name}"
+                                    fileDirItems[index] = FileDirItem(
+                                        path = "$destination/$decryptedName",
+                                        name = decryptedName,
+                                        isDirectory = item.isDirectory,
+                                        children = item.children,
+                                        size = item.size,
+                                        modified = item.modified,
+                                        mediaStoreId = item.mediaStoreId
+                                    )
                                 }
                             }
                             runOnUiThread { callback(destination) }
@@ -344,6 +369,16 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
                 }
             }
         }
+    }
+}
+
+fun BaseSimpleActivity.requestFolderSecret(path: String, callback: (hash: String?) -> Unit) {
+    SecurityDialog(
+        this,
+        config.getFolderProtectionHash(path),
+        config.getFolderProtectionType(path)
+    ) { hash, _, success ->
+        callback(if (success) hash else null)
     }
 }
 

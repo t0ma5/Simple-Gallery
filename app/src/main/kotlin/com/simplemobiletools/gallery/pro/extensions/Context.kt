@@ -698,6 +698,28 @@ fun Context.getCachedDirectories(
             }
         }
 
+        // Make sure remote servers and encrypted folders always show up in the folder list,
+        // even if a scan has not yet produced any media for them.
+        val existingPaths = filteredDirectories.map { it.path }.toSet()
+        val synthetic = ArrayList<Directory>()
+
+        config.parseRemoteServers().forEach {
+            val protocol = if (it.type == com.simplemobiletools.gallery.pro.models.RemoteServer.TYPE_FTP) "ftp" else "sftp"
+            val remotePath = "remote://$protocol/${it.id}${it.remotePath}"
+            if (!existingPaths.contains(remotePath)) {
+                synthetic.add(Directory(null, remotePath, it.name, remotePath, 0, 0L, 0L, 0L, 0, 0, ""))
+            }
+        }
+
+        config.encryptedFolders.forEach { encPath ->
+            if (!existingPaths.contains(encPath)) {
+                val name = encPath.getFilenameFromPath()
+                synthetic.add(Directory(null, encPath, name, encPath, 0, 0L, 0L, 0L, 0, 0, ""))
+            }
+        }
+
+        filteredDirectories.addAll(synthetic)
+
         val clone = filteredDirectories.clone() as ArrayList<Directory>
         callback(clone.distinctBy { it.path.getDistinctPath() } as ArrayList<Directory>)
         removeInvalidDBDirectories(filteredDirectories)

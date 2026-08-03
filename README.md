@@ -1,28 +1,37 @@
 # Simple Gallery
 
-[![GitHub Release](https://img.shields.io/github/v/release/user/simple-gallery)](https://github.com/user/simple-gallery/releases)
-[![GitHub Stars](https://img.shields.io/github/stars/user/simple-gallery?style=social)](https://github.com/user/simple-gallery/stargazers)
-[![GitHub Downloads](https://img.shields.io/github/downloads/user/simple-gallery/total)](https://github.com/user/simple-gallery/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/SimpleMobileTools/Simple-Gallery)](https://github.com/SimpleMobileTools/Simple-Gallery/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/SimpleMobileTools/Simple-Gallery?style=social)](https://github.com/SimpleMobileTools/Simple-Gallery/stargazers)
+[![GitHub Downloads](https://img.shields.io/github/downloads/SimpleMobileTools/Simple-Gallery/total)](https://github.com/SimpleMobileTools/Simple-Gallery/releases)
 
-**Status:** Active development 🟢 — Fork of [Fossify Gallery](https://github.com/FossifyOrg/Gallery) with security enhancements. **Incomplete — FTP/SFTP + encryption features being added.**
+**Status:** Active development 🟢 — A fork of [SimpleMobileTools/Simple-Gallery](https://github.com/SimpleMobileTools/Simple-Gallery) with added security and remote-storage features.
 
-A fast, privacy-focused photo and video gallery app for Android. Browse, manage, and edit your media with full support for common and advanced file types. Built on the lightweight SimpleMobileTools/Fossify codebase, this fork adds ongoing security hardening and planned remote-storage features.
-
-Unlike many gallery apps, Simple Gallery respects your privacy — no ads, no trackers, no internet permissions required. All processing stays on-device.
+A fast, privacy-focused photo and video gallery app for Android. Browse, manage, and edit your media with full support for common and advanced file types. Built on the lightweight SimpleMobileTools codebase, this fork adds on-device file encryption, FTP/SFTP remote browsing, and related security hardening.
 
 ## Features
 
-- **Photo Editor** — Crop, flip, rotate, resize, and apply filters
+- **Photo Editor** — Crop, flip, rotate, resize, draw, and apply filters
 - **Wide Format Support** — JPEG, PNG, MP4, MKV, RAW, SVG, GIF, panoramic photos, and more
 - **Customizable UI** — Adjust the layout and toolbar to your preferences
-- **Deleted File Recovery** — Recover accidentally deleted photos and videos
-- **Private Gallery** — PIN, pattern, or fingerprint protection for selected items
-- **FTP/SFTP Access** *(in progress)* — Browse and transfer media over network storage
-- **Encrypted Storage** *(in progress)* — On-device encryption for sensitive albums
+- **Deleted File Recovery** — Recover accidentally deleted photos and videos from the Recycle Bin
+- **Private Gallery** — PIN, pattern, or fingerprint protection for selected folders
+- **On-device Encryption** — Encrypt/decrypt folders locally; encrypted media is transparently decrypted when opened and securely purged from the cache on exit
+- **FTP / SFTP Access** — Add remote servers and browse/transfer media over network storage (thumbnails streamed via Glide)
+- **Remote Thumbnails** — `remote://` media is loaded directly into the gallery's thumbnail pipeline
+
+> **Note on network access:** FTP/SFTP support requires the `INTERNET` permission. The app only connects to servers you explicitly configure; there are no ads and no analytics/trackers.
 
 ## Install
 
 [Get it on F-Droid](https://f-droid.org/packages/com.simplemobiletools.gallery.pro)
+
+## Build
+
+Requirements: Android SDK (compileSdk 35), JDK 17+, Gradle 8.7 (wrapper provided).
+
+```bash
+./gradlew assembleFossDebug     # or assembleProprietaryDebug for the proprietary flavor
+```
 
 ## Support
 

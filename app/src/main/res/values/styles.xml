@@ -2,78 +2,10 @@
 
     <style name="AppTheme" parent="AppTheme.Base" />
 
-    <style name="TranslucentTheme" parent="AppTheme" />
-
     <style name="FullScreenTheme.Base" parent="AppTheme">
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowTranslucentNavigation">true</item>
     </style>
 
     <style name="FullScreenTheme" parent="FullScreenTheme.Base" />
-
-    <style name="SettingsSectionLabelStyle">
-        <item name="android:textSize">14sp</item>
-        <item name="android:textColor">@color/colorPrimary</item>
-        <item name="android:paddingTop">24dp</item>
-        <item name="android:paddingStart">16dp</item>
-        <item name="android:paddingEnd">16dp</item>
-        <item name="android:paddingBottom">8dp</item>
-    </style>
-
-    <style name="SettingsTextLabelStyle">
-        <item name="android:textSize">16sp</item>
-        <item name="android:textColor">?android:attr/textColorPrimary</item>
-        <item name="android:paddingTop">14dp</item>
-        <item name="android:paddingBottom">14dp</item>
-    </style>
-
-    <style name="SettingsTextValueStyle">
-        <item name="android:textSize">14sp</item>
-        <item name="android:textColor">?android:attr/textColorSecondary</item>
-    </style>
-
-    <style name="SettingsHolderTextViewStyle">
-        <item name="android:background">?attr/selectableItemBackground</item>
-        <item name="android:paddingStart">16dp</item>
-        <item name="android:paddingEnd">16dp</item>
-    </style>
-
-    <style name="SettingsHolderTextViewOneLinerStyle">
-        <item name="android:background">?attr/selectableItemBackground</item>
-        <item name="android:paddingStart">16dp</item>
-        <item name="android:paddingEnd">16dp</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:minHeight">56dp</item>
-    </style>
-
-    <style name="SettingsHolderCheckboxStyle">
-        <item name="android:background">?attr/selectableItemBackground</item>
-        <item name="android:paddingStart">16dp</item>
-        <item name="android:paddingEnd">16dp</item>
-        <item name="android:minHeight">56dp</item>
-        <item name="android:gravity">center_vertical</item>
-    </style>
-
-    <style name="SettingsCheckboxStyle">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-    </style>
-
-    <style name="MyWidgetConfigSaveStyle">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:text">@string/save</item>
-    </style>
-
-    <style name="UnclickableEditText">
-        <item name="android:background">@android:color/transparent</item>
-        <item name="android:focusable">false</item>
-        <item name="android:focusableInTouchMode">false</item>
-    </style>
-
-    <style name="OverflowMenuAnchorStyle">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-    </style>
-
 </resources>

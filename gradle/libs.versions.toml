@@ -12,8 +12,8 @@ androidx-constraintlayout = "2.1.4"
 exif = "1.0.1"
 #Room
 room = "2.5.2"
-#Simple tools
-simple-commons = "23edeb5ef"
+#Simple Mobile Tools (local build published to mavenLocal from ../Simple-Commons @ 9e60e24)
+simple-commons = "5.34.26"
 #Gradle
 gradlePlugins-agp = "8.6.0"
 #Other
@@ -32,6 +32,8 @@ media3Exoplayer = "1.1.0"
 okhttp = "4.9.0"
 okio = "3.0.0"
 picasso = "2.71828"
+sdkVideowidget = "1.180.0"
+sdkPanowidget = "1.180.0"
 #build
 app-build-compileSDKVersion = "35"
 app-build-targetSDK = "33"
@@ -55,8 +57,8 @@ exif = { module = "it.sephiroth.android.exif:library", version.ref = "exif" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
-#Simple Mobile Tools
-simple-tools-commons = { module = "org.fossify:commons", version.ref = "simple-commons" }
+#Simple Mobile Tools (local build: com.simplemobiletools.commons:release:5.34.26 in mavenLocal)
+simple-tools-commons = { module = "com.simplemobiletools.commons:release", version.ref = "simple-commons" }
 #Other
 commons-net = { module = "commons-net:commons-net", version.ref = "commonsNet" }
 jsch = { module = "com.github.mwiede:jsch", version.ref = "jsch" }
@@ -73,6 +75,9 @@ awebp = { module = "com.github.penfeizhou.android.animation:awebp", version.ref 
 glide-compiler = { module = "com.github.bumptech.glide:ksp", version.ref = "glideCompiler" }
 zjupure-webpdecoder = { module = "com.github.zjupure:webpdecoder", version.ref = "zjupureWebpdecoder" }
 picasso = { module = "com.squareup.picasso:picasso", version.ref = "picasso" }
+sdk-videowidget = { module = "com.google.vr:sdk-videowidget", version.ref = "sdkVideowidget" }
+sdk-panowidget = { module = "com.google.vr:sdk-panowidget", version.ref = "sdkPanowidget" }
+bignerdranch-multiselector = { module = "com.bignerdranch.android:recyclerview-multiselect", version = "0.2" }
 [bundles]
 room = [
     "androidx-room-ktx",

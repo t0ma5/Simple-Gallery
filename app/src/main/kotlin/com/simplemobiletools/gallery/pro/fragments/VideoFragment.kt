@@ -353,7 +353,19 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
         }
 
         val isContentUri = mMedium.path.startsWith("content://")
-        val uri = if (isContentUri) Uri.parse(mMedium.path) else Uri.fromFile(File(mMedium.path))
+        val isRemote = mMedium.path.startsWith("remote://")
+        val uri = if (isRemote) {
+            val tempPath = downloadRemoteFileToTemp(mMedium.path, mConfig, requireContext().cacheDir)
+            if (tempPath == null) {
+                activity?.showErrorToast(Exception("Failed to download remote video"))
+                return
+            }
+            Uri.fromFile(File(tempPath))
+        } else if (isContentUri) {
+            Uri.parse(mMedium.path)
+        } else {
+            Uri.fromFile(File(mMedium.path))
+        }
         val dataSpec = DataSpec(uri)
         val fileDataSource = if (isContentUri) {
             ContentDataSource(requireContext())

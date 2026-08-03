@@ -15,7 +15,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <com.simplemobiletools.commons.views.MyRadioButton
+            <com.simplemobiletools.commons.views.MyCompatRadioButton
                 android:id="@+id/type_ftp"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -23,7 +23,7 @@
                 android:checked="true"
                 android:text="@string/ftp" />
 
-            <com.simplemobiletools.commons.views.MyRadioButton
+            <com.simplemobiletools.commons.views.MyCompatRadioButton
                 android:id="@+id/type_sftp"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"

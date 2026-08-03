@@ -523,15 +523,6 @@ class MediaFetcher(val context: Context) {
                     dateTaken = newDateTaken
                 }
 
-                val type = when {
-                    isVideo -> TYPE_VIDEOS
-                    isGif -> TYPE_GIFS
-                    isRaw -> TYPE_RAWS
-                    isSvg -> TYPE_SVGS
-                    isPortrait -> TYPE_PORTRAITS
-                    else -> TYPE_IMAGES
-                }
-
                 val isFavorite = favoritePaths.contains(path)
                 val medium = Medium(null, filename, path, file.parent, lastModified, dateTaken, size, type, videoDuration, isFavorite, 0L, 0L)
                 media.add(medium)

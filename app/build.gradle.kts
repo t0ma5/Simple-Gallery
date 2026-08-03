@@ -25,7 +25,7 @@ android {
         targetSdk = project.libs.versions.app.build.targetSDK.get().toInt()
         versionName = libs.versions.app.version.versionName.get()
         versionCode = libs.versions.app.version.versionCode.get().toInt()
-        setProperty("archivesBaseName", "gallery-$versionCode")
+        setProperty("archivesBaseName", "Gallery+-$versionCode")
     }
 
     signingConfigs {
@@ -108,7 +108,7 @@ dependencies {
     }
 
     implementation("com.github.naveensingh:androidphotofilters:193f2ae509")
-    implementation("com.bignerdranch.android:recyclerview-multiselect:0.2")
+    implementation(libs.bignerdranch.multiselector)
     implementation(libs.commons.net)
     implementation(libs.jsch)
     implementation(libs.android.image.cropper)
@@ -124,15 +124,16 @@ dependencies {
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.awebp)
     implementation(libs.apng)
+    implementation(libs.sdk.panowidget)
+    implementation(libs.sdk.videowidget)
     implementation(libs.okio)
     implementation(libs.picasso) {
         exclude(group = "com.squareup.okhttp3", module = "okhttp")
     }
     compileOnly(libs.okhttp)
 
-    implementation(libs.zjupure.webpdecoder)
-
     ksp(libs.glide.compiler)
+    implementation(libs.zjupure.webpdecoder)
 
     implementation(libs.bundles.room)
     ksp(libs.androidx.room.compiler)

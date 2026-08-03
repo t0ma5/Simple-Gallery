@@ -14,9 +14,11 @@ import com.simplemobiletools.gallery.pro.extensions.config
 import com.simplemobiletools.gallery.pro.models.RemoteServer
 import com.google.gson.Gson
 
+private const val MENU_EDIT = 1001
+
 class ManageFoldersAdapter(
     activity: BaseSimpleActivity, var folders: ArrayList<Any>, val isShowingExcludedFolders: Boolean, val listener: RefreshRecyclerViewListener?,
-    recyclerView: MyRecyclerView, itemClick: (Any) -> Unit
+    recyclerView: MyRecyclerView, val editCallback: ((Any) -> Unit)? = null, itemClick: (Any) -> Unit
 ) : MyRecyclerViewAdapter(activity, recyclerView, itemClick) {
 
     private val config = activity.config
@@ -95,12 +97,19 @@ class ManageFoldersAdapter(
         val contextTheme = ContextThemeWrapper(activity, theme)
 
         PopupMenu(contextTheme, view, Gravity.END).apply {
-            inflate(getActionMenuId())
+            // Edit only makes sense for local path entries, not remote server entries.
+            if (folder is String && editCallback != null) {
+                menu.add(0, MENU_EDIT, 0, com.simplemobiletools.commons.R.string.edit)
+            }
+            menu.add(0, com.simplemobiletools.commons.R.id.cab_remove, 1, com.simplemobiletools.commons.R.string.remove)
             setOnMenuItemClickListener { item ->
-                val eventTypeId = folder.hashCode()
                 when (item.itemId) {
+                    MENU_EDIT -> {
+                        editCallback?.invoke(folder)
+                    }
+
                     com.simplemobiletools.commons.R.id.cab_remove -> {
-                        executeItemMenuOperation(eventTypeId) {
+                        executeItemMenuOperation(folder.hashCode()) {
                             removeSelection()
                         }
                     }

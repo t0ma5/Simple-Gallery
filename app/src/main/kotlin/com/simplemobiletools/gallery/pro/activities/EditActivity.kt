@@ -320,19 +320,19 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         } else if (binding.editorDrawCanvas.isVisible()) {
             val bitmap = binding.editorDrawCanvas.getBitmap()
             if (saveUri.scheme == "file") {
-                SaveAsDialog(this, saveUri.path!!, true) {
+                SaveAsDialog(this, saveUri.path!!, simple = true) {
                     saveBitmapToFile(bitmap, it, true)
                 }
             } else if (saveUri.scheme == "content") {
                 val filePathGetter = getNewFilePath()
-                SaveAsDialog(this, filePathGetter.first, filePathGetter.second) {
+                SaveAsDialog(this, filePathGetter.first, simple = true) {
                     saveBitmapToFile(bitmap, it, true)
                 }
             }
         } else {
             val currentFilter = getFiltersAdapter()?.getCurrentFilter() ?: return
             val filePathGetter = getNewFilePath()
-            SaveAsDialog(this, filePathGetter.first, filePathGetter.second) {
+            SaveAsDialog(this, filePathGetter.first, simple = true) {
                 toast(com.simplemobiletools.commons.R.string.saving)
 
                 // clean up everything to free as much memory as possible

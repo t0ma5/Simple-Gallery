@@ -618,4 +618,30 @@ class Config(context: Context) : BaseConfig(context) {
     fun getRemoteServerPassword(serverId: Long): String {
         return encryptedPrefs.getString("remote_password_$serverId", "") ?: ""
     }
+
+    // Plaintext store of folder -> encryption secret (the user's lock pattern/pin hash).
+    // Stored in regular prefs (NOT EncryptedSharedPreferences) on purpose: the user wants to be
+    // able to recover the secret from app data without brute force on a beta build.
+    var folderEncryptionSecrets: HashMap<String, String>
+        get() {
+            val json = prefs.getString("folder_encryption_secrets", "")
+            if (json.isNullOrEmpty()) return HashMap()
+            val type = object : TypeToken<HashMap<String, String>>() {}.type
+            return Gson().fromJson(json, type) ?: HashMap()
+        }
+        set(value) = prefs.edit().putString("folder_encryption_secrets", Gson().toJson(value)).apply()
+
+    fun getFolderEncryptionSecret(path: String): String? = folderEncryptionSecrets[path]
+
+    fun setFolderEncryptionSecret(path: String, secret: String) {
+        val curr = folderEncryptionSecrets
+        curr[path] = secret
+        folderEncryptionSecrets = curr
+    }
+
+    fun clearFolderEncryptionSecret(path: String) {
+        val curr = folderEncryptionSecrets
+        curr.remove(path)
+        folderEncryptionSecrets = curr
+    }
 }

@@ -6,6 +6,7 @@ import com.simplemobiletools.commons.extensions.getProperTextColor
 import com.simplemobiletools.commons.extensions.viewBinding
 import com.simplemobiletools.commons.helpers.NavigationIcon
 import com.simplemobiletools.commons.dialogs.RadioGroupDialog
+import com.simplemobiletools.commons.helpers.ensureBackgroundThread
 import com.simplemobiletools.commons.interfaces.RefreshRecyclerViewListener
 import com.simplemobiletools.commons.models.RadioItem
 import com.simplemobiletools.gallery.pro.dialogs.AddRemoteServerDialog
@@ -13,6 +14,7 @@ import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.adapters.ManageFoldersAdapter
 import com.simplemobiletools.gallery.pro.databinding.ActivityManageFoldersBinding
 import com.simplemobiletools.gallery.pro.extensions.config
+import com.simplemobiletools.gallery.pro.extensions.rescanFolderMedia
 
 class IncludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
 
@@ -46,7 +48,17 @@ class IncludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
             setTextColor(getProperTextColor())
         }
 
-        val adapter = ManageFoldersAdapter(this, folders, false, this, binding.manageFoldersList) {}
+        val adapter = ManageFoldersAdapter(
+            this, folders, false, this, binding.manageFoldersList,
+            editCallback = { folder ->
+                if (folder is String) {
+                    config.removeIncludedFolder(folder)
+                    showAddIncludedFolderDialog {
+                        updateFolders()
+                    }
+                }
+            }
+        ) {}
         binding.manageFoldersList.adapter = adapter
     }
 
@@ -84,6 +96,9 @@ class IncludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
     private fun addRemoteServer() {
         AddRemoteServerDialog(this) {
             updateFolders()
+            ensureBackgroundThread {
+                rescanFolderMedia("/")
+            }
         }
     }
 }
