@@ -615,8 +615,20 @@ class Config(context: Context) : BaseConfig(context) {
         encryptedPrefs.edit().putString("remote_password_$serverId", password).apply()
     }
 
-    fun getRemoteServerPassword(serverId: Long): String {
-        return encryptedPrefs.getString("remote_password_$serverId", "") ?: ""
+    fun getRemoteServerPassword(serverId: Long, fallbackHash: String = ""): String {
+        val fromKeystore = encryptedPrefs.getString("remote_password_$serverId", "") ?: ""
+        return if (fromKeystore.isNotEmpty()) {
+            fromKeystore
+        } else {
+            // Legacy servers (added before the keystore migration) stored the
+            // plaintext password in the Gson passwordHash field. Migrate it once.
+            if (fallbackHash.isNotEmpty()) {
+                saveRemoteServerPassword(serverId, fallbackHash)
+                fallbackHash
+            } else {
+                ""
+            }
+        }
     }
 
     // Plaintext store of folder -> encryption secret (the user's lock pattern/pin hash).

@@ -53,7 +53,7 @@ class RemoteDataFetcher(private val curPath: String, private val config: Config)
             val server = config.parseRemoteServers().find { it.id == serverId }
                 ?: return callback.onLoadFailed(Exception("Server not found"))
 
-            val password = config.getRemoteServerPassword(serverId)
+            val password = config.getRemoteServerPassword(serverId, server.passwordHash)
 
             if (protocol == "ftp") {
                 ftpClient = FTPClient()
@@ -127,7 +127,7 @@ fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): S
         val remotePath = "/${parts[2]}"
 
         val server = config.parseRemoteServers().find { it.id == serverId } ?: return null
-        val password = config.getRemoteServerPassword(serverId)
+        val password = config.getRemoteServerPassword(serverId, server.passwordHash)
 
         val tempFile = File(cacheDir, "remote_${serverId}_${remotePath.hashCode()}.tmp")
         val inputStream: java.io.InputStream? = if (protocol == "ftp") {

@@ -102,7 +102,7 @@ class MediaFetcher(val context: Context) {
             if (protocol == "ftp") {
                 val ftpClient = FTPClient()
                 ftpClient.connect(server.host, server.port)
-                ftpClient.login(server.username, context.config.getRemoteServerPassword(server.id!!))
+                ftpClient.login(server.username, context.config.getRemoteServerPassword(server.id!!, server.passwordHash))
                 ftpClient.changeWorkingDirectory(remotePath)
                 val files = ftpClient.listFiles()
                 files.forEach { file ->
@@ -135,7 +135,7 @@ class MediaFetcher(val context: Context) {
             } else if (protocol == "sftp") {
                 val jsch = JSch()
                 val session = jsch.getSession(server.username, server.host, server.port)
-                session.setPassword(context.config.getRemoteServerPassword(server.id!!))
+                session.setPassword(context.config.getRemoteServerPassword(server.id!!, server.passwordHash))
                 session.setConfig("StrictHostKeyChecking", "no")
                 session.connect()
                 val channel = session.openChannel("sftp") as ChannelSftp

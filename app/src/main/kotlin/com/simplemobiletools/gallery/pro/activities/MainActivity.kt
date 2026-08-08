@@ -1364,6 +1364,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val invalidDirs = ArrayList<Directory>()
         val OTGPath = config.OTGPath
         dirs.filter { !it.areFavorites() && !it.isRecycleBin() }.forEach {
+            // remote:// and encrypted dirs are synthetic (added by getCachedDirectories),
+            // they never map to a real local path / media files, so always keep them.
+            if (it.path.startsWith("remote://") || config.isFolderEncrypted(it.path)) {
+                return@forEach
+            }
             if (!getDoesFilePathExist(it.path, OTGPath)) {
                 invalidDirs.add(it)
             } else if (it.path != config.tempFolderPath && (!isRPlus() || isExternalStorageManager())) {
