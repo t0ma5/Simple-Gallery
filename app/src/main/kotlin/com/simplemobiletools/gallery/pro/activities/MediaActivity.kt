@@ -33,6 +33,8 @@ import com.simplemobiletools.gallery.pro.dialogs.*
 import com.simplemobiletools.gallery.pro.extensions.*
 import com.simplemobiletools.gallery.pro.helpers.*
 import com.simplemobiletools.gallery.pro.interfaces.MediaOperationsListener
+import com.simplemobiletools.gallery.pro.models.Directory
+import com.simplemobiletools.gallery.pro.models.FolderTile
 import com.simplemobiletools.gallery.pro.models.Medium
 import com.simplemobiletools.gallery.pro.models.ThumbnailItem
 import com.simplemobiletools.gallery.pro.models.ThumbnailSection
@@ -427,7 +429,9 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 this, mMedia.clone() as ArrayList<ThumbnailItem>, this, mIsGetImageIntent || mIsGetVideoIntent || mIsGetAnyIntent,
                 mAllowPickingMultiple, mPath, binding.mediaGrid
             ) {
-                if (it is Medium && !isFinishing) {
+                if (it is FolderTile && !isFinishing) {
+                    openFolder(it.directory.path)
+                } else if (it is Medium && !isFinishing) {
                     itemClicked(it.path)
                 }
             }.apply {
@@ -869,12 +873,19 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
         mIsGettingMedia = false
         checkLastMediaChanged()
-        mMedia = media
+        mMedia = if (shouldShowSubfolders()) {
+            val all = ArrayList<ThumbnailItem>()
+            all.addAll(getSubfolderTiles())
+            all.addAll(media)
+            all
+        } else {
+            media
+        }
 
         runOnUiThread {
             binding.mediaRefreshLayout.isRefreshing = false
-            binding.mediaEmptyTextPlaceholder.beVisibleIf(media.isEmpty() && !isFromCache)
-            binding.mediaEmptyTextPlaceholder2.beVisibleIf(media.isEmpty() && !isFromCache)
+            binding.mediaEmptyTextPlaceholder.beVisibleIf(mMedia.isEmpty() && !isFromCache)
+            binding.mediaEmptyTextPlaceholder2.beVisibleIf(mMedia.isEmpty() && !isFromCache)
 
             if (binding.mediaEmptyTextPlaceholder.isVisible()) {
                 binding.mediaEmptyTextPlaceholder.text = getString(R.string.no_media_with_filters)
@@ -893,6 +904,73 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 } catch (e: Exception) {
                 }
             }.start()
+        }
+    }
+
+    // show subfolders as tappable tiles inside a folder ("folders inside folders")
+    private fun shouldShowSubfolders(): Boolean {
+        return !mShowAll && mPath.isNotEmpty() && mPath != FAVORITES && mPath != RECYCLE_BIN && mPath != config.OTGPath &&
+            !mPath.startsWith("remote://") && mPath != config.tempFolderPath && File(mPath).isDirectory
+    }
+
+    private fun getSubfolderTiles(): ArrayList<FolderTile> {
+        val tiles = ArrayList<FolderTile>()
+        val showHidden = config.shouldShowHidden || config.temporarilyShowHidden
+        val children = File(mPath).listFiles()?.filter { it.isDirectory } ?: return tiles
+        val dbDirs = directoryDB.getAll().associateBy { it.path }
+        val excludedFolders = config.excludedFolders
+
+        children.filter { dir ->
+            if (!showHidden && dir.name.startsWith(".")) {
+                false
+            } else {
+                excludedFolders.none { dir.absolutePath.startsWith(it) }
+            }
+        }.forEach { dir ->
+            val existing = dbDirs[dir.absolutePath]
+            val directory = existing ?: Directory(null, dir.absolutePath, "", dir.name, 0, dir.lastModified(), 0, 0L, getPathLocation(dir.absolutePath), 0, "")
+            tiles.add(FolderTile(directory))
+        }
+        return tiles
+    }
+
+    private fun openFolder(path: String) {
+        if (config.isFolderEncrypted(path)) {
+            requestFolderSecret(path) { secret ->
+                if (secret.isNullOrEmpty()) return@requestFolderSecret
+                toast(R.string.decrypting)
+                ensureBackgroundThread {
+                    val tempCacheFolder = File(cacheDir, "temp_decrypted/${File(path).name}")
+                    tempCacheFolder.deleteRecursively()
+                    tempCacheFolder.mkdirs()
+
+                    val files = File(path).listFiles()
+                    files?.forEach { file ->
+                        if (file.isFile && file.name.endsWith(".enc")) {
+                            val decryptedFile = File(tempCacheFolder, file.name.removeSuffix(".enc"))
+                            EncryptionHelper.decryptFile(this, file, decryptedFile, secret)
+                        }
+                    }
+
+                    runOnUiThread {
+                        Intent(this, MediaActivity::class.java).apply {
+                            putExtra(SKIP_AUTHENTICATION, true)
+                            putExtra(DIRECTORY, tempCacheFolder.absolutePath)
+                            startActivity(this)
+                        }
+                    }
+                }
+            }
+        } else {
+            handleLockedFolderOpening(path) { success ->
+                if (success) {
+                    Intent(this, MediaActivity::class.java).apply {
+                        putExtra(SKIP_AUTHENTICATION, true)
+                        putExtra(DIRECTORY, path)
+                        startActivity(this)
+                    }
+                }
+            }
         }
     }
 

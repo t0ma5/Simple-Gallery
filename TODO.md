@@ -44,6 +44,20 @@
       `PickDirectoryDialog` keeps `allDirectories` synced on every fetch (committed),
       so search filters the hidden-included set. Verified current source keeps that sync.
 
+## New feature: folders inside folders (DONE)
+
+- [x] **Subfolder tiles inside a folder** — opening a folder now lists its direct
+      subfolders as tappable tiles at the top of the media grid (`MediaActivity`):
+      - New `models/FolderTile.kt` — wraps a `Directory` for the media-grid item model.
+      - `MediaAdapter` renders folder tiles (reuses `DirectoryItemGridSquareBinding` /
+        `DirectoryItemListBinding`) — new item type `ITEM_FOLDER_TILE`.
+      - Tap a folder tile → opens the subfolder (new `MediaActivity` instance), back
+        goes up one level. Encrypted subfolders decrypt to the temp folder like the
+        main screen does; locked folders keep the auth dialog.
+      - Hidden + excluded subfolders are filtered like the main folder list.
+      - Bonus fix: a folder containing only subfolders is no longer treated as empty
+        (was auto-deleted via `isDirEmpty`).
+
 ## Build/toolchain drift (no visual impact, tracked for awareness)
 
 - [ ] Kotlin 1.8.22 → 1.9.22, AGP 7.4.0 → 8.6.0, compileSdk 34 → 35, minSdk 23 → 26,
