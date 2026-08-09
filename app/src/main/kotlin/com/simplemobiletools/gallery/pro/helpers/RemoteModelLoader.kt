@@ -1,5 +1,6 @@
 package com.simplemobiletools.gallery.pro.helpers
 
+import android.content.Context
 import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.Options
@@ -8,8 +9,7 @@ import com.bumptech.glide.load.model.ModelLoader
 import com.bumptech.glide.load.model.ModelLoaderFactory
 import com.bumptech.glide.load.model.MultiModelLoaderFactory
 import com.bumptech.glide.signature.ObjectKey
-import com.jcraft.jsch.ChannelSftp
-import com.jcraft.jsch.JSch
+import com.simplemobiletools.commons.extensions.toast
 import org.apache.commons.net.ftp.FTPClient
 import java.io.File
 import java.io.InputStream
@@ -34,9 +34,11 @@ class RemoteModelLoaderFactory(private val config: Config) : ModelLoaderFactory<
 
 class RemoteDataFetcher(private val curPath: String, private val config: Config) : DataFetcher<InputStream> {
     private var ftpClient: FTPClient? = null
-    private var jschSession: com.jcraft.jsch.Session? = null
-    private var sftpChannel: ChannelSftp? = null
     private var inputStream: InputStream? = null
+
+    companion object {
+        private val failedConnections = mutableSetOf<String>()
+    }
 
     override fun loadData(priority: Priority, callback: DataFetcher.DataCallback<in InputStream>) {
         try {
@@ -55,33 +57,36 @@ class RemoteDataFetcher(private val curPath: String, private val config: Config)
 
             val password = config.getRemoteServerPassword(serverId, server.passwordHash)
 
-            if (protocol == "ftp") {
-                ftpClient = FTPClient()
-                ftpClient?.connect(server.host, server.port)
-                ftpClient?.login(server.username, password)
-                ftpClient?.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
-                inputStream = ftpClient?.retrieveFileStream(remotePath)
-                if (inputStream != null) {
-                    callback.onDataReady(inputStream)
-                } else {
-                    callback.onLoadFailed(Exception("Failed to retrieve FTP file stream"))
-                }
-            } else if (protocol == "sftp") {
-                val jsch = JSch()
-                jschSession = jsch.getSession(server.username, server.host, server.port)
-                jschSession?.setPassword(password)
-                jschSession?.setConfig("StrictHostKeyChecking", "no")
-                jschSession?.connect()
-                sftpChannel = jschSession?.openChannel("sftp") as ChannelSftp
-                sftpChannel?.connect()
-                inputStream = sftpChannel?.get(remotePath)
-                if (inputStream != null) {
-                    callback.onDataReady(inputStream)
-                } else {
-                    callback.onLoadFailed(Exception("Failed to retrieve SFTP file stream"))
-                }
+            // FTP only - SFTP removed
+            if (protocol != "ftp") {
+                callback.onLoadFailed(Exception("Only FTP protocol is supported"))
+                return
+            }
+
+            ftpClient = FTPClient()
+            ftpClient?.connect(server.host, server.port)
+            ftpClient?.login(server.username, password)
+            ftpClient?.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
+            inputStream = ftpClient?.retrieveFileStream(remotePath)
+            if (inputStream != null) {
+                // Clear any previous failure for this server
+                failedConnections.remove("${server.id}:${server.host}")
+                callback.onDataReady(inputStream)
+            } else {
+                callback.onLoadFailed(Exception("Failed to retrieve FTP file stream"))
             }
         } catch (e: Exception) {
+            // Show toast only once per server+host combination
+            val key = curPath.removePrefix("remote://").split("/").let { parts ->
+                if (parts.size >= 2) "${parts[1]}:${parts[0]}" else curPath
+            }
+            if (key !in failedConnections) {
+                failedConnections.add(key)
+                // Use a callback to show toast on UI thread
+                (config.context as? android.app.Activity)?.runOnUiThread {
+                    config.context.toast("Failed to connect to FTP server: ${e.message}")
+                }
+            }
             callback.onLoadFailed(e)
         }
     }
@@ -91,13 +96,7 @@ class RemoteDataFetcher(private val curPath: String, private val config: Config)
             inputStream?.close()
         } catch (e: Exception) {}
         try {
-            ftpClient?.completePendingCommand()
-            ftpClient?.logout()
             ftpClient?.disconnect()
-        } catch (e: Exception) {}
-        try {
-            sftpChannel?.disconnect()
-            jschSession?.disconnect()
         } catch (e: Exception) {}
     }
 
@@ -130,31 +129,25 @@ fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): S
         val password = config.getRemoteServerPassword(serverId, server.passwordHash)
 
         val tempFile = File(cacheDir, "remote_${serverId}_${remotePath.hashCode()}.tmp")
-        val inputStream: java.io.InputStream? = if (protocol == "ftp") {
-            val ftpClient = FTPClient()
-            ftpClient.connect(server.host, server.port)
-            ftpClient.login(server.username, password)
-            ftpClient.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
-            val stream = ftpClient.retrieveFileStream(remotePath)
-            // ensure the stream is closed when the temp file is fully written
-            stream
-        } else if (protocol == "sftp") {
-            val jsch = JSch()
-            val session = jsch.getSession(server.username, server.host, server.port)
-            session.setPassword(password)
-            session.setConfig("StrictHostKeyChecking", "no")
-            session.connect()
-            val channel = session.openChannel("sftp") as ChannelSftp
-            channel.connect()
-            channel.get(remotePath)
-        } else {
-            null
-        }
+        
+        // FTP only
+        if (protocol != "ftp") return null
 
-        inputStream?.use { src ->
-            tempFile.outputStream().use { out -> src.copyTo(out) }
+        val ftpClient = FTPClient()
+        ftpClient.connect(server.host, server.port)
+        ftpClient.login(server.username, password)
+        ftpClient.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
+        val stream = ftpClient.retrieveFileStream(remotePath)
+        if (stream == null) return null
+        
+        tempFile.outputStream().use { out ->
+            stream.copyTo(out)
         }
-        if (tempFile.exists() && tempFile.length() > 0) tempFile.absolutePath else null
+        stream.close()
+        ftpClient.completePendingCommand()
+        ftpClient.disconnect()
+        
+        tempFile.absolutePath
     } catch (e: Exception) {
         null
     }

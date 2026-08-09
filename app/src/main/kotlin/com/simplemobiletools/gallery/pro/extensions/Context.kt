@@ -508,6 +508,48 @@ fun Context.loadImageBase(
     tryLoadingWithPicasso: Boolean = false,
     crossFadeDuration: Int = 300
 ) {
+    // Handle remote:// paths specially - they need to use RemoteModelLoader
+    if (path.startsWith("remote://")) {
+        val options = RequestOptions()
+            .signature(signature)
+            .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
+            .priority(Priority.LOW)
+            .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+            .format(DecodeFormat.PREFER_ARGB_8888)
+
+        if (cropThumbnails) {
+            options.optionalTransform(CenterCrop())
+            options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(CenterCrop()))
+        } else {
+            options.optionalTransform(FitCenter())
+            options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(FitCenter()))
+        }
+
+        if (animate && roundCorners == ROUNDED_CORNERS_NONE) {
+            options.decode(Drawable::class.java)
+        } else {
+            options.dontAnimate()
+            options.decode(Bitmap::class.java)
+        }
+
+        if (roundCorners != ROUNDED_CORNERS_NONE) {
+            val cornerSize = if (roundCorners == ROUNDED_CORNERS_SMALL) com.simplemobiletools.commons.R.dimen.rounded_corner_radius_small else com.simplemobiletools.commons.R.dimen.rounded_corner_radius_big
+            val cornerRadius = resources.getDimension(cornerSize).toInt()
+            val roundedCornersTransform = RoundedCorners(cornerRadius)
+            options.optionalTransform(MultiTransformation(CenterCrop(), roundedCornersTransform))
+            options.optionalTransform(WebpDrawable::class.java, MultiTransformation(WebpDrawableTransformation(CenterCrop()), WebpDrawableTransformation(roundedCornersTransform)))
+        }
+
+        WebpBitmapFactory.sUseSystemDecoder = false // CVE-2023-4863
+        Glide.with(applicationContext)
+            .load(path)
+            .apply(options)
+            .set(WebpDownsampler.USE_SYSTEM_DECODER, false) // CVE-2023-4863
+            .transition(DrawableTransitionOptions.withCrossFade(crossFadeDuration))
+            .into(target)
+        return
+    }
+
     val options = RequestOptions()
         .signature(signature)
         .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
@@ -704,7 +746,7 @@ fun Context.getCachedDirectories(
         val synthetic = ArrayList<Directory>()
 
         config.parseRemoteServers().forEach {
-            val protocol = if (it.type == com.simplemobiletools.gallery.pro.models.RemoteServer.TYPE_FTP) "ftp" else "sftp"
+            val protocol = "ftp"
             val remotePath = "remote://$protocol/${it.id}${it.remotePath}"
             if (!existingPaths.contains(remotePath)) {
                 synthetic.add(Directory(null, remotePath, it.name, remotePath, 0, 0L, 0L, 0L, 0, 0, ""))

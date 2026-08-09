@@ -996,6 +996,14 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 return
             }
 
+            // For remote files, download first
+            val localPath = if (path.startsWith("remote://")) {
+                downloadRemoteFileToTemp(path, config, cacheDir) ?: return
+            } else {
+                path
+            }
+
+            val file = File(localPath)
             var requestedWidth = resolution.x
             var requestedHeight = resolution.y
 
@@ -1013,7 +1021,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
 
             Glide.with(this)
                 .asBitmap()
-                .load(path)
+                .load(file)
                 .apply(options)
                 .listener(object : RequestListener<Bitmap> {
                     override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Bitmap>, isFirstResource: Boolean): Boolean {

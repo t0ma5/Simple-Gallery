@@ -1,5 +1,6 @@
 package com.simplemobiletools.gallery.pro.adapters
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
@@ -7,10 +8,12 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.text.TextUtils
+import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.CheckBox
 import android.widget.RelativeLayout
 import androidx.annotation.RequiresApi
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -19,6 +22,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.bumptech.glide.Glide
 import com.google.gson.Gson
 import com.qtalk.recyclerviewfastscroller.RecyclerViewFastScroller
+import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.commons.activities.BaseSimpleActivity
 import com.simplemobiletools.commons.adapters.MyRecyclerViewAdapter
 import com.simplemobiletools.commons.dialogs.*
@@ -29,7 +33,6 @@ import com.simplemobiletools.commons.interfaces.ItemTouchHelperContract
 import com.simplemobiletools.commons.interfaces.StartReorderDragListener
 import com.simplemobiletools.commons.models.FileDirItem
 import com.simplemobiletools.commons.views.MyRecyclerView
-import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.activities.MediaActivity
 import com.simplemobiletools.gallery.pro.databinding.DirectoryItemGridRoundedCornersBinding
 import com.simplemobiletools.gallery.pro.databinding.DirectoryItemGridSquareBinding
@@ -508,12 +511,32 @@ class DirectoryAdapter(
 
     private fun tryLockFolder() {
         if (config.wasFolderLockingNoticeShown) {
-            lockFolder()
+            showLockFolderDialog()
         } else {
             FolderLockingNoticeDialog(activity) {
-                lockFolder()
+                showLockFolderDialog()
             }
         }
+    }
+
+    private fun showLockFolderDialog() {
+            // Show a dialog with toggle: Lock only vs Lock + Encrypt
+            val view = LayoutInflater.from(activity).inflate(R.layout.dialog_lock_folder_options, null)
+            val encryptCheckbox = view.findViewById<CheckBox>(R.id.encrypt_checkbox)
+
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.lock_folder)
+                .setView(view)
+                .setPositiveButton(com.simplemobiletools.commons.R.string.ok) { _, _ ->
+                    val shouldEncrypt = encryptCheckbox.isChecked
+                    if (shouldEncrypt) {
+                        tryEncryptFolder()
+                    } else {
+                        lockFolder()
+                    }
+                }
+                .setNegativeButton(com.simplemobiletools.commons.R.string.cancel, null)
+                .show()
     }
 
     private fun lockFolder() {

@@ -67,8 +67,22 @@ class ManageFoldersAdapter(
 
     private fun setupView(view: View, folder: Any) {
         val title = when (folder) {
-            is String -> folder
-            is RemoteServer -> "${if (folder.type == RemoteServer.TYPE_FTP) "FTP" else "SFTP"}: ${folder.name} (${folder.host})"
+            is String -> {
+                // Show folder name + indicate if it's a remote path
+                if (folder.startsWith("remote://")) {
+                    val parts = folder.removePrefix("remote://").split("/", limit = 3)
+                    if (parts.size >= 3) {
+                        val protocol = parts[0].uppercase()
+                        val remotePath = "/${parts[2]}"
+                        "$protocol: $remotePath"
+                    } else {
+                        folder
+                    }
+                } else {
+                    folder
+                }
+            }
+            is RemoteServer -> "FTP: ${folder.name} (${folder.host})"
             else -> ""
         }
 
@@ -97,8 +111,8 @@ class ManageFoldersAdapter(
         val contextTheme = ContextThemeWrapper(activity, theme)
 
         PopupMenu(contextTheme, view, Gravity.END).apply {
-            // Edit only makes sense for local path entries, not remote server entries.
-            if (folder is String && editCallback != null) {
+            // Edit for both local paths and remote servers
+            if (editCallback != null) {
                 menu.add(0, MENU_EDIT, 0, com.simplemobiletools.commons.R.string.edit)
             }
             menu.add(0, com.simplemobiletools.commons.R.id.cab_remove, 1, com.simplemobiletools.commons.R.string.remove)
@@ -130,20 +144,20 @@ class ManageFoldersAdapter(
         val removeFolders = ArrayList<Any>(selectedKeys.size)
         val positions = getSelectedItemPositions()
 
-        getSelectedItems().forEach {
-            removeFolders.add(it)
-            when (it) {
+        getSelectedItems().forEach { item ->
+            removeFolders.add(item)
+            when (item) {
                 is String -> {
                     if (isShowingExcludedFolders) {
-                        config.removeExcludedFolder(it)
+                        config.removeExcludedFolder(item)
                     } else {
-                        config.removeIncludedFolder(it)
+                        config.removeIncludedFolder(item)
                     }
                 }
 
                 is RemoteServer -> {
                     val servers = config.parseRemoteServers()
-                    servers.removeAll { s -> s.id == it.id }
+                    servers.removeAll { s -> s.id == item.id }
                     config.remoteServers = Gson().toJson(servers)
                 }
             }

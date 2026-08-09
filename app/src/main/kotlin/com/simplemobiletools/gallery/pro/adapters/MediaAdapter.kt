@@ -140,18 +140,19 @@ class MediaAdapter(
         val isOneItemSelected = isOneItemSelected()
         val selectedPaths = selectedItems.map { it.path } as ArrayList<String>
         val isInRecycleBin = selectedItems.firstOrNull()?.getIsInRecycleBin() == true
+        val hasRemoteFiles = selectedPaths.any { it.startsWith("remote://") }
         menu.apply {
-            findItem(R.id.cab_rename).isVisible = !isInRecycleBin
-            findItem(R.id.cab_add_to_favorites).isVisible = !isInRecycleBin
-            findItem(R.id.cab_fix_date_taken).isVisible = !isInRecycleBin
-            findItem(R.id.cab_move_to).isVisible = !isInRecycleBin
-            findItem(R.id.cab_open_with).isVisible = isOneItemSelected
-            findItem(R.id.cab_edit).isVisible = isOneItemSelected
-            findItem(R.id.cab_set_as).isVisible = isOneItemSelected
-            findItem(R.id.cab_resize).isVisible = canResize(selectedItems)
+            findItem(R.id.cab_rename).isVisible = !isInRecycleBin && !hasRemoteFiles
+            findItem(R.id.cab_add_to_favorites).isVisible = !isInRecycleBin && !hasRemoteFiles
+            findItem(R.id.cab_fix_date_taken).isVisible = !isInRecycleBin && !hasRemoteFiles
+            findItem(R.id.cab_move_to).isVisible = !isInRecycleBin && !hasRemoteFiles
+            findItem(R.id.cab_open_with).isVisible = isOneItemSelected && !hasRemoteFiles
+            findItem(R.id.cab_edit).isVisible = isOneItemSelected && !hasRemoteFiles
+            findItem(R.id.cab_set_as).isVisible = isOneItemSelected && !hasRemoteFiles
+            findItem(R.id.cab_resize).isVisible = canResize(selectedItems) && !hasRemoteFiles
             findItem(R.id.cab_confirm_selection).isVisible = isAGetIntent && allowMultiplePicks && selectedKeys.isNotEmpty()
             findItem(R.id.cab_restore_recycle_bin_files).isVisible = selectedPaths.all { it.startsWith(activity.recycleBinPath) }
-            findItem(R.id.cab_create_shortcut).isVisible = isOreoPlus() && isOneItemSelected
+            findItem(R.id.cab_create_shortcut).isVisible = isOreoPlus() && isOneItemSelected && !hasRemoteFiles
 
             checkHideBtnVisibility(this, selectedItems)
             checkFavoriteBtnVisibility(this, selectedItems)
@@ -248,6 +249,13 @@ class MediaAdapter(
 
     private fun renameFile() {
         val firstPath = getFirstSelectedItemPath() ?: return
+
+        // Remote files: only allow renaming of remote server entries in ManageFolders, not individual remote media
+        if (firstPath.startsWith("remote://")) {
+            activity.toast(R.string.remote_files_rename_not_supported)
+            finishActMode()
+            return
+        }
 
         val isSDOrOtgRootFolder = activity.isAStorageRootFolder(firstPath.getParentPath()) && !firstPath.startsWith(activity.internalStoragePath)
         if (isRPlus() && isSDOrOtgRootFolder && !isExternalStorageManager()) {

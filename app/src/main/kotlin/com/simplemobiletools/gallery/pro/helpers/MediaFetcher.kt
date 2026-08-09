@@ -11,8 +11,6 @@ import android.provider.MediaStore
 import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
 import android.text.format.DateFormat
-import com.jcraft.jsch.ChannelSftp
-import com.jcraft.jsch.JSch
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.*
 import com.simplemobiletools.gallery.pro.R
@@ -132,43 +130,6 @@ class MediaFetcher(val context: Context) {
                 }
                 ftpClient.logout()
                 ftpClient.disconnect()
-            } else if (protocol == "sftp") {
-                val jsch = JSch()
-                val session = jsch.getSession(server.username, server.host, server.port)
-                session.setPassword(context.config.getRemoteServerPassword(server.id!!, server.passwordHash))
-                session.setConfig("StrictHostKeyChecking", "no")
-                session.connect()
-                val channel = session.openChannel("sftp") as ChannelSftp
-                channel.connect()
-                val files = channel.ls(remotePath)
-                files.forEach {
-                    val file = it as ChannelSftp.LsEntry
-                    if (!file.attrs.isDir) {
-                        val path = "$curPath/${file.filename}"
-                        if (path.isMediaFile()) {
-                            val type = when {
-                                path.isVideoFast() -> TYPE_VIDEOS
-                                path.isGif() -> TYPE_GIFS
-                                path.isRawFast() -> TYPE_RAWS
-                                path.isSvg() -> TYPE_SVGS
-                                path.isPortrait() -> TYPE_PORTRAITS
-                                else -> TYPE_IMAGES
-                            }
-
-                            if ((type == TYPE_IMAGES && isPickVideo) || (type == TYPE_VIDEOS && isPickImage)) {
-                                return@forEach
-                            }
-
-                            val medium = Medium(
-                                null, file.filename, path, curPath, file.attrs.mTime * 1000L, file.attrs.mTime * 1000L,
-                                file.attrs.size, type, 0, false, 0L, 0L
-                            )
-                            media.add(medium)
-                        }
-                    }
-                }
-                channel.disconnect()
-                session.disconnect()
             }
         } catch (e: Exception) {
             context.showErrorToast(e)
@@ -230,7 +191,7 @@ class MediaFetcher(val context: Context) {
             }.toMutableList() as ArrayList<String>
 
             context.config.parseRemoteServers().forEach {
-                val protocol = if (it.type == com.simplemobiletools.gallery.pro.models.RemoteServer.TYPE_FTP) "ftp" else "sftp"
+                val protocol = "ftp"
                 resultFolders.add("remote://$protocol/${it.id}${it.remotePath}")
             }
 
