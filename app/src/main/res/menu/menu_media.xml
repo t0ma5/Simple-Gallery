@@ -29,11 +29,6 @@
         android:title="@string/change_view_type"
         app:showAsAction="never" />
     <item
-        android:id="@+id/toggle_tree_mode"
-        android:icon="@drawable/ic_tree_vector"
-        android:title="@string/toggle_tree_mode"
-        app:showAsAction="ifRoom" />
-    <item
         android:id="@+id/temporarily_show_hidden"
         android:showAsAction="never"
         android:title="@string/temporarily_show_hidden"

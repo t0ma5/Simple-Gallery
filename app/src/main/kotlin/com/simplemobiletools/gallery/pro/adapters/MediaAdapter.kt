@@ -29,7 +29,6 @@ import com.simplemobiletools.gallery.pro.dialogs.DeleteWithRememberDialog
 import com.simplemobiletools.gallery.pro.extensions.*
 import com.simplemobiletools.gallery.pro.helpers.*
 import com.simplemobiletools.gallery.pro.interfaces.MediaOperationsListener
-import com.simplemobiletools.gallery.pro.models.FolderTile
 import com.simplemobiletools.gallery.pro.models.Medium
 import com.simplemobiletools.gallery.pro.models.ThumbnailItem
 import com.simplemobiletools.gallery.pro.models.ThumbnailSection
@@ -45,7 +44,6 @@ class MediaAdapter(
     private val ITEM_SECTION = 0
     private val ITEM_MEDIUM_VIDEO_PORTRAIT = 1
     private val ITEM_MEDIUM_PHOTO = 2
-    private val ITEM_FOLDER_TILE = 3
 
     private val config = activity.config
     private val viewType = config.getFolderViewType(if (config.showAll) SHOW_ALL else path)
@@ -75,23 +73,16 @@ class MediaAdapter(
     override fun getActionMenuId() = R.menu.cab_media
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = when {
-            viewType == ITEM_SECTION -> ThumbnailSectionBinding.inflate(layoutInflater, parent, false)
-            viewType == ITEM_FOLDER_TILE -> {
-                if (isListViewType) {
-                    DirectoryItemListBinding.inflate(layoutInflater, parent, false)
-                } else {
-                    DirectoryItemGridSquareBinding.inflate(layoutInflater, parent, false)
-                }
-            }
-            isListViewType -> {
+        val binding = if (viewType == ITEM_SECTION) {
+            ThumbnailSectionBinding.inflate(layoutInflater, parent, false)
+        } else {
+            if (isListViewType) {
                 if (viewType == ITEM_MEDIUM_PHOTO) {
                     PhotoItemListBinding.inflate(layoutInflater, parent, false)
                 } else {
                     VideoItemListBinding.inflate(layoutInflater, parent, false)
                 }
-            }
-            else -> {
+            } else {
                 if (viewType == ITEM_MEDIUM_PHOTO) {
                     PhotoItemGridBinding.inflate(layoutInflater, parent, false)
                 } else {
@@ -109,11 +100,11 @@ class MediaAdapter(
         }
 
         val allowLongPress = (!isAGetIntent || allowMultiplePicks) && tmbItem is Medium
-        holder.bindView(tmbItem, tmbItem is Medium || tmbItem is FolderTile, allowLongPress) { itemView, adapterPosition ->
-            when (tmbItem) {
-                is Medium -> setupThumbnail(itemView, tmbItem)
-                is FolderTile -> setupFolderTile(itemView, tmbItem)
-                else -> setupSection(itemView, tmbItem as ThumbnailSection)
+        holder.bindView(tmbItem, tmbItem is Medium, allowLongPress) { itemView, adapterPosition ->
+            if (tmbItem is Medium) {
+                setupThumbnail(itemView, tmbItem)
+            } else {
+                setupSection(itemView, tmbItem as ThumbnailSection)
             }
         }
         bindViewHolder(holder)
@@ -125,7 +116,6 @@ class MediaAdapter(
         val tmbItem = media[position]
         return when {
             tmbItem is ThumbnailSection -> ITEM_SECTION
-            tmbItem is FolderTile -> ITEM_FOLDER_TILE
             (tmbItem as Medium).isVideo() || tmbItem.isPortrait() -> ITEM_MEDIUM_VIDEO_PORTRAIT
             else -> ITEM_MEDIUM_PHOTO
         }
@@ -140,19 +130,18 @@ class MediaAdapter(
         val isOneItemSelected = isOneItemSelected()
         val selectedPaths = selectedItems.map { it.path } as ArrayList<String>
         val isInRecycleBin = selectedItems.firstOrNull()?.getIsInRecycleBin() == true
-        val hasRemoteFiles = selectedPaths.any { it.startsWith("remote://") }
         menu.apply {
-            findItem(R.id.cab_rename).isVisible = !isInRecycleBin && !hasRemoteFiles
-            findItem(R.id.cab_add_to_favorites).isVisible = !isInRecycleBin && !hasRemoteFiles
-            findItem(R.id.cab_fix_date_taken).isVisible = !isInRecycleBin && !hasRemoteFiles
-            findItem(R.id.cab_move_to).isVisible = !isInRecycleBin && !hasRemoteFiles
-            findItem(R.id.cab_open_with).isVisible = isOneItemSelected && !hasRemoteFiles
-            findItem(R.id.cab_edit).isVisible = isOneItemSelected && !hasRemoteFiles
-            findItem(R.id.cab_set_as).isVisible = isOneItemSelected && !hasRemoteFiles
-            findItem(R.id.cab_resize).isVisible = canResize(selectedItems) && !hasRemoteFiles
+            findItem(R.id.cab_rename).isVisible = !isInRecycleBin
+            findItem(R.id.cab_add_to_favorites).isVisible = !isInRecycleBin
+            findItem(R.id.cab_fix_date_taken).isVisible = !isInRecycleBin
+            findItem(R.id.cab_move_to).isVisible = !isInRecycleBin
+            findItem(R.id.cab_open_with).isVisible = isOneItemSelected
+            findItem(R.id.cab_edit).isVisible = isOneItemSelected
+            findItem(R.id.cab_set_as).isVisible = isOneItemSelected
+            findItem(R.id.cab_resize).isVisible = canResize(selectedItems)
             findItem(R.id.cab_confirm_selection).isVisible = isAGetIntent && allowMultiplePicks && selectedKeys.isNotEmpty()
             findItem(R.id.cab_restore_recycle_bin_files).isVisible = selectedPaths.all { it.startsWith(activity.recycleBinPath) }
-            findItem(R.id.cab_create_shortcut).isVisible = isOreoPlus() && isOneItemSelected && !hasRemoteFiles
+            findItem(R.id.cab_create_shortcut).isVisible = isOreoPlus() && isOneItemSelected
 
             checkHideBtnVisibility(this, selectedItems)
             checkFavoriteBtnVisibility(this, selectedItems)
@@ -249,13 +238,6 @@ class MediaAdapter(
 
     private fun renameFile() {
         val firstPath = getFirstSelectedItemPath() ?: return
-
-        // Remote files: only allow renaming of remote server entries in ManageFolders, not individual remote media
-        if (firstPath.startsWith("remote://")) {
-            activity.toast(R.string.remote_files_rename_not_supported)
-            finishActMode()
-            return
-        }
 
         val isSDOrOtgRootFolder = activity.isAStorageRootFolder(firstPath.getParentPath()) && !firstPath.startsWith(activity.internalStoragePath)
         if (isRPlus() && isSDOrOtgRootFolder && !isExternalStorageManager()) {
@@ -717,46 +699,6 @@ class MediaAdapter(
         ThumbnailSectionBinding.bind(view).apply {
             thumbnailSection.text = section.title
             thumbnailSection.setTextColor(textColor)
-        }
-    }
-
-    private fun setupFolderTile(view: View, folder: FolderTile) {
-        val directory = folder.directory
-        val itemBinding = if (isListViewType) {
-            DirectoryItemListBinding.bind(view).toItemBinding()
-        } else {
-            DirectoryItemGridSquareBinding.bind(view).toItemBinding()
-        }
-
-        itemBinding.apply {
-            dirName.text = directory.name
-            dirName.setTextColor(textColor)
-            photoCnt.text = directory.mediaCnt.toString()
-            photoCnt.setTextColor(textColor)
-            photoCnt.beVisibleIf(config.showFolderMediaCount == FOLDER_MEDIA_CNT_LINE)
-
-            dirLock.beGone()
-            dirPin.beGone()
-            dirLocation.beGone()
-            dirCheck.beGone()
-            dirDragHandle.beGone()
-            dirDragHandleWrapper?.beGone()
-            dirPath?.beGone()
-
-            val roundedCorners = if (isListViewType) ROUNDED_CORNERS_SMALL else ROUNDED_CORNERS_NONE
-            if (directory.tmb.isNotEmpty()) {
-                val thumbnailType = when {
-                    directory.tmb.isVideoFast() -> TYPE_VIDEOS
-                    directory.tmb.isGif() -> TYPE_GIFS
-                    directory.tmb.isRawFast() -> TYPE_RAWS
-                    directory.tmb.isSvg() -> TYPE_SVGS
-                    else -> TYPE_IMAGES
-                }
-                activity.loadImage(thumbnailType, directory.tmb, dirThumbnail, scrollHorizontally, animateGifs, cropThumbnails, roundedCorners, directory.getKey())
-            } else {
-                dirThumbnail.setImageResource(R.drawable.ic_folder_vector)
-                dirThumbnail.applyColorFilter(textColor)
-            }
         }
     }
 

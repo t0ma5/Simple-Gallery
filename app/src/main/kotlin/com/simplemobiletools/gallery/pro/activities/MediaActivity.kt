@@ -33,8 +33,6 @@ import com.simplemobiletools.gallery.pro.dialogs.*
 import com.simplemobiletools.gallery.pro.extensions.*
 import com.simplemobiletools.gallery.pro.helpers.*
 import com.simplemobiletools.gallery.pro.interfaces.MediaOperationsListener
-import com.simplemobiletools.gallery.pro.models.Directory
-import com.simplemobiletools.gallery.pro.models.FolderTile
 import com.simplemobiletools.gallery.pro.models.Medium
 import com.simplemobiletools.gallery.pro.models.ThumbnailItem
 import com.simplemobiletools.gallery.pro.models.ThumbnailSection
@@ -61,9 +59,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var mTempShowHiddenHandler = Handler()
     private var mCurrAsyncTask: GetMediaAsynctask? = null
     private var mZoomListener: MyRecyclerView.MyZoomListener? = null
-
-    // Tree mode state
-    private var mTreeMode = false
 
     private var mStoredAnimateGifs = true
     private var mStoredCropThumbnails = true
@@ -285,9 +280,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             val viewType = config.getFolderViewType(if (mShowAll) SHOW_ALL else mPath)
             findItem(R.id.column_count).isVisible = viewType == VIEW_TYPE_GRID
             findItem(R.id.toggle_filename).isVisible = viewType == VIEW_TYPE_GRID
-            
-            // Tree mode toggle visible in folder view (not show all)
-            findItem(R.id.toggle_tree_mode).isVisible = !mShowAll && mPath != RECYCLE_BIN && mPath != FAVORITES
         }
     }
 
@@ -318,7 +310,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 R.id.open_recycle_bin -> openRecycleBin()
                 R.id.temporarily_show_hidden -> tryToggleTemporarilyShowHidden()
                 R.id.stop_showing_hidden -> tryToggleTemporarilyShowHidden()
-                R.id.toggle_tree_mode -> toggleTreeMode()
                 R.id.column_count -> changeColumnCount()
                 R.id.set_as_default_folder -> setAsDefaultFolder()
                 R.id.unset_as_default_folder -> unsetAsDefaultFolder()
@@ -343,13 +334,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 startActivity(this)
             }
         }
-    }
-
-    private fun toggleTreeMode() {
-        mTreeMode = !mTreeMode
-        refreshMenuItems()
-        getMedia()
-        toast(if (mTreeMode) R.string.tree_mode else R.string.toggle_tree_mode)
     }
 
     private fun updateMenuColors() {
@@ -443,9 +427,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 this, mMedia.clone() as ArrayList<ThumbnailItem>, this, mIsGetImageIntent || mIsGetVideoIntent || mIsGetAnyIntent,
                 mAllowPickingMultiple, mPath, binding.mediaGrid
             ) {
-                if (it is FolderTile && !isFinishing) {
-                    openFolder(it.directory.path)
-                } else if (it is Medium && !isFinishing) {
+                if (it is Medium && !isFinishing) {
                     itemClicked(it.path)
                 }
             }.apply {
@@ -887,19 +869,12 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
         mIsGettingMedia = false
         checkLastMediaChanged()
-        mMedia = if (shouldShowSubfolders()) {
-            val all = ArrayList<ThumbnailItem>()
-            all.addAll(getSubfolderTiles())
-            all.addAll(media)
-            all
-        } else {
-            media
-        }
+        mMedia = media
 
         runOnUiThread {
             binding.mediaRefreshLayout.isRefreshing = false
-            binding.mediaEmptyTextPlaceholder.beVisibleIf(mMedia.isEmpty() && !isFromCache)
-            binding.mediaEmptyTextPlaceholder2.beVisibleIf(mMedia.isEmpty() && !isFromCache)
+            binding.mediaEmptyTextPlaceholder.beVisibleIf(media.isEmpty() && !isFromCache)
+            binding.mediaEmptyTextPlaceholder2.beVisibleIf(media.isEmpty() && !isFromCache)
 
             if (binding.mediaEmptyTextPlaceholder.isVisible()) {
                 binding.mediaEmptyTextPlaceholder.text = getString(R.string.no_media_with_filters)
@@ -918,108 +893,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 } catch (e: Exception) {
                 }
             }.start()
-        }
-    }
-
-    // show subfolders as tappable tiles inside a folder ("folders inside folders")
-    private fun shouldShowSubfolders(): Boolean {
-        return !mShowAll && mPath.isNotEmpty() && mPath != FAVORITES && mPath != RECYCLE_BIN && mPath != config.OTGPath &&
-            !mPath.startsWith("remote://") && mPath != config.tempFolderPath && File(mPath).isDirectory
-    }
-
-    private fun getSubfolderTiles(): ArrayList<FolderTile> {
-        val tiles = ArrayList<FolderTile>()
-        val showHidden = config.shouldShowHidden || config.temporarilyShowHidden
-        
-        // In tree mode, we want to show depth=1 folders in the main view
-        // and their children only when a folder is tapped (handled by openFolder)
-        val children = File(mPath).listFiles()?.filter { it.isDirectory } ?: return tiles
-        val dbDirs = directoryDB.getAll().associateBy { it.path }
-        val excludedFolders = config.excludedFolders
-
-        children.filter { dir ->
-            if (!showHidden && dir.name.startsWith(".")) {
-                false
-            } else {
-                excludedFolders.none { dir.absolutePath.startsWith(it) }
-            }
-        }.forEach { dir ->
-            val existing = dbDirs[dir.absolutePath]
-            val directory = existing ?: Directory(null, dir.absolutePath, "", dir.name, 0, dir.lastModified(), 0, 0L, getPathLocation(dir.absolutePath), 0, "")
-            tiles.add(FolderTile(directory))
-        }
-        
-        // In tree mode, also add subfolders of subfolders that have media
-        if (mTreeMode) {
-            addTreeModeSubfolders(tiles)
-        }
-        
-        return tiles
-    }
-    
-    private fun addTreeModeSubfolders(existingTiles: ArrayList<FolderTile>) {
-        val showHidden = config.shouldShowHidden || config.temporarilyShowHidden
-        val dbDirs = directoryDB.getAll().associateBy { it.path }
-        val excludedFolders = config.excludedFolders
-        
-        // For each existing tile (depth=1), check if it has subfolders with media
-        existingTiles.forEach { tile ->
-            val children = File(tile.directory.path).listFiles()?.filter { it.isDirectory } ?: return@forEach
-            
-            children.filter { dir ->
-                if (!showHidden && dir.name.startsWith(".")) {
-                    false
-                } else {
-                    excludedFolders.none { dir.absolutePath.startsWith(it) }
-                }
-            }.forEach { dir ->
-                val existing = dbDirs[dir.absolutePath]
-                val directory = existing ?: Directory(null, dir.absolutePath, "", dir.name, 0, dir.lastModified(), 0, 0L, getPathLocation(dir.absolutePath), 0, "")
-                // Only add if the folder has media (skip empty folders)
-                if (directory.mediaCnt > 0) {
-                    existingTiles.add(FolderTile(directory))
-                }
-            }
-        }
-    }
-
-    private fun openFolder(path: String) {
-        if (config.isFolderEncrypted(path)) {
-            requestFolderSecret(path) { secret ->
-                if (secret.isNullOrEmpty()) return@requestFolderSecret
-                toast(R.string.decrypting)
-                ensureBackgroundThread {
-                    val tempCacheFolder = File(cacheDir, "temp_decrypted/${File(path).name}")
-                    tempCacheFolder.deleteRecursively()
-                    tempCacheFolder.mkdirs()
-
-                    val files = File(path).listFiles()
-                    files?.forEach { file ->
-                        if (file.isFile && file.name.endsWith(".enc")) {
-                            val decryptedFile = File(tempCacheFolder, file.name.removeSuffix(".enc"))
-                            EncryptionHelper.decryptFile(this, file, decryptedFile, secret)
-                        }
-                    }
-
-                    runOnUiThread {
-                        Intent(this, MediaActivity::class.java).apply {
-                            putExtra(SKIP_AUTHENTICATION, true)
-                            putExtra(DIRECTORY, tempCacheFolder.absolutePath)
-                            startActivity(this)
-                        }
-                    }
-                }
-            }
-        } else {
-            handleLockedFolderOpening(path) { success ->
-                if (success) {
-                    Intent(this, MediaActivity::class.java).apply {
-                        putExtra(SKIP_AUTHENTICATION, true)
-                        putExtra(DIRECTORY, path)
-                        startActivity(this)
-                    }
-                }
-            }
         }
     }
 
