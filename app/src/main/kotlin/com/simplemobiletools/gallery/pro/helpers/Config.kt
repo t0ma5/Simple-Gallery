@@ -600,6 +600,11 @@ class Config(context: Context) : BaseConfig(context) {
         return Gson().fromJson<ArrayList<com.simplemobiletools.gallery.pro.models.RemoteServer>>(remoteServers, listType) ?: ArrayList(1)
     }
 
+    fun removeRemoteServer(serverId: Long) {
+        val servers = parseRemoteServers().filter { it.id != serverId }
+        remoteServers = Gson().toJson(servers)
+    }
+
     private val encryptedPrefs by lazy {
         val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
         EncryptedSharedPreferences.create(

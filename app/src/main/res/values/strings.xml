@@ -37,8 +37,6 @@
     <string name="open_camera">Open camera</string>
     <string name="hidden">(hidden)</string>
     <string name="excluded">(excluded)</string>
-    <string name="lock_folder_options">Lock folder options</string>
-    <string name="lock_and_encrypt">Lock and encrypt</string>
     <string name="pin_to_the_top">Pin to the top</string>
     <string name="show_all">Show all folders content</string>
     <string name="all_folders">All folders</string>
@@ -96,25 +94,24 @@
     <string name="included_activity_placeholder">If you have some folders which contain media, but were not recognized by the app, you can add them manually here.\n\nAdding some items here will not exclude any other folder.</string>
     <string name="no_media_add_included">No media files have been found. You can solve it by adding the folders containing media files manually.</string>
     <string name="local_folder">Local folder</string>
-    <string name="remote_server">FTP/SFTP server</string>
+    <string name="remote_server">FTP server</string>
     <string name="remote_files_rename_not_supported">Renaming remote files is not supported. Use server management to rename the remote folder.</string>
     <string name="toggle_tree_mode">Tree mode</string>
     <string name="tree_mode">Tree mode</string>
-    <string name="add_remote_server">Add FTP/SFTP server</string>
-    <string name="edit_remote_server">Edit FTP/SFTP server</string>
+    <string name="add_remote_server">Add FTP server</string>
+    <string name="edit_remote_server">Edit FTP server</string>
     <string name="host">Host</string>
     <string name="port">Port</string>
     <string name="username">Username</string>
     <string name="password">Password</string>
     <string name="remote_path">Remote path</string>
     <string name="ftp">FTP</string>
-    <string name="sftp">SFTP</string>
-    <string name="encrypt_selection">Encrypt selection</string>
-    <string name="decrypt_selection">Decrypt selection</string>
     <string name="encrypting">Encrypting…</string>
     <string name="decrypting">Decrypting…</string>
     <string name="encryption_finished">Encryption finished</string>
     <string name="decryption_finished">Decryption finished</string>
+    <string name="lock_folder_options">Lock folder options</string>
+    <string name="lock_and_encrypt">Lock and encrypt</string>
 
     <!-- Resizing -->
     <string name="resize_and_save">Resize selection and save</string>
@@ -147,6 +144,8 @@
     <string name="image_edited_successfully">Image edited successfully</string>
     <string name="video_edited_successfully">Video edited successfully</string>
     <string name="edit_image_with">Edit image with:</string>
+    <string name="encrypt_selection">Encrypt selection</string>
+    <string name="decrypt_selection">Decrypt selection</string>
     <string name="edit_video_with">Edit video with:</string>
     <string name="no_image_editor_found">No image editor found</string>
     <string name="no_video_editor_found">No video editor found</string>

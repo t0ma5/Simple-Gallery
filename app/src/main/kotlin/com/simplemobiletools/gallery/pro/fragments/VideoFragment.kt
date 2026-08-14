@@ -357,7 +357,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
         val uri = if (isRemote) {
             val tempPath = downloadRemoteFileToTemp(mMedium.path, mConfig, requireContext().cacheDir)
             if (tempPath == null) {
-                activity?.showErrorToast(Exception("Failed to download remote video"))
+                // silently ignore unreachable remote servers
                 return
             }
             Uri.fromFile(File(tempPath))

@@ -37,6 +37,7 @@ import com.simplemobiletools.commons.helpers.*
 import com.simplemobiletools.commons.views.MySquareImageView
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.asynctasks.GetMediaAsynctask
+import org.apache.commons.net.ftp.FTPClient
 import com.simplemobiletools.gallery.pro.databases.GalleryDatabase
 import com.simplemobiletools.gallery.pro.helpers.*
 import com.simplemobiletools.gallery.pro.interfaces.*
@@ -740,17 +741,17 @@ fun Context.getCachedDirectories(
             }
         }
 
-        // Make sure remote servers and encrypted folders always show up in the folder list,
-        // even if a scan has not yet produced any media for them.
+        // Remote servers: only show in the folder list once verified to exist,
+        // be reachable and contain media. Encrypted folders always show up.
+        // Drop any stale DB copies of remote dirs first so the fresh verified
+        // entry (with the server's chosen name) wins over the cached one.
         val existingPaths = filteredDirectories.map { it.path }.toSet()
         val synthetic = ArrayList<Directory>()
 
-        config.parseRemoteServers().forEach {
-            val protocol = "ftp"
-            val remotePath = "remote://$protocol/${it.id}${it.remotePath}"
-            if (!existingPaths.contains(remotePath)) {
-                synthetic.add(Directory(null, remotePath, it.name, remotePath, 0, 0L, 0L, 0L, 0, 0, ""))
-            }
+        filteredDirectories.removeAll { it.path.startsWith("remote://") }
+
+        config.parseRemoteServers().forEach { server ->
+            getVerifiedRemoteDirectory(server)?.let { synthetic.add(it) }
         }
 
         config.encryptedFolders.forEach { encPath ->
@@ -1155,4 +1156,53 @@ fun Context.getFileDateTaken(path: String): Long {
     }
 
     return 0L
+}
+
+// Remote servers: only added to the folder list once verified reachable + containing media.
+// Live-check is skipped within a short window for servers that just failed, to avoid stalling the list.
+fun Context.getVerifiedRemoteDirectory(server: com.simplemobiletools.gallery.pro.models.RemoteServer): Directory? {
+    val protocol = "ftp"
+    val remotePath = "remote://$protocol/${server.id}${server.remotePath}"
+    if (RemoteServerVerify.verified.contains(remotePath)) {
+        val displayName = server.name.trim().ifEmpty { server.host.ifEmpty { remotePath } }
+        return Directory(null, remotePath, "", displayName, 0, 0L, 0L, 0L, 0, 0, "")
+    }
+    if (RemoteServerVerify.pendingOrFailed.contains(remotePath)) {
+        return null
+    }
+
+    RemoteServerVerify.pendingOrFailed.add(remotePath)
+    var ftp: FTPClient? = null
+    try {
+        val cli = FTPClient()
+        cli.connectTimeout = 3000
+        ftp = cli
+        cli.connect(server.host, server.port)
+        cli.login(server.username, config.getRemoteServerPassword(server.id!!, server.passwordHash))
+        cli.enterLocalPassiveMode()
+        cli.changeWorkingDirectory(server.remotePath)
+        val hasMedia = cli.listFiles().any { it.isFile && it.name.isMediaFile() }
+        if (hasMedia) {
+            cli.disconnect()
+            RemoteServerVerify.pendingOrFailed.remove(remotePath)
+            RemoteServerVerify.verified.add(remotePath)
+            val displayName = server.name.trim().ifEmpty { server.host.ifEmpty { remotePath } }
+            return Directory(null, remotePath, "", displayName, 0, 0L, 0L, 0L, 0, 0, "")
+        }
+        cli.disconnect()
+        return null
+    } catch (e: Exception) {
+        try {
+            ftp?.disconnect()
+        } catch (ignored: Exception) {
+        }
+        return null
+    }
+}
+
+private object RemoteServerVerify {
+    // remote:// paths confirmed reachable (stay shown)
+    val verified = HashSet<String>()
+    // remote:// paths currently being checked or that just failed (kept out of the list)
+    val pendingOrFailed = HashSet<String>()
 }

@@ -25,8 +25,16 @@ data class Directory(
     // used with "Group direct subfolders" enabled
     @Ignore var subfoldersCount: Int = 0,
     @Ignore var subfoldersMediaCount: Int = 0,
-    @Ignore var containsMediaFilesDirectly: Boolean = true
-) {
+    @Ignore var containsMediaFilesDirectly: Boolean = true,
+
+    // tree mode (main screen): depth/nesting for folder-in-folder display
+    @Ignore var treeDepth: Int = 0,
+    @Ignore var hasTreeChildren: Boolean = false,
+    @Ignore var isTreeExpanded: Boolean = false,
+
+    // tree mode: a synthetic row showing the folder's direct media as a thumbnail strip
+    @Ignore var isTreeMediaStrip: Boolean = false,
+    @Ignore var treeMedia: ArrayList<Medium> = ArrayList()) {
 
     constructor() : this(null, "", "", "", 0, 0L, 0L, 0L, 0, 0, "", 0, 0)
 

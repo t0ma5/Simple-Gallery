@@ -9,7 +9,6 @@ import com.bumptech.glide.load.model.ModelLoader
 import com.bumptech.glide.load.model.ModelLoaderFactory
 import com.bumptech.glide.load.model.MultiModelLoaderFactory
 import com.bumptech.glide.signature.ObjectKey
-import com.simplemobiletools.commons.extensions.toast
 import org.apache.commons.net.ftp.FTPClient
 import java.io.File
 import java.io.InputStream
@@ -36,10 +35,6 @@ class RemoteDataFetcher(private val curPath: String, private val config: Config)
     private var ftpClient: FTPClient? = null
     private var inputStream: InputStream? = null
 
-    companion object {
-        private val failedConnections = mutableSetOf<String>()
-    }
-
     override fun loadData(priority: Priority, callback: DataFetcher.DataCallback<in InputStream>) {
         try {
             val parts = curPath.removePrefix("remote://").split("/", limit = 3)
@@ -64,29 +59,19 @@ class RemoteDataFetcher(private val curPath: String, private val config: Config)
             }
 
             ftpClient = FTPClient()
+            ftpClient?.connectTimeout = 3000
             ftpClient?.connect(server.host, server.port)
             ftpClient?.login(server.username, password)
+            ftpClient?.enterLocalPassiveMode()
             ftpClient?.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
             inputStream = ftpClient?.retrieveFileStream(remotePath)
             if (inputStream != null) {
-                // Clear any previous failure for this server
-                failedConnections.remove("${server.id}:${server.host}")
                 callback.onDataReady(inputStream)
             } else {
                 callback.onLoadFailed(Exception("Failed to retrieve FTP file stream"))
             }
         } catch (e: Exception) {
-            // Show toast only once per server+host combination
-            val key = curPath.removePrefix("remote://").split("/").let { parts ->
-                if (parts.size >= 2) "${parts[1]}:${parts[0]}" else curPath
-            }
-            if (key !in failedConnections) {
-                failedConnections.add(key)
-                // Use a callback to show toast on UI thread
-                (config.context as? android.app.Activity)?.runOnUiThread {
-                    config.context.toast("Failed to connect to FTP server: ${e.message}")
-                }
-            }
+            // silently ignore unreachable servers, thumbnails just stay empty
             callback.onLoadFailed(e)
         }
     }
@@ -134,8 +119,10 @@ fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): S
         if (protocol != "ftp") return null
 
         val ftpClient = FTPClient()
+        ftpClient.connectTimeout = 3000
         ftpClient.connect(server.host, server.port)
         ftpClient.login(server.username, password)
+        ftpClient.enterLocalPassiveMode()
         ftpClient.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
         val stream = ftpClient.retrieveFileStream(remotePath)
         if (stream == null) return null

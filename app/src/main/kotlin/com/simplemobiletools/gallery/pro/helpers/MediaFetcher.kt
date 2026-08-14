@@ -99,8 +99,10 @@ class MediaFetcher(val context: Context) {
         try {
             if (protocol == "ftp") {
                 val ftpClient = FTPClient()
+                ftpClient.connectTimeout = 3000
                 ftpClient.connect(server.host, server.port)
                 ftpClient.login(server.username, context.config.getRemoteServerPassword(server.id!!, server.passwordHash))
+                ftpClient.enterLocalPassiveMode()
                 ftpClient.changeWorkingDirectory(remotePath)
                 val files = ftpClient.listFiles()
                 files.forEach { file ->

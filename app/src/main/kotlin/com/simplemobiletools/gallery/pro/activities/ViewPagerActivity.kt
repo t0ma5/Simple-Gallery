@@ -224,20 +224,20 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             }
 
             when (menuItem.itemId) {
-                R.id.menu_set_as -> setAs(getCurrentPath())
+                R.id.menu_set_as -> withLocalizedPath { setAs(it) }
                 R.id.menu_slideshow -> initSlideshow()
                 R.id.menu_copy_to -> checkMediaManagementAndCopy(true)
                 R.id.menu_move_to -> moveFileTo()
-                R.id.menu_open_with -> openPath(getCurrentPath(), true)
+                R.id.menu_open_with -> withLocalizedPath { openPath(it, true) }
                 R.id.menu_hide -> toggleFileVisibility(true)
                 R.id.menu_unhide -> toggleFileVisibility(false)
-                R.id.menu_share -> shareMediumPath(getCurrentPath())
+                R.id.menu_share -> withLocalizedPath { shareMediumPath(it) }
                 R.id.menu_delete -> checkDeleteConfirmation()
                 R.id.menu_rename -> checkMediaManagementAndRename()
                 R.id.menu_print -> printFile()
-                R.id.menu_edit -> openEditor(getCurrentPath())
+                R.id.menu_edit -> withLocalizedPath { openEditor(it) }
                 R.id.menu_properties -> showProperties()
-                R.id.menu_show_on_map -> showFileOnMap(getCurrentPath())
+                R.id.menu_show_on_map -> withLocalizedPath { showFileOnMap(it) }
                 R.id.menu_rotate_right -> rotateImage(90)
                 R.id.menu_rotate_left -> rotateImage(-90)
                 R.id.menu_rotate_one_eighty -> rotateImage(180)
@@ -1340,7 +1340,17 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     override fun launchViewVideoIntent(path: String) {
         hideKeyboard()
         ensureBackgroundThread {
-            val newUri = getFinalUriFromPath(path, BuildConfig.APPLICATION_ID) ?: return@ensureBackgroundThread
+            val newUri = if (path.startsWith("remote://")) {
+                // remote -> download to temp first, otherwise media3 tries to read a bogus provider URI
+                val tempPath = downloadRemoteFileToTemp(path, config, cacheDir)
+                if (tempPath == null) {
+                    // silently ignore unreachable remote servers
+                    return@ensureBackgroundThread
+                }
+                getFinalUriFromPath(tempPath, BuildConfig.APPLICATION_ID) ?: return@ensureBackgroundThread
+            } else {
+                getFinalUriFromPath(path, BuildConfig.APPLICATION_ID) ?: return@ensureBackgroundThread
+            }
             val mimeType = getUriMimeType(path, newUri)
             Intent().apply {
                 action = Intent.ACTION_VIEW
@@ -1412,6 +1422,22 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     private fun getCurrentMedia() = if (mAreSlideShowMediaVisible || mRandomSlideshowStopped) mSlideshowMedia else mMediaFiles
 
     private fun getCurrentPath() = getCurrentMedium()?.path ?: ""
+
+    // Remote media has no local file, so file-based actions (open-with, share, set-as, edit,
+    // show-on-map) get a temp-downloaded copy first; local paths pass through untouched.
+    private fun withLocalizedPath(action: (String) -> Unit) {
+        val path = getCurrentPath()
+        if (path.startsWith("remote://")) {
+            ensureBackgroundThread {
+                val tempPath = downloadRemoteFileToTemp(path, config, cacheDir)
+                runOnUiThread {
+                    if (tempPath != null) action(tempPath)
+                }
+            }
+        } else {
+            action(path)
+        }
+    }
 
     override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
 

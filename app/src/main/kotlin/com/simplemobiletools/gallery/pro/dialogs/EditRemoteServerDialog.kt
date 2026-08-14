@@ -27,8 +27,6 @@ class EditRemoteServerDialog(
         view.serverUsername.setText(server.username)
         view.serverRemotePath.setText(server.remotePath)
         view.typeFtp.isChecked = true
-        view.typeSftp.isChecked = false
-        view.typeSftp.isEnabled = false // SFTP removed
         view.serverPort.setText("21")
 
         activity.getAlertDialogBuilder()
