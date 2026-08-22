@@ -9,6 +9,8 @@ import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.PictureDrawable
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
@@ -513,50 +515,59 @@ fun Context.loadImageBase(
     // We cannot pass the raw remote:// String to Glide because its built-in StringLoader treats
     // it as a URI scheme and fails silently (no thumbnails, no previews). Loading the local
     // temp File is reliable. The temp file is reused across calls so repeat loads are instant.
+    // The download MUST run off the main thread — this function is called from onBindViewHolder,
+    // and a blocking FTP fetch there throws NetworkOnMainThreadException (swallowed -> empty thumb).
     if (path.startsWith("remote://")) {
-        val tempPath = downloadRemoteFileToTemp(path, config, cacheDir)
-        if (tempPath == null) {
-            // unreachable server: leave the thumbnail empty
-            return
-        }
-        val file = File(tempPath)
-        val options = RequestOptions()
-            .signature(signature)
-            .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
-            .priority(Priority.LOW)
-            .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
-            .format(DecodeFormat.PREFER_ARGB_8888)
+        val appContext = applicationContext
+        val conf = config
+        val mainHandler = Handler(Looper.getMainLooper())
+        ensureBackgroundThread {
+            val tempPath = downloadRemoteFileToTemp(path, conf, appContext.cacheDir)
+            mainHandler.post {
+                if (tempPath == null) {
+                    // unreachable server: leave the thumbnail empty
+                    return@post
+                }
+                val file = File(tempPath)
+                val options = RequestOptions()
+                    .signature(signature)
+                    .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
+                    .priority(Priority.LOW)
+                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                    .format(DecodeFormat.PREFER_ARGB_8888)
 
-        if (cropThumbnails) {
-            options.optionalTransform(CenterCrop())
-            options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(CenterCrop()))
-        } else {
-            options.optionalTransform(FitCenter())
-            options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(FitCenter()))
-        }
+                if (cropThumbnails) {
+                    options.optionalTransform(CenterCrop())
+                    options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(CenterCrop()))
+                } else {
+                    options.optionalTransform(FitCenter())
+                    options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(FitCenter()))
+                }
 
-        if (animate && roundCorners == ROUNDED_CORNERS_NONE) {
-            options.decode(Drawable::class.java)
-        } else {
-            options.dontAnimate()
-            options.decode(Bitmap::class.java)
-        }
+                if (animate && roundCorners == ROUNDED_CORNERS_NONE) {
+                    options.decode(Drawable::class.java)
+                } else {
+                    options.dontAnimate()
+                    options.decode(Bitmap::class.java)
+                }
 
-        if (roundCorners != ROUNDED_CORNERS_NONE) {
-            val cornerSize = if (roundCorners == ROUNDED_CORNERS_SMALL) com.simplemobiletools.commons.R.dimen.rounded_corner_radius_small else com.simplemobiletools.commons.R.dimen.rounded_corner_radius_big
-            val cornerRadius = resources.getDimension(cornerSize).toInt()
-            val roundedCornersTransform = RoundedCorners(cornerRadius)
-            options.optionalTransform(MultiTransformation(CenterCrop(), roundedCornersTransform))
-            options.optionalTransform(WebpDrawable::class.java, MultiTransformation(WebpDrawableTransformation(CenterCrop()), WebpDrawableTransformation(roundedCornersTransform)))
-        }
+                if (roundCorners != ROUNDED_CORNERS_NONE) {
+                    val cornerSize = if (roundCorners == ROUNDED_CORNERS_SMALL) com.simplemobiletools.commons.R.dimen.rounded_corner_radius_small else com.simplemobiletools.commons.R.dimen.rounded_corner_radius_big
+                    val cornerRadius = resources.getDimension(cornerSize).toInt()
+                    val roundedCornersTransform = RoundedCorners(cornerRadius)
+                    options.optionalTransform(MultiTransformation(CenterCrop(), roundedCornersTransform))
+                    options.optionalTransform(WebpDrawable::class.java, MultiTransformation(WebpDrawableTransformation(CenterCrop()), WebpDrawableTransformation(roundedCornersTransform)))
+                }
 
-        WebpBitmapFactory.sUseSystemDecoder = false // CVE-2023-4863
-        Glide.with(applicationContext)
-            .load(file)
-            .apply(options)
-            .set(WebpDownsampler.USE_SYSTEM_DECODER, false) // CVE-2023-4863
-            .transition(DrawableTransitionOptions.withCrossFade(crossFadeDuration))
-            .into(target)
+                WebpBitmapFactory.sUseSystemDecoder = false // CVE-2023-4863
+                Glide.with(appContext)
+                    .load(file)
+                    .apply(options)
+                    .set(WebpDownsampler.USE_SYSTEM_DECODER, false) // CVE-2023-4863
+                    .transition(DrawableTransitionOptions.withCrossFade(crossFadeDuration))
+                    .into(target)
+            }
+        }
         return
     }
 

@@ -28,6 +28,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.REAL_FILE_PATH
+import com.simplemobiletools.commons.helpers.ensureBackgroundThread
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.databinding.ActivityVideoPlayerBinding
 import com.simplemobiletools.gallery.pro.extensions.*
@@ -241,17 +242,34 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
         // getFinalUriFromPath). The original remote:// path is passed via REAL_FILE_PATH so we
         // can still download + serve from a temp file instead of hitting ContentDataSource
         // (which throws the androidx.media3.datasource.ContentDataSource ContentID error).
+        // The FTP download must run off the main thread; ExoPlayer itself is created on the
+        // UI thread once the temp file is ready.
         val realPath = intent.getStringExtra(REAL_FILE_PATH)
         val isRemote = rawUri?.scheme == "remote" || realPath?.startsWith("remote://") == true
 
-        val resolvedUri = if (isRemote) {
+        if (isRemote) {
             val remotePath = if (rawUri?.scheme == "remote") rawUri.toString() else (realPath ?: rawUri.toString())
-            val tempPath = downloadRemoteFileToTemp(remotePath, config, cacheDir)
-            if (tempPath == null) {
-                // silently ignore unreachable remote servers
-                return
+            ensureBackgroundThread {
+                val tempPath = downloadRemoteFileToTemp(remotePath, config, cacheDir)
+                runOnUiThread {
+                    if (tempPath == null) {
+                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    } else {
+                        startExoPlayerWithTemp(tempPath)
+                    }
+                }
             }
-            Uri.fromFile(java.io.File(tempPath))
+            return
+        }
+        startExoPlayerWithTemp(null)
+    }
+
+    private fun startExoPlayerWithTemp(remoteTempPath: String?) {
+        val rawUri = mUri
+        val isContentUri = rawUri?.scheme == "content"
+        val isRemote = remoteTempPath != null
+        val resolvedUri = if (isRemote) {
+            Uri.fromFile(java.io.File(remoteTempPath!!))
         } else {
             rawUri
         }

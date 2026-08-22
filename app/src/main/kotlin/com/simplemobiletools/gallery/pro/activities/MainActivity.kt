@@ -71,6 +71,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mLatestMediaDateId = 0L
     private var mCurrentPathPrefix = ""                 // used at "Group direct subfolders" for navigation
     private var mOpenedSubfolders = arrayListOf("")     // used at "Group direct subfolders" for navigating Up with the back button
+    private var mTreeFolders = false                    // tree mode state (in-memory, like native button modes)
+    private val mExpandedTreeFolders = HashSet<String>() // tree mode: paths whose children are shown
     private var mDateFormat = ""
     private var mTimeFormat = ""
     private var mLastMediaHandler = Handler()
@@ -153,6 +155,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             config.wasSortingByNumericValueAdded = true
             config.sorting = config.sorting or SORT_USE_NUMERIC_VALUE
         }
+
+        // honor the persisted tree (folder-in-folder) mode
+        mTreeFolders = config.treeModeEnabled
 
         updateWidgets()
         registerFileUpdateListener()
@@ -317,6 +322,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     override fun onBackPressed() {
         if (binding.mainMenu.isSearchOpen) {
             binding.mainMenu.closeSearch()
+        } else if (mTreeFolders) {
+            // collapse one expanded level if the user collapsed something, else leave tree mode
+            if (mExpandedTreeFolders.size < keptTreeFolderCount()) {
+                super.onBackPressed()
+            } else {
+                exitTreeMode()
+            }
         } else if (config.groupDirectSubfolders) {
             if (mCurrentPathPrefix.isEmpty()) {
                 super.onBackPressed()
@@ -328,6 +340,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         } else {
             super.onBackPressed()
         }
+    }
+
+    private fun keptTreeFolderCount(): Int {
+        val realPaths = mDirs.map { it.path }.toSet()
+        return realPaths.size
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, resultData: Intent?) {
@@ -368,9 +385,15 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             findItem(R.id.set_as_default_folder).isVisible = !config.defaultFolder.isEmpty()
             findItem(R.id.open_recycle_bin).isVisible = config.useRecycleBin && !config.showRecycleBinAtFolders
             findItem(R.id.more_apps_from_us).isVisible = !resources.getBoolean(com.simplemobiletools.commons.R.bool.hide_google_relations)
-            // folders/files toggle: show the appropriate icon for the current state
-            // (folder icon when in folders view, image icon when showing all media)
-            findItem(R.id.show_all).setIcon(if (config.showAll) R.drawable.ic_files_vector else R.drawable.ic_folders_vector)
+            // 3-state folders/files toggle: folder icon in grid, tree icon in tree mode,
+            // image icon when showing all media
+            findItem(R.id.show_all).setIcon(
+                when {
+                    mTreeFolders -> R.drawable.ic_tree_vector
+                    config.showAll -> R.drawable.ic_files_vector
+                    else -> R.drawable.ic_folders_vector
+                }
+            )
         }
         }
 
@@ -617,17 +640,105 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
     }
 
+    // 3-state folders/files toggle in the top panel:
+    //   normal folders grid  ->  tree mode (folder-in-folder)  ->  all media (images)
     private fun toggleFoldersView() {
-        if (config.showAll) {
+        if (mTreeFolders) {
+            mTreeFolders = false
+            config.treeModeEnabled = false
+            mExpandedTreeFolders.clear()
+            showAllMedia()
+        } else if (config.showAll) {
             config.showAll = false
             mCurrentPathPrefix = ""
             mOpenedSubfolders.clear()
+            mExpandedTreeFolders.clear()
             setupAdapter(mDirs, forceRecreate = true)
+            refreshMenuItems()
         } else {
-            showAllMedia()
+            mTreeFolders = true
+            config.treeModeEnabled = true
+            mExpandedTreeFolders.clear()
+            setupAdapter(mDirs, forceRecreate = true)
+            refreshMenuItems()
         }
+    }
+
+    private fun exitTreeMode() {
+        if (!mTreeFolders) return
+        mTreeFolders = false
+        config.treeModeEnabled = false
+        mExpandedTreeFolders.clear()
+        setupAdapter(mDirs, forceRecreate = true)
         refreshMenuItems()
     }
+    // Builds the folder tree purely from the in-memory directory list (no DB access on the UI
+    // thread). Roots are folders whose direct parent is not itself in the list (file-manager
+    // style), children nest below with a tree glyph. Empty folders are stripped via
+    // hasMediaDescendant, and intermediate media-less parents are synthesized so nesting works.
+    private fun getTreeDirectories(topDirs: ArrayList<Directory>): ArrayList<Directory> {
+        val result = ArrayList<Directory>()
+        val shouldShowHidden = config.shouldShowHidden
+        val excludedPaths = if (config.temporarilyShowExcluded) HashSet() else config.excludedFolders
+        val visibleDirs = topDirs.filter {
+            it.path != RECYCLE_BIN &&
+                it.path != FAVORITES &&
+                (shouldShowHidden || !it.path.getFilenameFromPath().startsWith(".")) &&
+                it.path !in excludedPaths &&
+                it.path.getFilenameFromPath() != "." &&
+                it.path.getFilenameFromPath() != ".."
+        }
+
+        // synthesize intermediate parent folders (without their own media) so nesting works
+        val syntheticParents = LinkedHashSet<String>()
+        val realPaths = visibleDirs.map { it.path }.toSet()
+        for (p in realPaths) {
+            var parent = p.getParentPath()
+            while (parent.isNotEmpty() && parent != p) {
+                val name = parent.getFilenameFromPath()
+                if (name != "." && name != ".." && parent !in realPaths && parent !in syntheticParents) {
+                    syntheticParents.add(parent)
+                }
+                val next = parent.getParentPath()
+                if (next == parent) break
+                parent = next
+            }
+        }
+
+        val dirs = ArrayList(visibleDirs)
+        syntheticParents.forEach { parent ->
+            dirs.add(Directory(null, parent, "", parent.getFilenameFromPath(), 0, 0L, 0L, 0L, 0, 0, ""))
+        }
+
+        fun directChildOf(childPath: String, parentPath: String) =
+            childPath != parentPath && childPath.startsWith("$parentPath/") && '/' !in childPath.removePrefix("$parentPath/")
+
+        fun hasMediaDescendant(path: String): Boolean {
+            if (dirs.any { it.path == path && it.mediaCnt > 0 }) return true
+            return dirs.any { directChildOf(it.path, path) && hasMediaDescendant(it.path) }
+        }
+        val keptDirs = dirs.filter { hasMediaDescendant(it.path) }
+
+        mExpandedTreeFolders.addAll(keptDirs.map { it.path })
+
+        val roots = keptDirs.filter { dir -> keptDirs.none { directChildOf(dir.path, it.path) } }
+
+        fun collect(folder: Directory, depth: Int) {
+            val children = keptDirs.filter { directChildOf(it.path, folder.path) }
+            result.add(folder.apply {
+                treeDepth = depth
+                hasTreeChildren = children.isNotEmpty()
+                isTreeExpanded = folder.path in mExpandedTreeFolders
+            })
+            if (folder.path in mExpandedTreeFolders) {
+                children.forEach { collect(it, depth + 1) }
+            }
+        }
+
+        roots.forEach { collect(it, 0) }
+        return result
+    }
+
     // Strips empty folders from the displayed list. A folder is only worth showing if it (or one
     // of its descendants anywhere below it) actually holds media. This hides paths like
     // /1/2/3/4/5/6/7/8/9 that contain no media themselves and have no media nested below.
@@ -1359,6 +1470,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         if (config.temporarilyShowHiddenOnly) {
             dirsToShow = dirsToShow.filter { !isRestrictedWithSAFSdk30(it.path) }.toMutableList() as ArrayList<Directory>
         }
+        if (mTreeFolders) {
+            // tree mode shows the real folder hierarchy; bypass subfolder grouping so every
+            // folder (including nested ones) is present and can be nested under its parent.
+            // Empty folders are stripped inside getTreeDirectories.
+            dirsToShow = getTreeDirectories(sortedDirs)
+        }
         if (currAdapter == null || forceRecreate) {
             mDirsIgnoringSearch = dirs
             initZoomListener()
@@ -1372,7 +1489,23 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             ) {
                 val clickedDir = it as Directory
                 val path = clickedDir.path
-                if (clickedDir.subfoldersCount == 1 || !config.groupDirectSubfolders) {
+                if (mTreeFolders) {
+                    // tree mode: tapping a parent folder with children expands/collapses its
+                    // subtree inline; a leaf drills into its media.
+                    if (clickedDir.hasTreeChildren) {
+                        if (path in mExpandedTreeFolders) {
+                            mExpandedTreeFolders.remove(path)
+                        } else {
+                            mExpandedTreeFolders.add(path)
+                        }
+                        setupAdapter(mDirs, "")
+                    } else if (path != config.tempFolderPath && !clickedDir.containsMediaFilesDirectly && clickedDir.mediaCnt == 0) {
+                        // synthetic parent with no direct media: just toggle expansion (handled above)
+                        setupAdapter(mDirs, "")
+                    } else if (path != config.tempFolderPath) {
+                        itemClicked(path)
+                    }
+                } else if (clickedDir.subfoldersCount == 1 || !config.groupDirectSubfolders) {
                     if (path != config.tempFolderPath) {
                         itemClicked(path)
                     }

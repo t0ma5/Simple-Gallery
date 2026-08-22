@@ -361,13 +361,34 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
 
         val isContentUri = mMedium.path.startsWith("content://")
         val isRemote = mMedium.path.startsWith("remote://")
-        val uri = if (isRemote) {
-            val tempPath = downloadRemoteFileToTemp(mMedium.path, mConfig, requireContext().cacheDir)
-            if (tempPath == null) {
-                // silently ignore unreachable remote servers
-                return
+
+        if (isRemote) {
+            // FTP download must not run on the main thread (called from playVideo click);
+            // resume ExoPlayer setup on the UI thread once the temp file is ready.
+            ensureBackgroundThread {
+                val tempPath = downloadRemoteFileToTemp(mMedium.path, mConfig, requireContext().cacheDir)
+                activity?.runOnUiThread {
+                    if (tempPath == null) {
+                        activity?.toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    } else {
+                        startExoPlayerWithTemp(tempPath)
+                    }
+                }
             }
-            Uri.fromFile(File(tempPath))
+            return
+        }
+        startExoPlayerWithTemp(null)
+    }
+
+    private fun startExoPlayerWithTemp(remoteTempPath: String?) {
+        if (activity == null || mConfig.openVideosOnSeparateScreen || mIsPanorama || mExoPlayer != null) {
+            return
+        }
+
+        val isContentUri = mMedium.path.startsWith("content://")
+        val isRemote = remoteTempPath != null
+        val uri = if (isRemote) {
+            Uri.fromFile(File(remoteTempPath!!))
         } else if (isContentUri) {
             Uri.parse(mMedium.path)
         } else {

@@ -253,14 +253,28 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
 
     private fun launchVideoPlayer() {
         val isRemote = mUri.toString().startsWith("remote://")
-        val newUri = if (isRemote) {
-            // download to temp first, otherwise media3 tries to read a bogus provider URI
-            val tempPath = downloadRemoteFileToTemp(mUri.toString(), config, cacheDir)
-            if (tempPath == null) {
-                toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
-                return
+        if (isRemote) {
+            // FTP download must not run on the main thread; continue on the UI thread once
+            // the temp file is ready.
+            val remoteUri = mUri.toString()
+            ensureBackgroundThread {
+                val tempPath = downloadRemoteFileToTemp(remoteUri, config, cacheDir)
+                runOnUiThread {
+                    if (tempPath == null) {
+                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    } else {
+                        startVideoPlayerForTemp(tempPath)
+                    }
+                }
             }
-            getFinalUriFromPath(tempPath, BuildConfig.APPLICATION_ID)
+            return
+        }
+        startVideoPlayerForTemp(null)
+    }
+
+    private fun startVideoPlayerForTemp(remoteTempPath: String?) {
+        val newUri = if (remoteTempPath != null) {
+            getFinalUriFromPath(remoteTempPath, BuildConfig.APPLICATION_ID)
         } else {
             getFinalUriFromPath(mUri.toString(), BuildConfig.APPLICATION_ID)
         }
@@ -269,6 +283,7 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
             return
         }
 
+        val isRemote = remoteTempPath != null
         var isPanorama = false
         val realPath = if (isRemote) {
             mUri.toString()
