@@ -93,6 +93,11 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(SHOW_ALL, false)
         set(showAll) = prefs.edit().putBoolean(SHOW_ALL, showAll).apply()
 
+    // persists the tree (folder-in-folder) mode so it survives app restarts
+    var treeModeEnabled: Boolean
+        get() = prefs.getBoolean("tree_mode_enabled", false)
+        set(treeModeEnabled) = prefs.edit().putBoolean("tree_mode_enabled", treeModeEnabled).apply()
+
     fun addPinnedFolders(paths: Set<String>) {
         val currPinnedFolders = HashSet<String>(pinnedFolders)
         currPinnedFolders.addAll(paths)

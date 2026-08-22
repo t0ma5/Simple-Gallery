@@ -58,13 +58,21 @@ class RemoteDataFetcher(private val curPath: String, private val config: Config)
                 return
             }
 
+            // Mirror getRemoteFiles: change into the parent directory, then fetch just the
+            // file name. Using an absolute path with retrieveFileStream() fails on chrooted
+            // servers (where the folder lister works only because it changeWorkingDirectory()s).
+            val fileIndex = remotePath.lastIndexOf('/')
+            val parentDir = if (fileIndex > 0) remotePath.substring(0, fileIndex) else "/"
+            val fileName = remotePath.substring(fileIndex + 1)
+
             ftpClient = FTPClient()
             ftpClient?.connectTimeout = 3000
             ftpClient?.connect(server.host, server.port)
             ftpClient?.login(server.username, password)
             ftpClient?.enterLocalPassiveMode()
             ftpClient?.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
-            inputStream = ftpClient?.retrieveFileStream(remotePath)
+            ftpClient?.changeWorkingDirectory(parentDir)
+            inputStream = ftpClient?.retrieveFileStream(fileName)
             if (inputStream != null) {
                 callback.onDataReady(inputStream)
             } else {
@@ -99,7 +107,7 @@ class RemoteDataFetcher(private val curPath: String, private val config: Config)
 /**
  * Downloads a remote:// media file to a temp file in [cacheDir] and returns its path.
  * Used by the video player (media3) which cannot open remote:// URLs directly.
- * Returns null if the download fails.
+ * Returns null if the download fails. Reuses an existing temp file when present.
  */
 fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): String? {
     return try {
@@ -114,9 +122,20 @@ fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): S
         val password = config.getRemoteServerPassword(serverId, server.passwordHash)
 
         val tempFile = File(cacheDir, "remote_${serverId}_${remotePath.hashCode()}.tmp")
-        
+
+        // reuse a previously downloaded copy so we don't re-fetch for metadata + playback
+        if (tempFile.exists() && tempFile.length() > 0) {
+            return tempFile.absolutePath
+        }
+
         // FTP only
         if (protocol != "ftp") return null
+
+        // Mirror getRemoteFiles/RemoteDataFetcher: change into the parent dir, then fetch the
+        // file name. Absolute-path retrieveFileStream() fails on chrooted servers.
+        val fileIndex = remotePath.lastIndexOf('/')
+        val parentDir = if (fileIndex > 0) remotePath.substring(0, fileIndex) else "/"
+        val fileName = remotePath.substring(fileIndex + 1)
 
         val ftpClient = FTPClient()
         ftpClient.connectTimeout = 3000
@@ -124,7 +143,8 @@ fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): S
         ftpClient.login(server.username, password)
         ftpClient.enterLocalPassiveMode()
         ftpClient.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
-        val stream = ftpClient.retrieveFileStream(remotePath)
+        ftpClient.changeWorkingDirectory(parentDir)
+        val stream = ftpClient.retrieveFileStream(fileName)
         if (stream == null) return null
         
         tempFile.outputStream().use { out ->
@@ -134,7 +154,7 @@ fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): S
         ftpClient.completePendingCommand()
         ftpClient.disconnect()
         
-        tempFile.absolutePath
+        if (tempFile.exists() && tempFile.length() > 0) tempFile.absolutePath else null
     } catch (e: Exception) {
         null
     }

@@ -509,8 +509,17 @@ fun Context.loadImageBase(
     tryLoadingWithPicasso: Boolean = false,
     crossFadeDuration: Int = 300
 ) {
-    // Handle remote:// paths specially - they need to use RemoteModelLoader
+    // Handle remote:// paths: download to a temp file first, then let Glide load that File.
+    // We cannot pass the raw remote:// String to Glide because its built-in StringLoader treats
+    // it as a URI scheme and fails silently (no thumbnails, no previews). Loading the local
+    // temp File is reliable. The temp file is reused across calls so repeat loads are instant.
     if (path.startsWith("remote://")) {
+        val tempPath = downloadRemoteFileToTemp(path, config, cacheDir)
+        if (tempPath == null) {
+            // unreachable server: leave the thumbnail empty
+            return
+        }
+        val file = File(tempPath)
         val options = RequestOptions()
             .signature(signature)
             .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
@@ -543,7 +552,7 @@ fun Context.loadImageBase(
 
         WebpBitmapFactory.sUseSystemDecoder = false // CVE-2023-4863
         Glide.with(applicationContext)
-            .load(path)
+            .load(file)
             .apply(options)
             .set(WebpDownsampler.USE_SYSTEM_DECODER, false) // CVE-2023-4863
             .transition(DrawableTransitionOptions.withCrossFade(crossFadeDuration))
@@ -1160,15 +1169,20 @@ fun Context.getFileDateTaken(path: String): Long {
 
 // Remote servers: only added to the folder list once verified reachable + containing media.
 // Live-check is skipped within a short window for servers that just failed, to avoid stalling the list.
+// The last successfully-built Directory is cached so re-verification keeps the server name + media
+// count visible instead of flickering to a blank/0-count entry during refresh.
 fun Context.getVerifiedRemoteDirectory(server: com.simplemobiletools.gallery.pro.models.RemoteServer): Directory? {
     val protocol = "ftp"
     val remotePath = "remote://$protocol/${server.id}${server.remotePath}"
-    if (RemoteServerVerify.verified.contains(remotePath)) {
-        val displayName = server.name.trim().ifEmpty { server.host.ifEmpty { remotePath } }
-        return Directory(null, remotePath, "", displayName, 0, 0L, 0L, 0L, 0, 0, "")
-    }
+    val displayName = server.name.trim().ifEmpty { server.host.ifEmpty { remotePath } }
+
+    // Always re-verify connectivity on every call. The previous code short-circuited on a
+    // "verified" flag set once per session, so an offline server kept showing forever.
+    // We still keep a short in-flight guard so we don't hammer the server on rapid refreshes,
+    // but a previously-failed path is re-checked (not served a stale cached entry).
     if (RemoteServerVerify.pendingOrFailed.contains(remotePath)) {
-        return null
+        // still checking: keep the previously cached entry visible if we have one
+        return RemoteServerVerify.cached[remotePath]
     }
 
     RemoteServerVerify.pendingOrFailed.add(remotePath)
@@ -1181,21 +1195,28 @@ fun Context.getVerifiedRemoteDirectory(server: com.simplemobiletools.gallery.pro
         cli.login(server.username, config.getRemoteServerPassword(server.id!!, server.passwordHash))
         cli.enterLocalPassiveMode()
         cli.changeWorkingDirectory(server.remotePath)
-        val hasMedia = cli.listFiles().any { it.isFile && it.name.isMediaFile() }
-        if (hasMedia) {
-            cli.disconnect()
-            RemoteServerVerify.pendingOrFailed.remove(remotePath)
-            RemoteServerVerify.verified.add(remotePath)
-            val displayName = server.name.trim().ifEmpty { server.host.ifEmpty { remotePath } }
-            return Directory(null, remotePath, "", displayName, 0, 0L, 0L, 0L, 0, 0, "")
-        }
+        val files = cli.listFiles()
+        val mediaCount = files.count { it.isFile && it.name.isMediaFile() }
+        val hasMedia = mediaCount > 0
         cli.disconnect()
+        RemoteServerVerify.pendingOrFailed.remove(remotePath)
+        if (hasMedia) {
+            val dir = Directory(null, remotePath, "", displayName, mediaCount, 0L, 0L, 0L, 0, 0, "")
+            RemoteServerVerify.cached[remotePath] = dir
+            return dir
+        }
+        // reachable but empty: drop any stale cache so it doesn't show
+        RemoteServerVerify.cached.remove(remotePath)
         return null
     } catch (e: Exception) {
         try {
             ftp?.disconnect()
         } catch (ignored: Exception) {
         }
+        // server is offline / unreachable: forget any previously cached entry so the folder
+        // disappears from the list instead of lingering with a stale name + media count.
+        RemoteServerVerify.pendingOrFailed.remove(remotePath)
+        RemoteServerVerify.cached.remove(remotePath)
         return null
     }
 }
@@ -1205,4 +1226,6 @@ private object RemoteServerVerify {
     val verified = HashSet<String>()
     // remote:// paths currently being checked or that just failed (kept out of the list)
     val pendingOrFailed = HashSet<String>()
+    // last successfully built Directory per remote:// path (stable name + media count)
+    val cached = HashMap<String, Directory>()
 }

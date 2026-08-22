@@ -223,10 +223,21 @@ class MediaAdapter(
     private fun showProperties() {
         if (selectedKeys.size <= 1) {
             val path = getFirstSelectedItemPath() ?: return
-            PropertiesDialog(activity, path, config.shouldShowHidden)
+            if (path.startsWith("remote://")) {
+                ensureBackgroundThread {
+                    val tempPath = downloadRemoteFileToTemp(path, activity.config, activity.cacheDir)
+                    activity.runOnUiThread {
+                        if (tempPath != null) PropertiesDialog(activity, tempPath, config.shouldShowHidden)
+                    }
+                }
+            } else {
+                PropertiesDialog(activity, path, config.shouldShowHidden)
+            }
         } else {
-            val paths = getSelectedPaths()
-            PropertiesDialog(activity, paths, config.shouldShowHidden)
+            val paths = getSelectedPaths().filter { !it.startsWith("remote://") }
+            if (paths.isNotEmpty()) {
+                PropertiesDialog(activity, paths, config.shouldShowHidden)
+            }
         }
     }
 

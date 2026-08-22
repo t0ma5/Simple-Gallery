@@ -10,7 +10,7 @@
         app:showAsAction="always" />
     <item
         android:id="@+id/folder_view"
-        android:icon="@drawable/ic_folders_vector"
+        android:icon="@drawable/ic_files_vector"
         android:title="@string/folder_view"
         app:showAsAction="always" />
     <item

@@ -18,6 +18,7 @@ import android.widget.SeekBar
 import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.ContentDataSource
+import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.exoplayer.ExoPlayer
@@ -26,6 +27,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.simplemobiletools.commons.extensions.*
+import com.simplemobiletools.commons.helpers.REAL_FILE_PATH
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.databinding.ActivityVideoPlayerBinding
 import com.simplemobiletools.gallery.pro.extensions.*
@@ -232,12 +234,40 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
     }
 
     private fun initExoPlayer() {
-        val dataSpec = DataSpec(mUri!!)
-        val fileDataSource = ContentDataSource(applicationContext)
+        val rawUri = mUri
+        val isContentUri = rawUri?.scheme == "content"
+
+        // A remote:// video reaches us wrapped in a content:// FileProvider URI (built by
+        // getFinalUriFromPath). The original remote:// path is passed via REAL_FILE_PATH so we
+        // can still download + serve from a temp file instead of hitting ContentDataSource
+        // (which throws the androidx.media3.datasource.ContentDataSource ContentID error).
+        val realPath = intent.getStringExtra(REAL_FILE_PATH)
+        val isRemote = rawUri?.scheme == "remote" || realPath?.startsWith("remote://") == true
+
+        val resolvedUri = if (isRemote) {
+            val remotePath = if (rawUri?.scheme == "remote") rawUri.toString() else (realPath ?: rawUri.toString())
+            val tempPath = downloadRemoteFileToTemp(remotePath, config, cacheDir)
+            if (tempPath == null) {
+                // silently ignore unreachable remote servers
+                return
+            }
+            Uri.fromFile(java.io.File(tempPath))
+        } else {
+            rawUri
+        }
+        val dataSpec = DataSpec(resolvedUri!!)
+        // remote media is always served from the downloaded temp file via FileDataSource.
+        // ContentDataSource is only correct for real content:// URIs that are NOT remote.
+        val fileDataSource = if (isContentUri && !isRemote) {
+            ContentDataSource(applicationContext)
+        } else {
+            FileDataSource()
+        }
         try {
             fileDataSource.open(dataSpec)
         } catch (e: Exception) {
             showErrorToast(e)
+            return
         }
 
         val factory = DataSource.Factory { fileDataSource }

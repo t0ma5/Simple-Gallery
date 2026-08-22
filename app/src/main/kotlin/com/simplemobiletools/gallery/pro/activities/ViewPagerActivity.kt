@@ -425,9 +425,15 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                     val parent = mPath.getParentPath()
                     val type = getTypeFromPath(mPath)
                     val isFavorite = favoritesDB.isFavorite(mPath)
-                    val duration = if (type == TYPE_VIDEOS) getDuration(mPath) ?: 0 else 0
+                    val probePath = if (mPath.startsWith("remote://")) {
+                        downloadRemoteFileToTemp(mPath, config, cacheDir)
+                    } else {
+                        mPath
+                    }
+                    val duration = if (type == TYPE_VIDEOS) (if (probePath != null) getDuration(probePath) else null) ?: 0 else 0
+                    val size = if (probePath != null) File(probePath).length() else 0L
                     val ts = System.currentTimeMillis()
-                    val medium = Medium(null, filename, mPath, parent, ts, ts, File(mPath).length(), type, duration, isFavorite, 0, 0L)
+                    val medium = Medium(null, filename, mPath, parent, ts, ts, size, type, duration, isFavorite, 0, 0L)
                     mediaDB.insert(medium)
                 }
             }
@@ -818,8 +824,17 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     private fun getCurrentFragment() = (binding.viewPager.adapter as? MyPagerAdapter)?.getCurrentFragment(binding.viewPager.currentItem)
 
     private fun showProperties() {
-        if (getCurrentMedium() != null) {
-            PropertiesDialog(this, getCurrentPath(), false)
+        val path = getCurrentPath()
+        if (path.isEmpty()) return
+        if (path.startsWith("remote://")) {
+            ensureBackgroundThread {
+                val tempPath = downloadRemoteFileToTemp(path, config, cacheDir)
+                runOnUiThread {
+                    if (tempPath != null) PropertiesDialog(this, tempPath, false)
+                }
+            }
+        } else {
+            PropertiesDialog(this, path, false)
         }
     }
 

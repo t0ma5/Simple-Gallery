@@ -179,9 +179,16 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
         checkIfPanorama()
 
         ensureBackgroundThread {
-            activity.getVideoResolution(mMedium.path)?.apply {
-                mVideoSize.x = x
-                mVideoSize.y = y
+            val pathForProbe = if (mMedium.path.startsWith("remote://")) {
+                downloadRemoteFileToTemp(mMedium.path, mConfig, requireContext().cacheDir)
+            } else {
+                mMedium.path
+            }
+            if (pathForProbe != null) {
+                activity.getVideoResolution(pathForProbe)?.apply {
+                    mVideoSize.x = x
+                    mVideoSize.y = y
+                }
             }
         }
 
@@ -367,26 +374,31 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
             Uri.fromFile(File(mMedium.path))
         }
         val dataSpec = DataSpec(uri)
-        val fileDataSource = if (isContentUri) {
-            ContentDataSource(requireContext())
-        } else {
-            FileDataSource()
+        // remote/media3 must build a FRESH datasource on every open() call. Reusing a single
+        // closed instance (the old bug) made media3 throw during playback. For a real
+        // content:// URI use ContentDataSource; for plain files and downloaded remote temp
+        // files use FileDataSource.
+        val usesContent = isContentUri && !isRemote
+        val factory = DataSource.Factory {
+            if (usesContent) {
+                ContentDataSource(requireContext())
+            } else {
+                FileDataSource()
+            }
         }
+        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
+            .createMediaSource(MediaItem.fromUri(uri))
 
         try {
-            fileDataSource.open(dataSpec)
+            // open once up front to fail fast on unreachable/closing files
+            factory.createDataSource().open(dataSpec)
         } catch (e: Exception) {
-            fileDataSource.close()
-            activity?.showErrorToast(e)
+            // don't surface confusing media3 datasource errors (e.g. ContentID) for remote media
+            if (!isRemote) {
+                activity?.showErrorToast(e)
+            }
             return
         }
-
-        val factory = DataSource.Factory { fileDataSource }
-        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
-            .createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
-
-        fileDataSource.close()
-
         mPlayOnPrepared = true
 
         mExoPlayer = ExoPlayer.Builder(requireContext())
@@ -715,7 +727,12 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
 
     private fun setupVideoDuration() {
         ensureBackgroundThread {
-            mDuration = context?.getDuration(mMedium.path) ?: 0
+            val pathForProbe = if (mMedium.path.startsWith("remote://")) {
+                downloadRemoteFileToTemp(mMedium.path, mConfig, requireContext().cacheDir)
+            } else {
+                mMedium.path
+            }
+            mDuration = if (pathForProbe != null) context?.getDuration(pathForProbe) ?: 0 else 0
 
             activity?.runOnUiThread {
                 setupTimeHolder()

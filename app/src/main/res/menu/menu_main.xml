@@ -10,7 +10,7 @@
         app:showAsAction="always" />
     <item
         android:id="@+id/show_all"
-        android:icon="@drawable/ic_files_vector"
+        android:icon="@drawable/ic_folders_vector"
         android:title="@string/show_all"
         app:showAsAction="always" />
     <item

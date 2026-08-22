@@ -252,16 +252,31 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
     }
 
     private fun launchVideoPlayer() {
-        val newUri = getFinalUriFromPath(mUri.toString(), BuildConfig.APPLICATION_ID)
+        val isRemote = mUri.toString().startsWith("remote://")
+        val newUri = if (isRemote) {
+            // download to temp first, otherwise media3 tries to read a bogus provider URI
+            val tempPath = downloadRemoteFileToTemp(mUri.toString(), config, cacheDir)
+            if (tempPath == null) {
+                toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                return
+            }
+            getFinalUriFromPath(tempPath, BuildConfig.APPLICATION_ID)
+        } else {
+            getFinalUriFromPath(mUri.toString(), BuildConfig.APPLICATION_ID)
+        }
         if (newUri == null) {
             toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
             return
         }
 
         var isPanorama = false
-        val realPath = intent?.extras?.getString(REAL_FILE_PATH) ?: ""
+        val realPath = if (isRemote) {
+            mUri.toString()
+        } else {
+            intent?.extras?.getString(REAL_FILE_PATH) ?: ""
+        }
         try {
-            if (realPath.isNotEmpty()) {
+            if (realPath.isNotEmpty() && !isRemote) {
                 val fis = FileInputStream(File(realPath))
                 parseFileChannel(realPath, fis.channel, 0, 0, 0) {
                     isPanorama = true
@@ -282,6 +297,7 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
             Intent(applicationContext, VideoPlayerActivity::class.java).apply {
                 setDataAndType(newUri, mimeType)
                 addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT)
+                putExtra(REAL_FILE_PATH, realPath)
                 if (intent.extras != null) {
                     putExtras(intent.extras!!)
                 }

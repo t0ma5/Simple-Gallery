@@ -16,10 +16,16 @@ A fast, privacy-focused photo and video gallery app for Android. Browse, manage,
 - **Deleted File Recovery** — Recover accidentally deleted photos and videos from the Recycle Bin
 - **Private Gallery** — PIN, pattern, or fingerprint protection for selected folders
 - **On-device Encryption** — Encrypt/decrypt folders locally; encrypted media is transparently decrypted when opened and securely purged from the cache on exit
-- **FTP / SFTP Access** — Add remote servers and browse/transfer media over network storage (thumbnails streamed via Glide)
+- **FTP Remote Access** — Add FTP servers and browse/transfer media over network storage (thumbnails streamed via Glide)
 - **Remote Thumbnails** — `remote://` media is loaded directly into the gallery's thumbnail pipeline
+- **Tree (Folder-in-Folder) Mode** — A third folder view that nests subfolders under their parents; tap a parent to expand/collapse, tap a leaf to open its media. Can be enabled by default in Settings
+- **Launch Lock** — If app password/fingerprint protection is enabled, the lock prompt appears once at launch, not every time you switch between folders / tree / images modes
 
-> **Note on network access:** FTP/SFTP support requires the `INTERNET` permission. The app only connects to servers you explicitly configure; there are no ads and no analytics/trackers.
+### How remote folders work
+- Add an FTP server from the folders screen (menu → *Add FTP server*).
+- A remote server only appears in the folder list **after** it has been verified reachable and contains media — it is never shown with a blank name or a stale cached file count.
+- Opening remote photos/videos downloads the file to a temp file and serves it through the media3 player (`FileDataSource`); duration, resolution and the properties dialog probe that temp file. The folder-scanner error toast on an unreachable server has been removed.
+- **FTP only** (SFTP was removed). Requires the `INTERNET` permission; the app only connects to servers you configure. No ads, no analytics/trackers.
 
 ## Install
 
@@ -30,8 +36,10 @@ A fast, privacy-focused photo and video gallery app for Android. Browse, manage,
 Requirements: Android SDK (compileSdk 35), JDK 17+, Gradle 8.7 (wrapper provided).
 
 ```bash
-./gradlew assembleFossDebug     # or assembleProprietaryDebug for the proprietary flavor
+./gradlew assembleFossDebug     # recommended; builds the FOSS flavor (no proprietary plugins)
 ```
+
+> The `proprietary` flavor applies an additional editor SDK Gradle plugin that is not available in every build environment. The remote-folder / tree-mode / encryption code lives in the shared `pro` source set and is exercised by the FOSS flavor. If the proprietary plugin is unavailable, build the FOSS flavor above.
 
 ## Support
 

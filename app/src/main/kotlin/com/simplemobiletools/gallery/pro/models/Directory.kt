@@ -30,13 +30,9 @@ data class Directory(
     // tree mode (main screen): depth/nesting for folder-in-folder display
     @Ignore var treeDepth: Int = 0,
     @Ignore var hasTreeChildren: Boolean = false,
-    @Ignore var isTreeExpanded: Boolean = false,
-
-    // tree mode: a synthetic row showing the folder's direct media as a thumbnail strip
-    @Ignore var isTreeMediaStrip: Boolean = false,
-    @Ignore var treeMedia: ArrayList<Medium> = ArrayList()) {
-
-    constructor() : this(null, "", "", "", 0, 0L, 0L, 0L, 0, 0, "", 0, 0)
+    @Ignore var isTreeExpanded: Boolean = false
+) {
+    constructor() : this(null, "", "", "", 0, 0L, 0L, 0L, 0, 0, "")
 
     fun getBubbleText(sorting: Int, context: Context, dateFormat: String? = null, timeFormat: String? = null) = when {
         sorting and SORT_BY_NAME != 0 -> name

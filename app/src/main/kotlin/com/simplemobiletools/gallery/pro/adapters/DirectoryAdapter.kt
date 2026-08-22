@@ -36,7 +36,6 @@ import com.simplemobiletools.gallery.pro.activities.ViewPagerActivity
 import com.simplemobiletools.gallery.pro.databinding.DirectoryItemGridRoundedCornersBinding
 import com.simplemobiletools.gallery.pro.databinding.DirectoryItemGridSquareBinding
 import com.simplemobiletools.gallery.pro.databinding.DirectoryItemListBinding
-import com.simplemobiletools.gallery.pro.databinding.DirectoryItemTreeMediaBinding
 import com.simplemobiletools.gallery.pro.dialogs.ConfirmDeleteFolderDialog
 import com.simplemobiletools.gallery.pro.dialogs.ExcludeFolderDialog
 import com.simplemobiletools.gallery.pro.dialogs.PickMediumDialog
@@ -81,17 +80,11 @@ class DirectoryAdapter(
 
     override fun getActionMenuId() = R.menu.cab_directories
 
-    override fun getItemViewType(position: Int) =
-        if (dirs.getOrNull(position)?.isTreeMediaStrip == true) 1 else 0
-
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = when (viewType) {
-            1 -> DirectoryItemTreeMediaBinding.inflate(layoutInflater, parent, false)
-            else -> when {
-                isListViewType -> DirectoryItemListBinding.inflate(layoutInflater, parent, false)
-                folderStyle == FOLDER_STYLE_SQUARE -> DirectoryItemGridSquareBinding.inflate(layoutInflater, parent, false)
-                else -> DirectoryItemGridRoundedCornersBinding.inflate(layoutInflater, parent, false)
-            }
+        val binding = when {
+            isListViewType -> DirectoryItemListBinding.inflate(layoutInflater, parent, false)
+            folderStyle == FOLDER_STYLE_SQUARE -> DirectoryItemGridSquareBinding.inflate(layoutInflater, parent, false)
+            else -> DirectoryItemGridRoundedCornersBinding.inflate(layoutInflater, parent, false)
         }
 
         return createViewHolder(binding.root)
@@ -99,10 +92,6 @@ class DirectoryAdapter(
 
     override fun onBindViewHolder(holder: MyRecyclerViewAdapter.ViewHolder, position: Int) {
         val dir = dirs.getOrNull(position) ?: return
-        if (dir.isTreeMediaStrip) {
-            setupTreeMediaStrip(holder.itemView, dir)
-            return
-        }
         holder.bindView(dir, true, !isPickIntent) { itemView, adapterPosition ->
             setupView(itemView, dir, holder)
         }
@@ -180,7 +169,7 @@ class DirectoryAdapter(
 
     override fun getSelectableItemCount() = dirs.size
 
-    override fun getIsItemSelectable(position: Int) = dirs.getOrNull(position)?.isTreeMediaStrip != true
+    override fun getIsItemSelectable(position: Int) = true
 
     override fun getItemSelectionKey(position: Int) = if (getIsItemSelectable(position)) dirs.getOrNull(position)?.path?.hashCode() else null
 
@@ -910,48 +899,6 @@ class DirectoryAdapter(
     fun updateCropThumbnails(cropThumbnails: Boolean) {
         this.cropThumbnails = cropThumbnails
         notifyDataSetChanged()
-    }
-
-    // tree mode: a folder's direct media shown as a horizontally scrollable thumbnail strip row
-    private fun setupTreeMediaStrip(view: View, directory: Directory) {
-        val binding = DirectoryItemTreeMediaBinding.bind(view)
-        val strip = binding.treeMediaStrip
-        strip.removeAllViews()
-        val size = activity.resources.getDimensionPixelSize(com.simplemobiletools.commons.R.dimen.medium_margin) * 5
-        directory.treeMedia.take(30).forEach { medium ->
-            val thumb = MySquareImageView(activity).apply {
-                layoutParams = android.view.ViewGroup.LayoutParams(size, size)
-                setPadding(0, 0, activity.resources.getDimensionPixelSize(com.simplemobiletools.commons.R.dimen.medium_margin) / 2, 0)
-                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
-                setOnClickListener {
-                    Intent(activity, ViewPagerActivity::class.java).apply {
-                        putExtra(SKIP_AUTHENTICATION, true)
-                        putExtra(PATH, medium.path)
-                        putExtra(SHOW_ALL, false)
-                        putExtra(IS_FROM_GALLERY, true)
-                        activity.startActivity(this)
-                    }
-                }
-            }
-            val thumbnailType = when {
-                medium.isVideo() -> TYPE_VIDEOS
-                medium.isGIF() -> TYPE_GIFS
-                medium.path.isRawFast() -> TYPE_RAWS
-                medium.path.isSvg() -> TYPE_SVGS
-                else -> TYPE_IMAGES
-            }
-            activity.loadImage(
-                thumbnailType,
-                medium.path,
-                thumb,
-                scrollHorizontally,
-                animateGifs,
-                cropThumbnails,
-                ROUNDED_CORNERS_SMALL,
-                medium.getKey()
-            )
-            strip.addView(thumb)
-        }
     }
 
     private fun setupView(view: View, directory: Directory, holder: ViewHolder) {

@@ -134,7 +134,7 @@ class MediaFetcher(val context: Context) {
                 ftpClient.disconnect()
             }
         } catch (e: Exception) {
-            context.showErrorToast(e)
+            // silently ignore unreachable remote servers; the folder simply won't list media
         }
 
         return media
@@ -191,11 +191,6 @@ class MediaFetcher(val context: Context) {
                     folderNoMediaStatuses[path] = hasNoMedia
                 }
             }.toMutableList() as ArrayList<String>
-
-            context.config.parseRemoteServers().forEach {
-                val protocol = "ftp"
-                resultFolders.add("remote://$protocol/${it.id}${it.remotePath}")
-            }
 
             resultFolders
         } catch (e: Exception) {
