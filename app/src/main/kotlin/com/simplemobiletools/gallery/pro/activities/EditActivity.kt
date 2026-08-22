@@ -75,6 +75,9 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
     private lateinit var saveUri: Uri
     private var uri: Uri? = null
+    // set when the edited file is a remote:// medium: after a successful local save we upload
+    // the result back to the server (see scanFinalPath)
+    private var remoteSourcePath: String? = null
     private var resizeWidth = 0
     private var resizeHeight = 0
     private var drawColor = 0
@@ -152,6 +155,10 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
         if (intent.extras?.containsKey(REAL_FILE_PATH) == true) {
             val realPath = intent.extras!!.getString(REAL_FILE_PATH)
+            // remember the remote origin so saving uploads back to the server
+            if (realPath?.startsWith("remote://") == true) {
+                remoteSourcePath = realPath
+            }
             uri = when {
                 isPathOnOTG(realPath!!) -> uri
                 realPath.startsWith("file:/") -> Uri.parse(realPath)
@@ -939,6 +946,25 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     }
 
     private fun scanFinalPath(path: String) {
+        // Remote origin: push the edited file back to the server instead of rescanning it
+        // into the local media store.
+        val remotePath = remoteSourcePath
+        if (remotePath != null) {
+            ensureBackgroundThread {
+                val uploaded = File(path).inputStream().use { RemoteOps.storeFile(config, remotePath, it) }
+                runOnUiThread {
+                    if (uploaded) {
+                        toast(com.simplemobiletools.commons.R.string.file_saved)
+                        setResult(Activity.RESULT_OK, intent)
+                        finish()
+                    } else {
+                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    }
+                }
+            }
+            return
+        }
+
         val paths = arrayListOf(path)
         rescanPaths(paths) {
             fixDateTaken(paths, false)

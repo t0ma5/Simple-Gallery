@@ -881,9 +881,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         checkLastMediaChanged()
 
         // remote subfolders (isDirectory) are navigational, not media: keep them on top but
-        // never persist them to the media database.
-        val sorted = if (media.any { it is Medium && it.isDirectory }) {
-            media.sortedBy { (it as? Medium)?.isDirectory == true }.toMutableList() as ArrayList<ThumbnailItem>
+        // never persist them to the media database. Date-section headers are also dropped for
+        // remote folders — groupMedia cannot meaningfully section a mixed folder/subfolder list.
+        val hasRemoteDirs = media.any { it is Medium && it.isDirectory }
+        val sorted = if (hasRemoteDirs) {
+            val dirs = media.filterIsInstance<Medium>().filter { it.isDirectory }
+            val rest = media.filter { it !is ThumbnailSection && (it !is Medium || !(it as Medium).isDirectory) }
+            (dirs + rest) as ArrayList<ThumbnailItem>
         } else {
             media
         }

@@ -1,113 +1,19 @@
 package com.simplemobiletools.gallery.pro.helpers
 
-import android.content.Context
-import com.bumptech.glide.Priority
-import com.bumptech.glide.load.DataSource
-import com.bumptech.glide.load.Options
-import com.bumptech.glide.load.data.DataFetcher
-import com.bumptech.glide.load.model.ModelLoader
-import com.bumptech.glide.load.model.ModelLoaderFactory
-import com.bumptech.glide.load.model.MultiModelLoaderFactory
-import com.bumptech.glide.signature.ObjectKey
+import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
 import java.io.File
-import java.io.InputStream
-
-class RemoteModelLoader(private val config: Config) : ModelLoader<String, InputStream> {
-    override fun buildLoadData(model: String, width: Int, height: Int, options: Options): ModelLoader.LoadData<InputStream> {
-        return ModelLoader.LoadData(ObjectKey(model), RemoteDataFetcher(model, config))
-    }
-
-    override fun handles(model: String): Boolean {
-        return model.startsWith("remote://")
-    }
-}
-
-class RemoteModelLoaderFactory(private val config: Config) : ModelLoaderFactory<String, InputStream> {
-    override fun build(multiFactory: MultiModelLoaderFactory): ModelLoader<String, InputStream> {
-        return RemoteModelLoader(config)
-    }
-
-    override fun teardown() {}
-}
-
-class RemoteDataFetcher(private val curPath: String, private val config: Config) : DataFetcher<InputStream> {
-    private var ftpClient: FTPClient? = null
-    private var inputStream: InputStream? = null
-
-    override fun loadData(priority: Priority, callback: DataFetcher.DataCallback<in InputStream>) {
-        try {
-            val parts = curPath.removePrefix("remote://").split("/", limit = 3)
-            if (parts.size < 3) {
-                callback.onLoadFailed(Exception("Invalid remote path"))
-                return
-            }
-
-            val protocol = parts[0]
-            val serverId = parts[1].toLongOrNull() ?: return callback.onLoadFailed(Exception("Invalid server ID"))
-            val remotePath = "/${parts[2]}"
-
-            val server = config.parseRemoteServers().find { it.id == serverId }
-                ?: return callback.onLoadFailed(Exception("Server not found"))
-
-            val password = config.getRemoteServerPassword(serverId, server.passwordHash)
-
-            // FTP only - SFTP removed
-            if (protocol != "ftp") {
-                callback.onLoadFailed(Exception("Only FTP protocol is supported"))
-                return
-            }
-
-            // Mirror getRemoteFiles: change into the parent directory, then fetch just the
-            // file name. Using an absolute path with retrieveFileStream() fails on chrooted
-            // servers (where the folder lister works only because it changeWorkingDirectory()s).
-            val fileIndex = remotePath.lastIndexOf('/')
-            val parentDir = if (fileIndex > 0) remotePath.substring(0, fileIndex) else "/"
-            val fileName = remotePath.substring(fileIndex + 1)
-
-            ftpClient = FTPClient()
-            ftpClient?.connectTimeout = 3000
-            ftpClient?.connect(server.host, server.port)
-            ftpClient?.login(server.username, password)
-            ftpClient?.enterLocalPassiveMode()
-            ftpClient?.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
-            ftpClient?.changeWorkingDirectory(parentDir)
-            inputStream = ftpClient?.retrieveFileStream(fileName)
-            if (inputStream != null) {
-                callback.onDataReady(inputStream)
-            } else {
-                callback.onLoadFailed(Exception("Failed to retrieve FTP file stream"))
-            }
-        } catch (e: Exception) {
-            // silently ignore unreachable servers, thumbnails just stay empty
-            callback.onLoadFailed(e)
-        }
-    }
-
-    override fun cleanup() {
-        try {
-            inputStream?.close()
-        } catch (e: Exception) {}
-        try {
-            ftpClient?.disconnect()
-        } catch (e: Exception) {}
-    }
-
-    override fun cancel() {}
-
-    override fun getDataClass(): Class<InputStream> {
-        return InputStream::class.java
-    }
-
-    override fun getDataSource(): DataSource {
-        return DataSource.REMOTE
-    }
-}
 
 /**
  * Downloads a remote:// media file to a temp file in [cacheDir] and returns its path.
- * Used by the video player (media3) which cannot open remote:// URLs directly.
- * Returns null if the download fails. Reuses an existing temp file when present.
+ * Used by thumbnails (Glide), video playback (media3) and duration probes, none of which can
+ * open remote:// paths directly.
+ *
+ * Mirrors getRemoteFiles / RemoteOps: change into the parent directory first, then fetch just
+ * the file name — absolute-path retrieveFileStream() fails on chrooted servers.
+ *
+ * Returns null if the download fails. Reuses an existing temp file when present so repeat
+ * loads are instant.
  */
 fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): String? {
     return try {
@@ -119,7 +25,10 @@ fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): S
         val remotePath = "/${parts[2]}"
 
         val server = config.parseRemoteServers().find { it.id == serverId } ?: return null
-        val password = config.getRemoteServerPassword(serverId, server.passwordHash)
+        val password = config.getRemoteServerPassword(server.id!!, server.passwordHash)
+
+        // FTP only - SFTP removed
+        if (protocol != "ftp") return null
 
         val tempFile = File(cacheDir, "remote_${serverId}_${remotePath.hashCode()}.tmp")
 
@@ -128,11 +37,6 @@ fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): S
             return tempFile.absolutePath
         }
 
-        // FTP only
-        if (protocol != "ftp") return null
-
-        // Mirror getRemoteFiles/RemoteDataFetcher: change into the parent dir, then fetch the
-        // file name. Absolute-path retrieveFileStream() fails on chrooted servers.
         val fileIndex = remotePath.lastIndexOf('/')
         val parentDir = if (fileIndex > 0) remotePath.substring(0, fileIndex) else "/"
         val fileName = remotePath.substring(fileIndex + 1)
@@ -142,18 +46,21 @@ fun downloadRemoteFileToTemp(curPath: String, config: Config, cacheDir: File): S
         ftpClient.connect(server.host, server.port)
         ftpClient.login(server.username, password)
         ftpClient.enterLocalPassiveMode()
-        ftpClient.setFileType(org.apache.commons.net.ftp.FTP.BINARY_FILE_TYPE)
+        ftpClient.setFileType(FTP.BINARY_FILE_TYPE)
         ftpClient.changeWorkingDirectory(parentDir)
         val stream = ftpClient.retrieveFileStream(fileName)
-        if (stream == null) return null
-        
+        if (stream == null) {
+            ftpClient.disconnect()
+            return null
+        }
+
         tempFile.outputStream().use { out ->
             stream.copyTo(out)
         }
         stream.close()
         ftpClient.completePendingCommand()
         ftpClient.disconnect()
-        
+
         if (tempFile.exists() && tempFile.length() > 0) tempFile.absolutePath else null
     } catch (e: Exception) {
         null

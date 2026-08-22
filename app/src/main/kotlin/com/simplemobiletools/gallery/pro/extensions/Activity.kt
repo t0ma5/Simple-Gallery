@@ -303,37 +303,62 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
         return
     }
 
-    // Remote sources: download into a locally-picked destination. We cannot pick a remote
-    // destination yet, so copy/move of a remote file always lands on local storage.
-    if (fileDirItems.first().path.startsWith("remote://")) {
+    // Remote-aware copy/move. Four combos are supported:
+    //   remote -> remote (same server): server-side stream copy (+ delete for move)
+    //   remote -> local:  download into the locally-picked destination
+    //   local  -> remote: upload from local file into the remotely-picked destination
+    //   local  -> local:  falls through to the commons copyMoveFilesTo below
+    val anyRemote = fileDirItems.any { it.path.startsWith("remote://") }
+    if (anyRemote) {
         val source = fileDirItems.first().getParentPath()
         PickDirectoryDialog(this, source, true, false, true, false) { destination ->
+            val destIsRemote = destination.startsWith("remote://")
             ensureBackgroundThread {
                 var allOk = true
                 fileDirItems.forEach { item ->
-                    val tempPath = downloadRemoteFileToTemp(item.path, config, cacheDir)
-                    if (tempPath == null) {
-                        allOk = false
-                        return@forEach
-                    }
-                    val out = getFileOutputStreamSync("$destination/${item.name}", item.path.getMimeType())
-                    if (out == null) {
-                        allOk = false
-                        return@forEach
-                    }
+                    val srcIsRemote = item.path.startsWith("remote://")
+                    val target = "$destination/${item.name}"
                     try {
-                        File(tempPath).inputStream().copyTo(out)
-                        out.close()
+                        when {
+                            srcIsRemote && destIsRemote -> {
+                                if (!RemoteOps.copyRemote(config, item.path, target)) {
+                                    allOk = false
+                                }
+                            }
+                            srcIsRemote && !destIsRemote -> {
+                                val tempPath = downloadRemoteFileToTemp(item.path, config, cacheDir)
+                                if (tempPath == null) {
+                                    allOk = false
+                                } else {
+                                    File(tempPath).copyTo(File(target), overwrite = true)
+                                }
+                            }
+                            !srcIsRemote && destIsRemote -> {
+                                File(item.path).inputStream().use { input ->
+                                    if (!RemoteOps.storeFile(config, target, input)) {
+                                        allOk = false
+                                    }
+                                }
+                            }
+                            else -> {
+                                File(item.path).copyTo(File(target), overwrite = true)
+                            }
+                        }
                     } catch (e: Exception) {
                         allOk = false
                     }
-                    if (!isCopyOperation) {
+
+                    if (allOk && !isCopyOperation && srcIsRemote) {
                         RemoteOps.delete(config, item.path)
                     }
                 }
                 runOnUiThread {
                     if (allOk) {
-                        rescanFolderMedia(destination)
+                        // local destinations get a media-store rescan; remote folders list
+                        // live from the server so no rescan is needed
+                        if (!destination.startsWith("remote://")) {
+                            rescanFolderMedia(destination)
+                        }
                         callback(destination)
                     } else {
                         toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)

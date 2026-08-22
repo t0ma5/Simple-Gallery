@@ -18,7 +18,9 @@ class SvgModule : AppGlideModule() {
     override fun registerComponents(context: Context, glide: Glide, registry: Registry) {
         registry.register(SVG::class.java, PictureDrawable::class.java, SvgDrawableTranscoder())
             .append(InputStream::class.java, SVG::class.java, SvgDecoder())
-            .append(String::class.java, InputStream::class.java, com.simplemobiletools.gallery.pro.helpers.RemoteModelLoaderFactory(context.config))
+        // remote:// thumbnails are loaded via downloadRemoteFileToTemp + Glide.load(File)
+        // in Context.loadImageBase; the old RemoteModelLoader registration was dead code
+        // (Glide's built-in StringLoader intercepted remote:// first and failed silently).
     }
 
     override fun isManifestParsingEnabled() = false
