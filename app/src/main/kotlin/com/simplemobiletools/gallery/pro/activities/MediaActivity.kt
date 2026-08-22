@@ -915,6 +915,29 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     override fun tryDeleteFiles(fileDirItems: ArrayList<FileDirItem>, skipRecycleBin: Boolean) {
+        // Remote files/folders are deleted directly on the server via FTP; the local
+        // recycle-bin flow does not apply to them.
+        val remoteItems = fileDirItems.filter { it.path.startsWith("remote://") }
+        if (remoteItems.isNotEmpty()) {
+            ensureBackgroundThread {
+                var allOk = true
+                remoteItems.forEach { item ->
+                    if (!RemoteOps.delete(config, item.path)) {
+                        allOk = false
+                    }
+                }
+                runOnUiThread {
+                    if (allOk) {
+                        toast(com.simplemobiletools.commons.R.string.deletion_confirmation)
+                    } else {
+                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    }
+                    refreshItems()
+                }
+            }
+            return
+        }
+
         val filtered = fileDirItems.filter { !getIsPathDirectory(it.path) && it.path.isMediaFile() } as ArrayList
         if (filtered.isEmpty()) {
             return

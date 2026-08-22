@@ -1213,6 +1213,30 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             return
         }
 
+        // Remote rename happens on the server; no local FS or DB path update needed.
+        if (oldPath.startsWith("remote://")) {
+            RenameItemDialog(this, oldPath) { newName ->
+                val parentDir = oldPath.substring(0, oldPath.lastIndexOf('/'))
+                val newPath = "$parentDir/$newName"
+                ensureBackgroundThread {
+                    val ok = RemoteOps.rename(config, oldPath, newPath)
+                    runOnUiThread {
+                        if (ok) {
+                            getCurrentMedia().getOrNull(mPos)?.apply {
+                                path = newPath
+                                name = newName
+                            }
+                            updateActionbarTitle()
+                            refreshViewPager(true)
+                        } else {
+                            toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                        }
+                    }
+                }
+            }
+            return
+        }
+
         RenameItemDialog(this, oldPath) {
             getCurrentMedia().getOrNull(mPos)?.apply {
                 path = it

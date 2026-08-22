@@ -250,6 +250,27 @@ class MediaAdapter(
     private fun renameFile() {
         val firstPath = getFirstSelectedItemPath() ?: return
 
+        // Remote rename happens on the server; no local FS or DB path update needed.
+        if (firstPath.startsWith("remote://")) {
+            RenameItemDialog(activity, firstPath) { newName ->
+                val parentDir = firstPath.substring(0, firstPath.lastIndexOf('/'))
+                val newPath = "$parentDir/$newName"
+                ensureBackgroundThread {
+                    val ok = RemoteOps.rename(activity.config, firstPath, newPath)
+                    activity.runOnUiThread {
+                        if (ok) {
+                            enableInstantLoad()
+                            listener?.refreshItems()
+                        } else {
+                            activity.toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                        }
+                        finishActMode()
+                    }
+                }
+            }
+            return
+        }
+
         val isSDOrOtgRootFolder = activity.isAStorageRootFolder(firstPath.getParentPath()) && !firstPath.startsWith(activity.internalStoragePath)
         if (isRPlus() && isSDOrOtgRootFolder && !isExternalStorageManager()) {
             activity.toast(com.simplemobiletools.commons.R.string.rename_in_sd_card_system_restriction, Toast.LENGTH_LONG)

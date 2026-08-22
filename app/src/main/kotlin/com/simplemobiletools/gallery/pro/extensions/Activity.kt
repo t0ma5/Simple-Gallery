@@ -18,6 +18,8 @@ import android.provider.MediaStore
 import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
 import android.provider.Settings
+import com.simplemobiletools.gallery.pro.helpers.RemoteOps
+import com.simplemobiletools.gallery.pro.helpers.downloadRemoteFileToTemp
 import android.util.DisplayMetrics
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -298,6 +300,47 @@ fun BaseSimpleActivity.toggleFileVisibility(oldPath: String, hide: Boolean, call
 fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, isCopyOperation: Boolean, callback: (destinationPath: String) -> Unit) {
     if (fileDirItems.isEmpty()) {
         toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+        return
+    }
+
+    // Remote sources: download into a locally-picked destination. We cannot pick a remote
+    // destination yet, so copy/move of a remote file always lands on local storage.
+    if (fileDirItems.first().path.startsWith("remote://")) {
+        val source = fileDirItems.first().getParentPath()
+        PickDirectoryDialog(this, source, true, false, true, false) { destination ->
+            ensureBackgroundThread {
+                var allOk = true
+                fileDirItems.forEach { item ->
+                    val tempPath = downloadRemoteFileToTemp(item.path, config, cacheDir)
+                    if (tempPath == null) {
+                        allOk = false
+                        return@forEach
+                    }
+                    val out = getFileOutputStreamSync("$destination/${item.name}", item.path.getMimeType())
+                    if (out == null) {
+                        allOk = false
+                        return@forEach
+                    }
+                    try {
+                        File(tempPath).inputStream().copyTo(out)
+                        out.close()
+                    } catch (e: Exception) {
+                        allOk = false
+                    }
+                    if (!isCopyOperation) {
+                        RemoteOps.delete(config, item.path)
+                    }
+                }
+                runOnUiThread {
+                    if (allOk) {
+                        rescanFolderMedia(destination)
+                        callback(destination)
+                    } else {
+                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    }
+                }
+            }
+        }
         return
     }
 
