@@ -428,7 +428,17 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 mAllowPickingMultiple, mPath, binding.mediaGrid
             ) {
                 if (it is Medium && !isFinishing) {
-                    itemClicked(it.path)
+                    if (it.isDirectory) {
+                        // remote subfolder: drill into it like a normal local directory
+                        Intent(this, MediaActivity::class.java).apply {
+                            putExtra(DIRECTORY, it.path)
+                            putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
+                            startActivity(this@apply)
+                        }
+                        finish()
+                    } else {
+                        itemClicked(it.path)
+                    }
                 }
             }.apply {
                 setupZoomListener(mZoomListener)
@@ -869,7 +879,15 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
         mIsGettingMedia = false
         checkLastMediaChanged()
-        mMedia = media
+
+        // remote subfolders (isDirectory) are navigational, not media: keep them on top but
+        // never persist them to the media database.
+        val sorted = if (media.any { it is Medium && it.isDirectory }) {
+            media.sortedBy { (it as? Medium)?.isDirectory == true }.toMutableList() as ArrayList<ThumbnailItem>
+        } else {
+            media
+        }
+        mMedia = sorted
 
         runOnUiThread {
             binding.mediaRefreshLayout.isRefreshing = false
@@ -886,7 +904,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mLatestMediaId = getLatestMediaId()
         mLatestMediaDateId = getLatestMediaByDateId()
         if (!isFromCache) {
-            val mediaToInsert = (mMedia).filter { it is Medium && it.deletedTS == 0L }.map { it as Medium }
+            val mediaToInsert = (mMedia).filter { it is Medium && it.deletedTS == 0L && !it.isDirectory }.map { it as Medium }
             Thread {
                 try {
                     mediaDB.insertAll(mediaToInsert)

@@ -28,6 +28,8 @@ data class Medium(
     @ColumnInfo(name = "media_store_id") var mediaStoreId: Long
 ) : Serializable, ThumbnailItem() {
 
+    @Ignore var isDirectory: Boolean = false
+
     @Ignore var gridPosition: Int = 0
 
     constructor() : this(null, "", "", "", 0L, 0L, 0L, 0, 0, false, 0L, 0L)

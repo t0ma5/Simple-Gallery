@@ -628,6 +628,20 @@ class MediaAdapter(
 
             favorite.beVisibleIf(medium.isFavorite && config.markFavoriteItems)
 
+            if (medium.isDirectory) {
+                // remote subfolder entry: render as a folder thumbnail, do not load media
+                playPortraitOutline?.beGone()
+                fileType?.beGone()
+                mediumName.beVisibleIf(displayFilenames || isListViewType)
+                mediumName.text = medium.name
+                mediumName.setTextColor(textColor)
+                videoDuration?.beGone()
+                mediumCheck.beVisibleIf(isSelected)
+                mediumThumbnail.setImageResource(com.simplemobiletools.commons.R.drawable.ic_folder_vector)
+                mediumThumbnail.setTag(null)
+                return
+            }
+
             playPortraitOutline?.beVisibleIf(medium.isVideo() || medium.isPortrait())
             if (medium.isVideo()) {
                 playPortraitOutline?.setImageResource(com.simplemobiletools.commons.R.drawable.ic_play_outline_vector)

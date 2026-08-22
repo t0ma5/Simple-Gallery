@@ -106,8 +106,18 @@ class MediaFetcher(val context: Context) {
                 ftpClient.changeWorkingDirectory(remotePath)
                 val files = ftpClient.listFiles()
                 files.forEach { file ->
-                    if (file.isFile) {
-                        val path = "$curPath/${file.name}"
+                    val childPath = "$curPath/${file.name}"
+                    if (file.isDirectory) {
+                        // expose remote subfolders so the folder can be drilled into like a
+                        // normal local directory (shown on top of the media grid)
+                        media.add(
+                            Medium(
+                                null, file.name, childPath, curPath, file.timestamp.timeInMillis,
+                                file.timestamp.timeInMillis, file.size, TYPE_IMAGES, 0, false, 0L, 0L
+                            ).apply { isDirectory = true }
+                        )
+                    } else if (file.isFile) {
+                        val path = childPath
                         if (path.isMediaFile()) {
                             val type = when {
                                 path.isVideoFast() -> TYPE_VIDEOS
