@@ -1004,6 +1004,22 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
         printHelper.scaleMode = PrintHelper.SCALE_MODE_FIT
         printHelper.orientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
+        // Remote files need an FTP download (off the main thread) and the image resolution
+        // must be read from the downloaded temp copy — BitmapFactory cannot decode remote://.
+        if (path.startsWith("remote://")) {
+            ensureBackgroundThread {
+                val localPath = downloadRemoteFileToTemp(path, config, cacheDir)
+                runOnUiThread {
+                    if (localPath == null) {
+                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    } else {
+                        sendPrintIntent(localPath)
+                    }
+                }
+            }
+            return
+        }
+
         try {
             val resolution = path.getImageResolution(this)
             if (resolution == null) {
@@ -1011,14 +1027,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 return
             }
 
-            // For remote files, download first
-            val localPath = if (path.startsWith("remote://")) {
-                downloadRemoteFileToTemp(path, config, cacheDir) ?: return
-            } else {
-                path
-            }
-
-            val file = File(localPath)
+            val file = File(path)
             var requestedWidth = resolution.x
             var requestedHeight = resolution.y
 
