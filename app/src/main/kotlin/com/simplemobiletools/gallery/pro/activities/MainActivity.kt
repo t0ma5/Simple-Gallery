@@ -32,9 +32,11 @@ import com.simplemobiletools.gallery.pro.databinding.ActivityMainBinding
 import com.simplemobiletools.gallery.pro.dialogs.ChangeSortingDialog
 import com.simplemobiletools.gallery.pro.dialogs.ChangeViewTypeDialog
 import com.simplemobiletools.gallery.pro.dialogs.FilterMediaDialog
+import com.simplemobiletools.gallery.pro.dialogs.AddRemoteServerDialog
 import com.simplemobiletools.gallery.pro.dialogs.GrantAllFilesDialog
-import com.simplemobiletools.gallery.pro.extensions.*
 import com.simplemobiletools.gallery.pro.helpers.*
+import com.simplemobiletools.gallery.pro.helpers.RemoteManager
+import com.simplemobiletools.gallery.pro.extensions.*
 import com.simplemobiletools.gallery.pro.interfaces.DirectoryOperationsListener
 import com.simplemobiletools.gallery.pro.jobs.NewPhotoFetcher
 import com.simplemobiletools.gallery.pro.models.Directory
@@ -46,9 +48,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         private const val PICK_MEDIA = 2
         private const val PICK_WALLPAPER = 3
         private const val LAST_MEDIA_CHECK_PERIOD = 3000L
-        // process-level flag: the app-lock is asked ONCE at launch, not every time the activity
-        // is recreated (e.g. when switching between folders/tree/images modes finishes & relaunches it)
-        var sWasProtectionHandledThisSession = false
     }
 
     private var mIsPickImageIntent = false
@@ -71,8 +70,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mLatestMediaDateId = 0L
     private var mCurrentPathPrefix = ""                 // used at "Group direct subfolders" for navigation
     private var mOpenedSubfolders = arrayListOf("")     // used at "Group direct subfolders" for navigating Up with the back button
-    private var mTreeFolders = false                    // tree mode state (in-memory, like native button modes)
-    private val mExpandedTreeFolders = HashSet<String>() // tree mode: paths whose children are shown
     private var mDateFormat = ""
     private var mTimeFormat = ""
     private var mLastMediaHandler = Handler()
@@ -130,7 +127,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         storeStateVariables()
         checkWhatsNewDialog()
 
-        mIsPasswordProtectionPending = config.isAppPasswordProtectionOn && !sWasProtectionHandledThisSession
+        mIsPasswordProtectionPending = config.isAppPasswordProtectionOn
         setupLatestMediaId()
 
         if (!config.wereFavoritesPinned) {
@@ -155,9 +152,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             config.wasSortingByNumericValueAdded = true
             config.sorting = config.sorting or SORT_USE_NUMERIC_VALUE
         }
-
-        // honor the persisted tree (folder-in-folder) mode
-        mTreeFolders = config.treeModeEnabled
 
         updateWidgets()
         registerFileUpdateListener()
@@ -249,9 +243,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         if (!binding.mainMenu.isSearchOpen) {
             refreshMenuItems()
-            if (mIsPasswordProtectionPending && !sWasProtectionHandledThisSession) {
+            if (mIsPasswordProtectionPending && !mWasProtectionHandled) {
                 handleAppPasswordProtection {
-                    sWasProtectionHandledThisSession = it
                     mWasProtectionHandled = it
                     if (it) {
                         mIsPasswordProtectionPending = false
@@ -297,12 +290,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     override fun onDestroy() {
         super.onDestroy()
-        config.temporarilyShowHidden = false
-        config.temporarilyShowHiddenOnly = false
-        config.temporarilyShowExcluded = false
-        ensureBackgroundThread {
-            java.io.File(cacheDir, "temp_decrypted").deleteRecursively()
-        }
         if (!isChangingConfigurations) {
             config.temporarilyShowHidden = false
             config.temporarilyShowExcluded = false
@@ -322,13 +309,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     override fun onBackPressed() {
         if (binding.mainMenu.isSearchOpen) {
             binding.mainMenu.closeSearch()
-        } else if (mTreeFolders) {
-            // collapse one expanded level if the user collapsed something, else leave tree mode
-            if (mExpandedTreeFolders.size < keptTreeFolderCount()) {
-                super.onBackPressed()
-            } else {
-                exitTreeMode()
-            }
         } else if (config.groupDirectSubfolders) {
             if (mCurrentPathPrefix.isEmpty()) {
                 super.onBackPressed()
@@ -340,11 +320,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         } else {
             super.onBackPressed()
         }
-    }
-
-    private fun keptTreeFolderCount(): Int {
-        val realPaths = mDirs.map { it.path }.toSet()
-        return realPaths.size
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, resultData: Intent?) {
@@ -381,20 +356,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private fun refreshMenuItems() {
         if (!mIsThirdPartyIntent) {
             binding.mainMenu.getToolbar().menu.apply {
-            findItem(R.id.column_count).isVisible = config.viewTypeFolders == VIEW_TYPE_GRID
-            findItem(R.id.set_as_default_folder).isVisible = !config.defaultFolder.isEmpty()
-            findItem(R.id.open_recycle_bin).isVisible = config.useRecycleBin && !config.showRecycleBinAtFolders
-            findItem(R.id.more_apps_from_us).isVisible = !resources.getBoolean(com.simplemobiletools.commons.R.bool.hide_google_relations)
-            // 3-state folders/files toggle: folder icon in grid, tree icon in tree mode,
-            // image icon when showing all media
-            findItem(R.id.show_all).setIcon(
-                when {
-                    mTreeFolders -> R.drawable.ic_tree_vector
-                    config.showAll -> R.drawable.ic_files_vector
-                    else -> R.drawable.ic_folders_vector
-                }
-            )
-        }
+                findItem(R.id.column_count).isVisible = config.viewTypeFolders == VIEW_TYPE_GRID
+                findItem(R.id.set_as_default_folder).isVisible = !config.defaultFolder.isEmpty()
+                findItem(R.id.open_recycle_bin).isVisible = config.useRecycleBin && !config.showRecycleBinAtFolders
+                findItem(R.id.more_apps_from_us).isVisible = !resources.getBoolean(com.simplemobiletools.commons.R.bool.hide_google_relations)
+            }
         }
 
         binding.mainMenu.getToolbar().menu.apply {
@@ -403,6 +369,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
             findItem(R.id.temporarily_show_excluded).isVisible = !config.temporarilyShowExcluded
             findItem(R.id.stop_showing_excluded).isVisible = config.temporarilyShowExcluded
+
+            val treeItem = findItem(R.id.tree_view)
+            if (treeItem != null) {
+                treeItem.isChecked = config.treeModeEnabled
+            }
         }
     }
 
@@ -434,7 +405,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 R.id.sort -> showSortingDialog()
                 R.id.filter -> showFilterMediaDialog()
                 R.id.open_camera -> launchCamera()
-                R.id.show_all -> toggleFoldersView()
+                R.id.show_all -> showAllMedia()
                 R.id.change_view_type -> changeViewType()
                 R.id.temporarily_show_hidden -> tryToggleTemporarilyShowHidden()
                 R.id.stop_showing_hidden -> tryToggleTemporarilyShowHidden()
@@ -442,6 +413,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 R.id.stop_showing_excluded -> tryToggleTemporarilyShowExcluded()
                 R.id.create_new_folder -> createNewFolder()
                 R.id.add_remote_server -> addRemoteServer()
+                R.id.tree_view -> toggleTreeMode()
                 R.id.open_recycle_bin -> openRecycleBin()
                 R.id.column_count -> changeColumnCount()
                 R.id.set_as_default_folder -> setAsDefaultFolder()
@@ -640,122 +612,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
     }
 
-    // 3-state folders/files toggle in the top panel:
-    //   normal folders grid  ->  tree mode (folder-in-folder)  ->  all media (images)
-    private fun toggleFoldersView() {
-        if (mTreeFolders) {
-            mTreeFolders = false
-            config.treeModeEnabled = false
-            mExpandedTreeFolders.clear()
-            showAllMedia()
-        } else if (config.showAll) {
-            config.showAll = false
-            mCurrentPathPrefix = ""
-            mOpenedSubfolders.clear()
-            mExpandedTreeFolders.clear()
-            setupAdapter(mDirs, forceRecreate = true)
-            refreshMenuItems()
-        } else {
-            mTreeFolders = true
-            config.treeModeEnabled = true
-            mExpandedTreeFolders.clear()
-            setupAdapter(mDirs, forceRecreate = true)
-            refreshMenuItems()
-        }
-    }
-
-    private fun exitTreeMode() {
-        if (!mTreeFolders) return
-        mTreeFolders = false
-        config.treeModeEnabled = false
-        mExpandedTreeFolders.clear()
-        setupAdapter(mDirs, forceRecreate = true)
-        refreshMenuItems()
-    }
-    // Builds the folder tree purely from the in-memory directory list (no DB access on the UI
-    // thread). Roots are folders whose direct parent is not itself in the list (file-manager
-    // style), children nest below with a tree glyph. Empty folders are stripped via
-    // hasMediaDescendant, and intermediate media-less parents are synthesized so nesting works.
-    private fun getTreeDirectories(topDirs: ArrayList<Directory>): ArrayList<Directory> {
-        val result = ArrayList<Directory>()
-        val shouldShowHidden = config.shouldShowHidden
-        val excludedPaths = if (config.temporarilyShowExcluded) HashSet() else config.excludedFolders
-        val visibleDirs = topDirs.filter {
-            it.path != RECYCLE_BIN &&
-                it.path != FAVORITES &&
-                (shouldShowHidden || !it.path.getFilenameFromPath().startsWith(".")) &&
-                it.path !in excludedPaths &&
-                it.path.getFilenameFromPath() != "." &&
-                it.path.getFilenameFromPath() != ".."
-        }
-
-        // synthesize intermediate parent folders (without their own media) so nesting works
-        val syntheticParents = LinkedHashSet<String>()
-        val realPaths = visibleDirs.map { it.path }.toSet()
-        for (p in realPaths) {
-            var parent = p.getParentPath()
-            while (parent.isNotEmpty() && parent != p) {
-                val name = parent.getFilenameFromPath()
-                if (name != "." && name != ".." && parent !in realPaths && parent !in syntheticParents) {
-                    syntheticParents.add(parent)
-                }
-                val next = parent.getParentPath()
-                if (next == parent) break
-                parent = next
-            }
-        }
-
-        val dirs = ArrayList(visibleDirs)
-        syntheticParents.forEach { parent ->
-            dirs.add(Directory(null, parent, "", parent.getFilenameFromPath(), 0, 0L, 0L, 0L, 0, 0, ""))
-        }
-
-        fun directChildOf(childPath: String, parentPath: String) =
-            childPath != parentPath && childPath.startsWith("$parentPath/") && '/' !in childPath.removePrefix("$parentPath/")
-
-        fun hasMediaDescendant(path: String): Boolean {
-            if (dirs.any { it.path == path && it.mediaCnt > 0 }) return true
-            return dirs.any { directChildOf(it.path, path) && hasMediaDescendant(it.path) }
-        }
-        val keptDirs = dirs.filter { hasMediaDescendant(it.path) }
-
-        mExpandedTreeFolders.addAll(keptDirs.map { it.path })
-
-        val roots = keptDirs.filter { dir -> keptDirs.none { directChildOf(dir.path, it.path) } }
-
-        fun collect(folder: Directory, depth: Int) {
-            val children = keptDirs.filter { directChildOf(it.path, folder.path) }
-            result.add(folder.apply {
-                treeDepth = depth
-                hasTreeChildren = children.isNotEmpty()
-                isTreeExpanded = folder.path in mExpandedTreeFolders
-            })
-            if (folder.path in mExpandedTreeFolders) {
-                children.forEach { collect(it, depth + 1) }
-            }
-        }
-
-        roots.forEach { collect(it, 0) }
-        return result
-    }
-
-    // Strips empty folders from the displayed list. A folder is only worth showing if it (or one
-    // of its descendants anywhere below it) actually holds media. This hides paths like
-    // /1/2/3/4/5/6/7/8/9 that contain no media themselves and have no media nested below.
-    private fun stripEmptyFolders(topDirs: ArrayList<Directory>): ArrayList<Directory> {
-        val realPaths = topDirs.map { it.path }.toSet()
-
-        fun directChildOf(childPath: String, parentPath: String) =
-            childPath != parentPath && childPath.startsWith("$parentPath/") && '/' !in childPath.removePrefix("$parentPath/")
-
-        fun hasMediaDescendant(path: String): Boolean {
-            if (topDirs.any { it.path == path && it.mediaCnt > 0 }) return true
-            return topDirs.any { directChildOf(it.path, path) && hasMediaDescendant(it.path) }
-        }
-
-        return topDirs.filter { hasMediaDescendant(it.path) } as ArrayList<Directory>
-    }
-
     private fun changeViewType() {
         ChangeViewTypeDialog(this, true) {
             refreshMenuItems()
@@ -782,7 +638,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private fun toggleTemporarilyShowHidden(show: Boolean) {
         mLoadedInitialPhotos = false
         config.temporarilyShowHidden = show
-        config.temporarilyShowHiddenOnly = show
         binding.directoriesGrid.adapter = null
         getDirectories()
         refreshMenuItems()
@@ -948,10 +803,78 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun addRemoteServer() {
-        com.simplemobiletools.gallery.pro.dialogs.AddRemoteServerDialog(this) {
-            binding.directoriesGrid.adapter = null
-            getDirectories()
+        AddRemoteServerDialog(this) {
+            ensureBackgroundThread {
+                gotDirectories(addTempFolderIfNeeded(getCurrentlyDisplayedDirs()))
+            }
+        }.show()
+    }
+
+    private fun toggleTreeMode() {
+        config.treeModeEnabled = !config.treeModeEnabled
+        refreshMenuItems()
+        setupAdapter(getCurrentlyDisplayedDirs(), forceRecreate = true)
+    }
+
+    /**
+     * Builds a nested tree from the currently known directories. Folders containing no media
+     * (directly or in any descendant) are stripped; the result is a flat list with [Directory.treeDepth]
+     * set so the adapter can render indentation. Remote servers act as the tree roots.
+     */
+    private fun getTreeDirectories(): ArrayList<Directory> {
+        val dirs = getCurrentlyDisplayedDirs().filter { it.path.isNotEmpty() && !it.isRemote }
+        val byParent = HashMap<String, ArrayList<Directory>>()
+        dirs.forEach { d ->
+            val parent = d.path.getParentPath()
+            byParent.getOrPut(parent) { ArrayList() }.add(d)
         }
+        val result = ArrayList<Directory>()
+        fun walk(parentPath: String, depth: Int) {
+            val children = byParent[parentPath]?.sortedBy { it.name.toLowerCase() } ?: return
+            for (child in children) {
+                val hasMedia = child.mediaCnt > 0
+                val descendantHasMedia = byParent[child.path]?.any { true } ?: false
+                // keep if it holds media or has a descendant that does
+                child.treeDepth = depth
+                child.containsMediaFilesDirectly = hasMedia
+                if (hasMedia || descendantHasMedia) {
+                    result.add(child)
+                    walk(child.path, depth + 1)
+                } else {
+                    // strip empty branches, but still recurse to surface any media further down
+                    walk(child.path, depth + 1)
+                }
+            }
+        }
+        walk("", 0)
+        // prepend remote servers as roots
+        result.addAll(0, getRemoteServerDirs().apply { forEach { it.treeDepth = 0 } })
+        return result
+    }
+
+    private fun getRemoteServerDirs(): ArrayList<Directory> {
+        val dirs = ArrayList<Directory>()
+        RemoteManager.getServers().forEach { server ->
+            val path = "remote://${server.id}"
+            val directory = Directory(
+                null,                       // id
+                path,                       // path
+                path,                       // tmb
+                server.name,                // name
+                0,                          // mediaCnt
+                0L,                         // modified
+                0L,                         // taken
+                0L,                         // size
+                0,                          // location
+                0,                          // types
+                "",                         // sortValue
+                0,                          // subfoldersCount
+                0,                          // subfoldersMediaCount
+                true                        // containsMediaFilesDirectly
+            ).apply { isRemote = true }
+            dirs.add(directory)
+        }
+        return dirs
     }
 
     private fun changeColumnCount() {
@@ -1060,40 +983,12 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun itemClicked(path: String) {
-        if (config.isFolderEncrypted(path)) {
-            requestFolderSecret(path) { secret ->
-                if (secret.isNullOrEmpty()) return@requestFolderSecret
-                toast(R.string.decrypting)
-                ensureBackgroundThread {
-                    val tempCacheFolder = java.io.File(cacheDir, "temp_decrypted/${java.io.File(path).name}")
-                    tempCacheFolder.deleteRecursively()
-                    tempCacheFolder.mkdirs()
-
-                    val files = java.io.File(path).listFiles()
-                    files?.forEach { file ->
-                        if (file.isFile && file.name.endsWith(".enc")) {
-                            val decryptedFile = java.io.File(tempCacheFolder, file.name.removeSuffix(".enc"))
-                            com.simplemobiletools.gallery.pro.helpers.EncryptionHelper.decryptFile(this@MainActivity, file, decryptedFile, secret)
-                        }
-                    }
-
-                    runOnUiThread {
-                        Intent(this@MainActivity, MediaActivity::class.java).apply {
-                            putExtra(SKIP_AUTHENTICATION, true)
-                            putExtra(DIRECTORY, tempCacheFolder.absolutePath)
-                            handleMediaIntent(this)
-                        }
-                    }
-                }
-            }
-        } else {
-            handleLockedFolderOpening(path) { success ->
-                if (success) {
-                    Intent(this, MediaActivity::class.java).apply {
-                        putExtra(SKIP_AUTHENTICATION, true)
-                        putExtra(DIRECTORY, path)
-                        handleMediaIntent(this)
-                    }
+        handleLockedFolderOpening(path) { success ->
+            if (success) {
+                Intent(this, MediaActivity::class.java).apply {
+                    putExtra(SKIP_AUTHENTICATION, true)
+                    putExtra(DIRECTORY, path)
+                    handleMediaIntent(this)
                 }
             }
         }
@@ -1128,6 +1023,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
 
         val dirs = getSortedDirectories(newDirs)
+        // prepend remote servers (offline servers are simply absent from the list)
+        dirs.addAll(0, getRemoteServerDirs())
         if (config.groupDirectSubfolders) {
             mDirs = dirs.clone() as ArrayList<Directory>
         }
@@ -1186,13 +1083,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val android11Files = mLastMediaFetcher?.getAndroid11FolderMedia(getImagesOnly, getVideosOnly, favoritePaths, false, true, dateTakens)
         try {
             for (directory in dirs) {
-                // remote:// folders are virtual; name + media count come only from
-                // getVerifiedRemoteDirectory. Skip the local rescan for them entirely so they
-                // never flicker or get their server name clobbered.
-                if (directory.path.startsWith("remote://")) {
-                    continue
-                }
-
                 if (mShouldStopFetching || isDestroyed || isFinishing) {
                     return
                 }
@@ -1229,28 +1119,20 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
 
                 directory.apply {
-                    // remote:// folders are virtual; their name + media count come exclusively
-                    // from getVerifiedRemoteDirectory. Never let the local rescan overwrite them
-                    // (it would clobber the server name with an empty/remote://-derived name and
-                    // cause the refresh flicker).
-                    if (!directory.path.startsWith("remote://")) {
-                        tmb = newDir.tmb
-                        name = newDir.name
-                        mediaCnt = newDir.mediaCnt
-                        modified = newDir.modified
-                        taken = newDir.taken
-                        this@apply.size = newDir.size
-                        types = newDir.types
-                        sortValue = getDirectorySortingValue(curMedia, path, name, size)
-                    }
+                    tmb = newDir.tmb
+                    name = newDir.name
+                    mediaCnt = newDir.mediaCnt
+                    modified = newDir.modified
+                    taken = newDir.taken
+                    this@apply.size = newDir.size
+                    types = newDir.types
+                    sortValue = getDirectorySortingValue(curMedia, path, name, size)
                 }
 
                 setupAdapter(dirs)
 
                 // update directories and media files in the local db, delete invalid items. Intentionally creating a new thread
-                if (!directory.path.startsWith("remote://")) {
-                    updateDBDirectory(directory)
-                }
+                updateDBDirectory(directory)
                 if (!directory.isRecycleBin() && !directory.areFavorites()) {
                     Thread {
                         try {
@@ -1349,10 +1231,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             // make sure to create a new thread for these operations, dont just use the common bg thread
             Thread {
                 try {
-                    if (!newDir.path.startsWith("remote://")) {
-                        directoryDB.insert(newDir)
-                    }
-                    if (folder != RECYCLE_BIN && folder != FAVORITES && !folder.startsWith("remote://")) {
+                    directoryDB.insert(newDir)
+                    if (folder != RECYCLE_BIN && folder != FAVORITES) {
                         mediaDB.insertAll(newMedia)
                     }
                 } catch (ignored: Exception) {
@@ -1460,22 +1340,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     private fun setupAdapter(dirs: ArrayList<Directory>, textToSearch: String = binding.mainMenu.getCurrentQuery(), forceRecreate: Boolean = false) {
         val currAdapter = binding.directoriesGrid.adapter
-        val distinctDirs = dirs.distinctBy { it.path.getDistinctPath() }.toMutableList() as ArrayList<Directory>
+        val sourceDirs = if (config.treeModeEnabled) getTreeDirectories() else dirs
+        val distinctDirs = sourceDirs.distinctBy { it.path.getDistinctPath() }.toMutableList() as ArrayList<Directory>
         val sortedDirs = getSortedDirectories(distinctDirs)
-        // strip empty folders: a folder is only worth showing if it (or a descendant) holds
-        // media. This hides paths like /1/2/3/4/5/6/7/8/9 that contain no media themselves
-        // and have no media anywhere below them.
-        val filteredDirs = stripEmptyFolders(sortedDirs)
-        var dirsToShow = getDirsToShow(filteredDirs, mDirs, mCurrentPathPrefix).clone() as ArrayList<Directory>
-        if (config.temporarilyShowHiddenOnly) {
-            dirsToShow = dirsToShow.filter { !isRestrictedWithSAFSdk30(it.path) }.toMutableList() as ArrayList<Directory>
-        }
-        if (mTreeFolders) {
-            // tree mode shows the real folder hierarchy; bypass subfolder grouping so every
-            // folder (including nested ones) is present and can be nested under its parent.
-            // Empty folders are stripped inside getTreeDirectories.
-            dirsToShow = getTreeDirectories(sortedDirs)
-        }
+        var dirsToShow = getDirsToShow(sortedDirs, mDirs, mCurrentPathPrefix).clone() as ArrayList<Directory>
+
         if (currAdapter == null || forceRecreate) {
             mDirsIgnoringSearch = dirs
             initZoomListener()
@@ -1489,23 +1358,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             ) {
                 val clickedDir = it as Directory
                 val path = clickedDir.path
-                if (mTreeFolders) {
-                    // tree mode: tapping a parent folder with children expands/collapses its
-                    // subtree inline; a leaf drills into its media.
-                    if (clickedDir.hasTreeChildren) {
-                        if (path in mExpandedTreeFolders) {
-                            mExpandedTreeFolders.remove(path)
-                        } else {
-                            mExpandedTreeFolders.add(path)
-                        }
-                        setupAdapter(mDirs, "")
-                    } else if (path != config.tempFolderPath && !clickedDir.containsMediaFilesDirectly && clickedDir.mediaCnt == 0) {
-                        // synthetic parent with no direct media: just toggle expansion (handled above)
-                        setupAdapter(mDirs, "")
-                    } else if (path != config.tempFolderPath) {
-                        itemClicked(path)
-                    }
-                } else if (clickedDir.subfoldersCount == 1 || !config.groupDirectSubfolders) {
+                if (clickedDir.subfoldersCount == 1 || !config.groupDirectSubfolders) {
                     if (path != config.tempFolderPath) {
                         itemClicked(path)
                     }
@@ -1552,11 +1405,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         val invalidDirs = ArrayList<Directory>()
         val OTGPath = config.OTGPath
         dirs.filter { !it.areFavorites() && !it.isRecycleBin() }.forEach {
-            // remote:// and encrypted dirs are synthetic (added by getCachedDirectories),
-            // they never map to a real local path / media files, so always keep them.
-            if (it.path.startsWith("remote://") || config.isFolderEncrypted(it.path)) {
-                return@forEach
-            }
             if (!getDoesFilePathExist(it.path, OTGPath)) {
                 invalidDirs.add(it)
             } else if (it.path != config.tempFolderPath && (!isRPlus() || isExternalStorageManager())) {

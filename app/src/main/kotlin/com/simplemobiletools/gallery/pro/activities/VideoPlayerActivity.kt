@@ -18,8 +18,8 @@ import android.widget.SeekBar
 import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.ContentDataSource
-import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
@@ -27,8 +27,9 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.simplemobiletools.commons.extensions.*
-import com.simplemobiletools.commons.helpers.REAL_FILE_PATH
 import com.simplemobiletools.commons.helpers.ensureBackgroundThread
+import com.simplemobiletools.gallery.pro.helpers.RemoteClient
+import java.io.File
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.databinding.ActivityVideoPlayerBinding
 import com.simplemobiletools.gallery.pro.extensions.*
@@ -235,62 +236,59 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
     }
 
     private fun initExoPlayer() {
-        val rawUri = mUri
-        val isContentUri = rawUri?.scheme == "content"
-
-        // A remote:// video reaches us wrapped in a content:// FileProvider URI (built by
-        // getFinalUriFromPath). The original remote:// path is passed via REAL_FILE_PATH so we
-        // can still download + serve from a temp file instead of hitting ContentDataSource
-        // (which throws the androidx.media3.datasource.ContentDataSource ContentID error).
-        // The FTP download must run off the main thread; ExoPlayer itself is created on the
-        // UI thread once the temp file is ready.
-        val realPath = intent.getStringExtra(REAL_FILE_PATH)
-        val isRemote = rawUri?.scheme == "remote" || realPath?.startsWith("remote://") == true
+        val rawUri = mUri ?: return
+        val isRemote = rawUri.scheme == "remote"
 
         if (isRemote) {
-            val remotePath = if (rawUri?.scheme == "remote") rawUri.toString() else (realPath ?: rawUri.toString())
+            // download on a background thread, then build the player from a local File source
             ensureBackgroundThread {
-                val tempPath = downloadRemoteFileToTemp(remotePath, config, cacheDir)
+                val tempPath = RemoteClient.download(rawUri.toString(), cacheDir)
                 runOnUiThread {
                     if (tempPath == null) {
-                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                        showErrorToast(Exception(getString(com.simplemobiletools.commons.R.string.unknown_error_occurred)))
                     } else {
-                        startExoPlayerWithTemp(tempPath)
+                        startExoPlayerFromFile(tempPath)
                     }
                 }
             }
             return
         }
-        startExoPlayerWithTemp(null)
-    }
 
-    private fun startExoPlayerWithTemp(remoteTempPath: String?) {
-        val rawUri = mUri
-        val isContentUri = rawUri?.scheme == "content"
-        val isRemote = remoteTempPath != null
-        val resolvedUri = if (isRemote) {
-            Uri.fromFile(java.io.File(remoteTempPath!!))
-        } else {
-            rawUri
-        }
-        val dataSpec = DataSpec(resolvedUri!!)
-        // remote media is always served from the downloaded temp file via FileDataSource.
-        // ContentDataSource is only correct for real content:// URIs that are NOT remote.
-        val fileDataSource = if (isContentUri && !isRemote) {
-            ContentDataSource(applicationContext)
-        } else {
-            FileDataSource()
-        }
+        val dataSpec = DataSpec(rawUri)
+        val fileDataSource = ContentDataSource(applicationContext)
         try {
             fileDataSource.open(dataSpec)
         } catch (e: Exception) {
             showErrorToast(e)
-            return
         }
 
         val factory = DataSource.Factory { fileDataSource }
         val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
             .createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
+
+        mExoPlayer = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(applicationContext))
+            .setSeekParameters(SeekParameters.CLOSEST_SYNC)
+            .build()
+            .apply {
+                setMediaSource(mediaSource)
+                setAudioAttributes(
+                    AudioAttributes
+                        .Builder()
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                        .build(), false
+                )
+                if (config.loopVideos) {
+                    repeatMode = Player.REPEAT_MODE_ONE
+                }
+                prepare()
+                initListeners()
+            }
+    }
+
+    private fun startExoPlayerFromFile(path: String) {
+        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(DefaultDataSource.Factory(this))
+            .createMediaSource(MediaItem.fromUri(Uri.fromFile(File(path))))
 
         mExoPlayer = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(applicationContext))

@@ -6,11 +6,11 @@ import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.PictureDrawable
 import android.media.AudioManager
-import android.os.Handler
-import android.os.Looper
 import android.os.Process
 import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
@@ -39,7 +39,6 @@ import com.simplemobiletools.commons.helpers.*
 import com.simplemobiletools.commons.views.MySquareImageView
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.asynctasks.GetMediaAsynctask
-import org.apache.commons.net.ftp.FTPClient
 import com.simplemobiletools.gallery.pro.databases.GalleryDatabase
 import com.simplemobiletools.gallery.pro.helpers.*
 import com.simplemobiletools.gallery.pro.interfaces.*
@@ -511,66 +510,6 @@ fun Context.loadImageBase(
     tryLoadingWithPicasso: Boolean = false,
     crossFadeDuration: Int = 300
 ) {
-    // Handle remote:// paths: download to a temp file first, then let Glide load that File.
-    // We cannot pass the raw remote:// String to Glide because its built-in StringLoader treats
-    // it as a URI scheme and fails silently (no thumbnails, no previews). Loading the local
-    // temp File is reliable. The temp file is reused across calls so repeat loads are instant.
-    // The download MUST run off the main thread — this function is called from onBindViewHolder,
-    // and a blocking FTP fetch there throws NetworkOnMainThreadException (swallowed -> empty thumb).
-    if (path.startsWith("remote://")) {
-        val appContext = applicationContext
-        val conf = config
-        val mainHandler = Handler(Looper.getMainLooper())
-        ensureBackgroundThread {
-            val tempPath = downloadRemoteFileToTemp(path, conf, appContext.cacheDir)
-            mainHandler.post {
-                if (tempPath == null) {
-                    // unreachable server: leave the thumbnail empty
-                    return@post
-                }
-                val file = File(tempPath)
-                val options = RequestOptions()
-                    .signature(signature)
-                    .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
-                    .priority(Priority.LOW)
-                    .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
-                    .format(DecodeFormat.PREFER_ARGB_8888)
-
-                if (cropThumbnails) {
-                    options.optionalTransform(CenterCrop())
-                    options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(CenterCrop()))
-                } else {
-                    options.optionalTransform(FitCenter())
-                    options.optionalTransform(WebpDrawable::class.java, WebpDrawableTransformation(FitCenter()))
-                }
-
-                if (animate && roundCorners == ROUNDED_CORNERS_NONE) {
-                    options.decode(Drawable::class.java)
-                } else {
-                    options.dontAnimate()
-                    options.decode(Bitmap::class.java)
-                }
-
-                if (roundCorners != ROUNDED_CORNERS_NONE) {
-                    val cornerSize = if (roundCorners == ROUNDED_CORNERS_SMALL) com.simplemobiletools.commons.R.dimen.rounded_corner_radius_small else com.simplemobiletools.commons.R.dimen.rounded_corner_radius_big
-                    val cornerRadius = resources.getDimension(cornerSize).toInt()
-                    val roundedCornersTransform = RoundedCorners(cornerRadius)
-                    options.optionalTransform(MultiTransformation(CenterCrop(), roundedCornersTransform))
-                    options.optionalTransform(WebpDrawable::class.java, MultiTransformation(WebpDrawableTransformation(CenterCrop()), WebpDrawableTransformation(roundedCornersTransform)))
-                }
-
-                WebpBitmapFactory.sUseSystemDecoder = false // CVE-2023-4863
-                Glide.with(appContext)
-                    .load(file)
-                    .apply(options)
-                    .set(WebpDownsampler.USE_SYSTEM_DECODER, false) // CVE-2023-4863
-                    .transition(DrawableTransitionOptions.withCrossFade(crossFadeDuration))
-                    .into(target)
-            }
-        }
-        return
-    }
-
     val options = RequestOptions()
         .signature(signature)
         .skipMemoryCache(skipMemoryCacheAtPaths?.contains(path) == true)
@@ -605,6 +544,27 @@ fun Context.loadImageBase(
     }
 
     WebpBitmapFactory.sUseSystemDecoder = false // CVE-2023-4863
+
+    // Remote (remote://) images: Glide's StringLoader cannot fetch them, so download to a temp
+    // file on a background thread first, then load that File. The download MUST NOT run on the
+    // main thread (that was the root cause of the earlier broken design).
+    if (path.startsWith("remote://")) {
+        ensureBackgroundThread {
+            val tempPath = RemoteClient.download(path, cacheDir)
+            Handler(Looper.getMainLooper()).post {
+                if (tempPath != null) {
+                    Glide.with(applicationContext).load(File(tempPath)).apply(options)
+                        .set(WebpDownsampler.USE_SYSTEM_DECODER, false)
+                        .transition(DrawableTransitionOptions.withCrossFade(crossFadeDuration))
+                        .into(target)
+                } else {
+                    target.setImageResource(com.simplemobiletools.commons.R.drawable.ic_place_vector)
+                }
+            }
+        }
+        return
+    }
+
     var builder = Glide.with(applicationContext)
         .load(path)
         .apply(options)
@@ -760,28 +720,6 @@ fun Context.getCachedDirectories(
                 }
             }
         }
-
-        // Remote servers: only show in the folder list once verified to exist,
-        // be reachable and contain media. Encrypted folders always show up.
-        // Drop any stale DB copies of remote dirs first so the fresh verified
-        // entry (with the server's chosen name) wins over the cached one.
-        val existingPaths = filteredDirectories.map { it.path }.toSet()
-        val synthetic = ArrayList<Directory>()
-
-        filteredDirectories.removeAll { it.path.startsWith("remote://") }
-
-        config.parseRemoteServers().forEach { server ->
-            getVerifiedRemoteDirectory(server)?.let { synthetic.add(it) }
-        }
-
-        config.encryptedFolders.forEach { encPath ->
-            if (!existingPaths.contains(encPath)) {
-                val name = encPath.getFilenameFromPath()
-                synthetic.add(Directory(null, encPath, name, encPath, 0, 0L, 0L, 0L, 0, 0, ""))
-            }
-        }
-
-        filteredDirectories.addAll(synthetic)
 
         val clone = filteredDirectories.clone() as ArrayList<Directory>
         callback(clone.distinctBy { it.path.getDistinctPath() } as ArrayList<Directory>)
@@ -1176,67 +1114,4 @@ fun Context.getFileDateTaken(path: String): Long {
     }
 
     return 0L
-}
-
-// Remote servers: only added to the folder list once verified reachable + containing media.
-// Live-check is skipped within a short window for servers that just failed, to avoid stalling the list.
-// The last successfully-built Directory is cached so re-verification keeps the server name + media
-// count visible instead of flickering to a blank/0-count entry during refresh.
-fun Context.getVerifiedRemoteDirectory(server: com.simplemobiletools.gallery.pro.models.RemoteServer): Directory? {
-    val protocol = "ftp"
-    val remotePath = "remote://$protocol/${server.id}${server.remotePath}"
-    val displayName = server.name.trim().ifEmpty { server.host.ifEmpty { remotePath } }
-
-    // Always re-verify connectivity on every call. The previous code short-circuited on a
-    // "verified" flag set once per session, so an offline server kept showing forever.
-    // We still keep a short in-flight guard so we don't hammer the server on rapid refreshes,
-    // but a previously-failed path is re-checked (not served a stale cached entry).
-    if (RemoteServerVerify.pendingOrFailed.contains(remotePath)) {
-        // still checking: keep the previously cached entry visible if we have one
-        return RemoteServerVerify.cached[remotePath]
-    }
-
-    RemoteServerVerify.pendingOrFailed.add(remotePath)
-    var ftp: FTPClient? = null
-    try {
-        val cli = FTPClient()
-        cli.connectTimeout = 3000
-        ftp = cli
-        cli.connect(server.host, server.port)
-        cli.login(server.username, config.getRemoteServerPassword(server.id!!, server.passwordHash))
-        cli.enterLocalPassiveMode()
-        cli.changeWorkingDirectory(server.remotePath)
-        val files = cli.listFiles()
-        val mediaCount = files.count { it.isFile && it.name.isMediaFile() }
-        val hasMedia = mediaCount > 0
-        cli.disconnect()
-        RemoteServerVerify.pendingOrFailed.remove(remotePath)
-        if (hasMedia) {
-            val dir = Directory(null, remotePath, "", displayName, mediaCount, 0L, 0L, 0L, 0, 0, "")
-            RemoteServerVerify.cached[remotePath] = dir
-            return dir
-        }
-        // reachable but empty: drop any stale cache so it doesn't show
-        RemoteServerVerify.cached.remove(remotePath)
-        return null
-    } catch (e: Exception) {
-        try {
-            ftp?.disconnect()
-        } catch (ignored: Exception) {
-        }
-        // server is offline / unreachable: forget any previously cached entry so the folder
-        // disappears from the list instead of lingering with a stale name + media count.
-        RemoteServerVerify.pendingOrFailed.remove(remotePath)
-        RemoteServerVerify.cached.remove(remotePath)
-        return null
-    }
-}
-
-private object RemoteServerVerify {
-    // remote:// paths confirmed reachable (stay shown)
-    val verified = HashSet<String>()
-    // remote:// paths currently being checked or that just failed (kept out of the list)
-    val pendingOrFailed = HashSet<String>()
-    // last successfully built Directory per remote:// path (stable name + media count)
-    val cached = HashMap<String, Directory>()
 }

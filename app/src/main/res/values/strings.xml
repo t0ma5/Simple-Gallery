@@ -96,6 +96,7 @@
     <string name="local_folder">Local folder</string>
     <string name="remote_server">FTP server</string>
     <string name="remote_files_rename_not_supported">Renaming remote files is not supported. Use server management to rename the remote folder.</string>
+    <string name="tree_view">Tree view</string>
     <string name="toggle_tree_mode">Tree mode</string>
     <string name="tree_mode">Tree mode</string>
     <string name="add_remote_server">Add FTP server</string>

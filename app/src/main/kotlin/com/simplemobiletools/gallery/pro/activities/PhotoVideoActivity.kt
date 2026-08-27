@@ -252,46 +252,16 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
     }
 
     private fun launchVideoPlayer() {
-        val isRemote = mUri.toString().startsWith("remote://")
-        if (isRemote) {
-            // FTP download must not run on the main thread; continue on the UI thread once
-            // the temp file is ready.
-            val remoteUri = mUri.toString()
-            ensureBackgroundThread {
-                val tempPath = downloadRemoteFileToTemp(remoteUri, config, cacheDir)
-                runOnUiThread {
-                    if (tempPath == null) {
-                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
-                    } else {
-                        startVideoPlayerForTemp(tempPath)
-                    }
-                }
-            }
-            return
-        }
-        startVideoPlayerForTemp(null)
-    }
-
-    private fun startVideoPlayerForTemp(remoteTempPath: String?) {
-        val newUri = if (remoteTempPath != null) {
-            getFinalUriFromPath(remoteTempPath, BuildConfig.APPLICATION_ID)
-        } else {
-            getFinalUriFromPath(mUri.toString(), BuildConfig.APPLICATION_ID)
-        }
+        val newUri = getFinalUriFromPath(mUri.toString(), BuildConfig.APPLICATION_ID)
         if (newUri == null) {
             toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
             return
         }
 
-        val isRemote = remoteTempPath != null
         var isPanorama = false
-        val realPath = if (isRemote) {
-            mUri.toString()
-        } else {
-            intent?.extras?.getString(REAL_FILE_PATH) ?: ""
-        }
+        val realPath = intent?.extras?.getString(REAL_FILE_PATH) ?: ""
         try {
-            if (realPath.isNotEmpty() && !isRemote) {
+            if (realPath.isNotEmpty()) {
                 val fis = FileInputStream(File(realPath))
                 parseFileChannel(realPath, fis.channel, 0, 0, 0) {
                     isPanorama = true
@@ -312,7 +282,6 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
             Intent(applicationContext, VideoPlayerActivity::class.java).apply {
                 setDataAndType(newUri, mimeType)
                 addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT)
-                putExtra(REAL_FILE_PATH, realPath)
                 if (intent.extras != null) {
                     putExtras(intent.extras!!)
                 }

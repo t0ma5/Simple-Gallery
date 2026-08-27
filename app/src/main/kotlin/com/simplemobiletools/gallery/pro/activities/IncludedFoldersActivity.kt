@@ -5,18 +5,11 @@ import com.simplemobiletools.commons.extensions.beVisibleIf
 import com.simplemobiletools.commons.extensions.getProperTextColor
 import com.simplemobiletools.commons.extensions.viewBinding
 import com.simplemobiletools.commons.helpers.NavigationIcon
-import com.simplemobiletools.commons.dialogs.RadioGroupDialog
-import com.simplemobiletools.commons.helpers.ensureBackgroundThread
 import com.simplemobiletools.commons.interfaces.RefreshRecyclerViewListener
-import com.simplemobiletools.commons.models.RadioItem
-import com.simplemobiletools.gallery.pro.dialogs.AddRemoteServerDialog
-import com.simplemobiletools.gallery.pro.dialogs.EditRemoteServerDialog
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.adapters.ManageFoldersAdapter
 import com.simplemobiletools.gallery.pro.databinding.ActivityManageFoldersBinding
 import com.simplemobiletools.gallery.pro.extensions.config
-import com.simplemobiletools.gallery.pro.extensions.rescanFolderMedia
-import com.simplemobiletools.gallery.pro.models.RemoteServer
 
 class IncludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
 
@@ -40,34 +33,15 @@ class IncludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
     }
 
     private fun updateFolders() {
-        val folders = ArrayList<Any>()
+        val folders = ArrayList<String>()
         config.includedFolders.mapTo(folders) { it }
-        folders.addAll(config.parseRemoteServers())
-
         binding.manageFoldersPlaceholder.apply {
             text = getString(R.string.included_activity_placeholder)
             beVisibleIf(folders.isEmpty())
             setTextColor(getProperTextColor())
         }
 
-        val adapter = ManageFoldersAdapter(
-            this, folders, false, this, binding.manageFoldersList,
-            editCallback = { folder ->
-                when (folder) {
-                    is String -> {
-                        config.removeIncludedFolder(folder)
-                        showAddIncludedFolderDialog {
-                            updateFolders()
-                        }
-                    }
-                    is RemoteServer -> {
-                        EditRemoteServerDialog(this, folder) {
-                            updateFolders()
-                        }
-                    }
-                }
-            }
-        ) {}
+        val adapter = ManageFoldersAdapter(this, folders, false, this, binding.manageFoldersList) {}
         binding.manageFoldersList.adapter = adapter
     }
 
@@ -86,28 +60,8 @@ class IncludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
     }
 
     private fun addFolder() {
-        val items = arrayListOf(
-            RadioItem(0, getString(R.string.local_folder)),
-            RadioItem(1, getString(R.string.remote_server))
-        )
-
-        RadioGroupDialog(this, items) {
-            if (it == 0) {
-                showAddIncludedFolderDialog {
-                    updateFolders()
-                }
-            } else {
-                addRemoteServer()
-            }
-        }
-    }
-
-    private fun addRemoteServer() {
-        AddRemoteServerDialog(this) {
+        showAddIncludedFolderDialog {
             updateFolders()
-            ensureBackgroundThread {
-                rescanFolderMedia("/")
-            }
         }
     }
 }

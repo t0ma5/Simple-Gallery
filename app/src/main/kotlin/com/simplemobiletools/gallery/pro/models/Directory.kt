@@ -26,13 +26,11 @@ data class Directory(
     @Ignore var subfoldersCount: Int = 0,
     @Ignore var subfoldersMediaCount: Int = 0,
     @Ignore var containsMediaFilesDirectly: Boolean = true,
-
-    // tree mode (main screen): depth/nesting for folder-in-folder display
-    @Ignore var treeDepth: Int = 0,
-    @Ignore var hasTreeChildren: Boolean = false,
-    @Ignore var isTreeExpanded: Boolean = false
+    @Ignore var isRemote: Boolean = false,
+    @Ignore var treeDepth: Int = 0
 ) {
-    constructor() : this(null, "", "", "", 0, 0L, 0L, 0L, 0, 0, "")
+
+    constructor() : this(null, "", "", "", 0, 0L, 0L, 0L, 0, 0, "", 0, 0)
 
     fun getBubbleText(sorting: Int, context: Context, dateFormat: String? = null, timeFormat: String? = null) = when {
         sorting and SORT_BY_NAME != 0 -> name

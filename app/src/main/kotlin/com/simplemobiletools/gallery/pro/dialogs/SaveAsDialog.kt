@@ -1,44 +1,19 @@
 package com.simplemobiletools.gallery.pro.dialogs
 
 import androidx.appcompat.app.AlertDialog
-import android.view.View
 import com.simplemobiletools.commons.activities.BaseSimpleActivity
 import com.simplemobiletools.commons.dialogs.ConfirmationDialog
 import com.simplemobiletools.commons.dialogs.FilePickerDialog
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.isRPlus
-import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.databinding.DialogSaveAsBinding
 import java.io.File
 
 class SaveAsDialog(
-    val activity: BaseSimpleActivity, val path: String, val appendFilename: Boolean = false,
-    val simple: Boolean = false, val cancelCallback: (() -> Unit)? = null,
+    val activity: BaseSimpleActivity, val path: String, val appendFilename: Boolean, val cancelCallback: (() -> Unit)? = null,
     val callback: (savePath: String) -> Unit
 ) {
     init {
-        if (simple) {
-            // Simple mode (image editor): just Overwrite the original or Save a copy.
-            val filename = path.getFilenameFromPath()
-            activity.getAlertDialogBuilder()
-                .setTitle(String.format(activity.getString(R.string.save_overwrite_confirm), filename))
-                .setPositiveButton(R.string.save_copy, null)
-                .setNegativeButton(R.string.overwrite, null)
-                .setNeutralButton(com.simplemobiletools.commons.R.string.cancel) { _, _ -> cancelCallback?.invoke() }
-                .setOnCancelListener { cancelCallback?.invoke() }
-                .apply {
-                    activity.setupDialogStuff(View(activity), this, com.simplemobiletools.commons.R.string.save_as) { alertDialog ->
-                        alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                            callback(getCopyPath(path))
-                            alertDialog.dismiss()
-                        }
-                        alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
-                            callback(path)
-                            alertDialog.dismiss()
-                        }
-                    }
-                }
-        } else {
         var realPath = path.getParentPath()
         if (activity.isRestrictedWithSAFSdk30(realPath) && !activity.isInDownloadDir(realPath)) {
             realPath = activity.getPicturesDirectoryPath(realPath)
@@ -120,22 +95,6 @@ class SaveAsDialog(
                     }
                 }
             }
-        }
-    }
-
-    private fun getCopyPath(originalPath: String): String {
-        val parent = originalPath.getParentPath()
-        val fullName = originalPath.getFilenameFromPath()
-        val dotAt = fullName.lastIndexOf(".")
-        val base = if (dotAt > 0) fullName.substring(0, dotAt) else fullName
-        val extension = if (dotAt > 0) fullName.substring(dotAt) else ""
-        var index = 1
-        var candidate = "${parent.trimEnd('/')}/${base}_$index$extension"
-        while (activity.getDoesFilePathExist(candidate)) {
-            index++
-            candidate = "${parent.trimEnd('/')}/${base}_$index$extension"
-        }
-        return candidate
     }
 
     private fun selectPath(alertDialog: AlertDialog, newPath: String) {

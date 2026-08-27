@@ -19,7 +19,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.bumptech.glide.Glide
 import com.google.gson.Gson
 import com.qtalk.recyclerviewfastscroller.RecyclerViewFastScroller
-import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.commons.activities.BaseSimpleActivity
 import com.simplemobiletools.commons.adapters.MyRecyclerViewAdapter
 import com.simplemobiletools.commons.dialogs.*
@@ -30,9 +29,8 @@ import com.simplemobiletools.commons.interfaces.ItemTouchHelperContract
 import com.simplemobiletools.commons.interfaces.StartReorderDragListener
 import com.simplemobiletools.commons.models.FileDirItem
 import com.simplemobiletools.commons.views.MyRecyclerView
-import com.simplemobiletools.commons.views.MySquareImageView
+import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.activities.MediaActivity
-import com.simplemobiletools.gallery.pro.activities.ViewPagerActivity
 import com.simplemobiletools.gallery.pro.databinding.DirectoryItemGridRoundedCornersBinding
 import com.simplemobiletools.gallery.pro.databinding.DirectoryItemGridSquareBinding
 import com.simplemobiletools.gallery.pro.databinding.DirectoryItemListBinding
@@ -44,7 +42,6 @@ import com.simplemobiletools.gallery.pro.helpers.*
 import com.simplemobiletools.gallery.pro.interfaces.DirectoryOperationsListener
 import com.simplemobiletools.gallery.pro.models.AlbumCover
 import com.simplemobiletools.gallery.pro.models.Directory
-import com.simplemobiletools.gallery.pro.models.Medium
 import java.io.File
 import java.util.*
 
@@ -107,23 +104,15 @@ class DirectoryAdapter(
         }
 
         val isOneItemSelected = isOneItemSelected()
-        val hasRemote = selectedPaths.any { it.startsWith("remote://") }
         menu.apply {
             findItem(R.id.cab_move_to_top).isVisible = isDragAndDropping
             findItem(R.id.cab_move_to_bottom).isVisible = isDragAndDropping
 
-            // local-only ops are meaningless for synthetic remote folders
-            findItem(R.id.cab_rename).isVisible = !hasRemote && !selectedPaths.contains(FAVORITES) && !selectedPaths.contains(RECYCLE_BIN)
-            findItem(R.id.cab_copy_to).isVisible = !hasRemote
-            findItem(R.id.cab_move_to).isVisible = !hasRemote
-            findItem(R.id.cab_pin).isVisible = !hasRemote
-            findItem(R.id.cab_unpin).isVisible = !hasRemote
-            findItem(R.id.cab_change_cover_image).isVisible = !hasRemote && isOneItemSelected
+            findItem(R.id.cab_rename).isVisible = !selectedPaths.contains(FAVORITES) && !selectedPaths.contains(RECYCLE_BIN)
+            findItem(R.id.cab_change_cover_image).isVisible = isOneItemSelected
 
             findItem(R.id.cab_lock).isVisible = selectedPaths.any { !config.isFolderProtected(it) }
             findItem(R.id.cab_unlock).isVisible = selectedPaths.any { config.isFolderProtected(it) }
-            findItem(R.id.cab_encrypt).isVisible = !hasRemote && selectedPaths.any { !config.isFolderEncrypted(it) }
-            findItem(R.id.cab_decrypt).isVisible = !hasRemote && selectedPaths.any { config.isFolderEncrypted(it) }
 
             findItem(R.id.cab_empty_recycle_bin).isVisible = isOneItemSelected && selectedPaths.first() == RECYCLE_BIN
             findItem(R.id.cab_empty_disable_recycle_bin).isVisible = isOneItemSelected && selectedPaths.first() == RECYCLE_BIN
@@ -155,8 +144,6 @@ class DirectoryAdapter(
             R.id.cab_exclude -> tryExcludeFolder()
             R.id.cab_lock -> tryLockFolder()
             R.id.cab_unlock -> unlockFolder()
-            R.id.cab_encrypt -> tryEncryptFolder()
-            R.id.cab_decrypt -> tryDecryptFolder()
             R.id.cab_copy_to -> copyFilesTo()
             R.id.cab_move_to -> moveFilesTo()
             R.id.cab_select_all -> selectAll()
@@ -171,7 +158,7 @@ class DirectoryAdapter(
 
     override fun getIsItemSelectable(position: Int) = true
 
-    override fun getItemSelectionKey(position: Int) = if (getIsItemSelectable(position)) dirs.getOrNull(position)?.path?.hashCode() else null
+    override fun getItemSelectionKey(position: Int) = dirs.getOrNull(position)?.path?.hashCode()
 
     override fun getItemKeyPosition(key: Int) = dirs.indexOfFirst { it.path.hashCode() == key }
 
@@ -197,11 +184,10 @@ class DirectoryAdapter(
     }
 
     private fun checkHideBtnVisibility(menu: Menu, selectedPaths: ArrayList<String>) {
-        val hasRemote = selectedPaths.any { it.startsWith("remote://") }
-        menu.findItem(R.id.cab_hide).isVisible = !hasRemote &&
+        menu.findItem(R.id.cab_hide).isVisible =
             (!isRPlus() || isExternalStorageManager()) && selectedPaths.any { !it.doesThisOrParentHaveNoMedia(HashMap(), null) }
 
-        menu.findItem(R.id.cab_unhide).isVisible = !hasRemote &&
+        menu.findItem(R.id.cab_unhide).isVisible =
             (!isRPlus() || isExternalStorageManager()) && selectedPaths.any { it.doesThisOrParentHaveNoMedia(HashMap(), null) }
     }
 
@@ -421,76 +407,6 @@ class DirectoryAdapter(
         }
     }
 
-    private fun encryptFolder(path: String, secret: String) {
-        val folder = File(path)
-        folder.listFiles()?.forEach { file ->
-            if (file.isFile && !file.name.endsWith(".enc")) {
-                val outputFile = File(path, "${file.name}.enc")
-                EncryptionHelper.encryptFile(activity, file, outputFile, secret)
-                file.delete()
-            }
-        }
-    }
-
-    private fun decryptFolder(path: String, secret: String) {
-        val folder = File(path)
-        folder.listFiles()?.forEach { file ->
-            if (file.isFile && file.name.endsWith(".enc")) {
-                val outputFile = File(path, file.name.removeSuffix(".enc"))
-                EncryptionHelper.decryptFile(activity, file, outputFile, secret)
-                file.delete()
-            }
-        }
-    }
-
-    private fun tryEncryptFolder() {
-        val firstPath = getSelectedPaths().first()
-        // Encrypt "as part of lock": require a lock pattern/pin and use its hash as the secret.
-        SecurityDialog(activity, config.getFolderProtectionHash(firstPath), config.getFolderProtectionType(firstPath)) { hash, type, success ->
-            if (success) {
-                getSelectedPaths().forEach { path ->
-                    if (!config.isFolderProtected(path)) {
-                        config.addFolderProtection(path, hash, type)
-                    }
-                    config.setFolderEncryptionSecret(path, hash)
-                }
-
-                activity.toast(R.string.encrypting)
-                ensureBackgroundThread {
-                    getSelectedPaths().forEach { path ->
-                        encryptFolder(path, hash)
-                        config.addEncryptedFolder(path)
-                    }
-                    activity.runOnUiThread {
-                        activity.toast(R.string.encryption_finished)
-                        listener?.refreshItems()
-                        finishActMode()
-                    }
-                }
-            }
-        }
-    }
-
-    private fun tryDecryptFolder() {
-        val firstPath = getSelectedPaths().first()
-        SecurityDialog(activity, config.getFolderProtectionHash(firstPath), config.getFolderProtectionType(firstPath)) { hash, _, success ->
-            if (success) {
-                activity.toast(R.string.decrypting)
-                ensureBackgroundThread {
-                    getSelectedPaths().forEach { path ->
-                        decryptFolder(path, hash)
-                        config.removeEncryptedFolder(path)
-                    }
-                    activity.runOnUiThread {
-                        activity.toast(R.string.decryption_finished)
-                        listener?.refreshItems()
-                        finishActMode()
-                    }
-                }
-            }
-        }
-    }
-
     private fun tryExcludeFolder() {
         val selectedPaths = getSelectedPaths()
         val paths = selectedPaths.filter { it != PATH && it != RECYCLE_BIN && it != FAVORITES }.toSet()
@@ -525,32 +441,15 @@ class DirectoryAdapter(
     }
 
     private fun lockFolder() {
-        var securityDialog: SecurityDialog? = null
-        securityDialog = SecurityDialog(activity, "", SHOW_ALL_TABS, showEncryptToggle = true) { hash, type, success ->
+        SecurityDialog(activity, "", SHOW_ALL_TABS) { hash, type, success ->
             if (success) {
                 getSelectedPaths().filter { !config.isFolderProtected(it) }.forEach {
                     config.addFolderProtection(it, hash, type)
                     lockedFolderPaths.add(it)
                 }
 
-                if (securityDialog?.encryptChecked == true) {
-                    activity.toast(R.string.encrypting)
-                    ensureBackgroundThread {
-                        getSelectedPaths().forEach { path ->
-                            config.setFolderEncryptionSecret(path, hash)
-                            encryptFolder(path, hash)
-                            config.addEncryptedFolder(path)
-                        }
-                        activity.runOnUiThread {
-                            activity.toast(R.string.encryption_finished)
-                            listener?.refreshItems()
-                            finishActMode()
-                        }
-                    }
-                } else {
-                    listener?.refreshItems()
-                    finishActMode()
-                }
+                listener?.refreshItems()
+                finishActMode()
             }
         }
     }
@@ -562,31 +461,14 @@ class DirectoryAdapter(
         val hashToCheck = config.getFolderProtectionHash(firstPath)
         SecurityDialog(activity, hashToCheck, tabToShow) { hash, type, success ->
             if (success) {
-                val toUnlock = paths.filter { config.isFolderProtected(it) && config.getFolderProtectionType(it) == tabToShow && config.getFolderProtectionHash(it) == hashToCheck }
-                toUnlock.forEach {
-                    config.removeFolderProtection(it)
-                    lockedFolderPaths.remove(it)
-                }
-
-                val encrypted = toUnlock.filter { config.isFolderEncrypted(it) }
-                if (encrypted.isNotEmpty()) {
-                    activity.toast(R.string.decrypting)
-                    ensureBackgroundThread {
-                        encrypted.forEach { path ->
-                            decryptFolder(path, hash)
-                            config.removeEncryptedFolder(path)
-                            config.clearFolderEncryptionSecret(path)
-                        }
-                        activity.runOnUiThread {
-                            activity.toast(R.string.decryption_finished)
-                            listener?.refreshItems()
-                            finishActMode()
-                        }
+                paths.filter { config.isFolderProtected(it) && config.getFolderProtectionType(it) == tabToShow && config.getFolderProtectionHash(it) == hashToCheck }
+                    .forEach {
+                        config.removeFolderProtection(it)
+                        lockedFolderPaths.remove(it)
                     }
-                } else {
-                    listener?.refreshItems()
-                    finishActMode()
-                }
+
+                listener?.refreshItems()
+                finishActMode()
             }
         }
     }
@@ -751,22 +633,6 @@ class DirectoryAdapter(
             return
         }
 
-        // Remote folders are synthetic: "deleting" them only removes the server config,
-        // it NEVER deletes files on the remote host.
-        val remoteSelected = getSelectedItems().map { it.path }.filter { it.startsWith("remote://") }
-        if (remoteSelected.isNotEmpty()) {
-            remoteSelected.forEach { path ->
-                val serverId = path.removePrefix("remote://").split("/").getOrNull(1)?.toLongOrNull()
-                if (serverId != null) {
-                    config.removeRemoteServer(serverId)
-                }
-            }
-            activity.toast(com.simplemobiletools.commons.R.string.remove)
-            listener?.refreshItems()
-            finishActMode()
-            return
-        }
-
         val SAFPath = getFirstSelectedItemPath() ?: return
         val selectedDirs = getSelectedItems()
         activity.handleSAFDialog(SAFPath) {
@@ -903,6 +769,8 @@ class DirectoryAdapter(
 
     private fun setupView(view: View, directory: Directory, holder: ViewHolder) {
         val isSelected = selectedKeys.contains(directory.path.hashCode())
+        // tree mode: indent nested folders according to their depth
+        view.setPadding(directory.treeDepth * 48, view.paddingTop, view.paddingRight, view.paddingBottom)
         bindItem(view).apply {
             dirPath?.text = "${directory.path.substringBeforeLast("/")}/"
             val thumbnailType = when {
@@ -912,9 +780,6 @@ class DirectoryAdapter(
                 directory.tmb.isSvg() -> TYPE_SVGS
                 else -> TYPE_IMAGES
             }
-
-            // tree mode: nested folders get indented titles so the hierarchy is readable
-            val treeIndent = directory.treeDepth * activity.resources.getDimensionPixelSize(com.simplemobiletools.commons.R.dimen.medium_margin)
 
             dirCheck.beVisibleIf(isSelected)
             if (isSelected) {
@@ -969,15 +834,10 @@ class DirectoryAdapter(
             }
 
             dirPin.beVisibleIf(pinnedFolders.contains(directory.path))
-            // storage-type icon: only remote→cloud, removable SD→sdcard, OTG→usb get a badge; local stays clean
-            val loc = when {
-                directory.path.startsWith("remote://") -> com.simplemobiletools.commons.R.drawable.ic_cloud_vector
-                directory.location == LOCATION_SD -> R.drawable.ic_sd_card_filled_vector
-                directory.location == LOCATION_OTG -> com.simplemobiletools.commons.R.drawable.ic_usb_vector
-                else -> 0
+            dirLocation.beVisibleIf(directory.location != LOCATION_INTERNAL)
+            if (dirLocation.isVisible()) {
+                dirLocation.setImageResource(if (directory.location == LOCATION_SD) com.simplemobiletools.commons.R.drawable.ic_sd_card_vector else com.simplemobiletools.commons.R.drawable.ic_usb_vector)
             }
-            dirLocation.setImageResource(loc)
-            dirLocation.beVisibleIf(loc != 0)
 
             photoCnt.text = directory.subfoldersMediaCount.toString()
             photoCnt.beVisibleIf(showMediaCount == FOLDER_MEDIA_CNT_LINE)
@@ -999,9 +859,6 @@ class DirectoryAdapter(
             }
 
             dirName.text = nameCount
-            if (treeIndent > 0) {
-                dirName.setPaddingRelative(treeIndent, dirName.paddingTop, dirName.paddingEnd, dirName.paddingBottom)
-            }
 
             if (isListViewType || folderStyle == FOLDER_STYLE_ROUNDED_CORNERS) {
                 photoCnt.setTextColor(textColor)

@@ -428,17 +428,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 mAllowPickingMultiple, mPath, binding.mediaGrid
             ) {
                 if (it is Medium && !isFinishing) {
-                    if (it.isDirectory) {
-                        // remote subfolder: drill into it like a normal local directory
-                        Intent(this, MediaActivity::class.java).apply {
-                            putExtra(DIRECTORY, it.path)
-                            putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
-                            startActivity(this@apply)
-                        }
-                        finish()
-                    } else {
-                        itemClicked(it.path)
-                    }
+                    itemClicked(it)
                 }
             }.apply {
                 setupZoomListener(mZoomListener)
@@ -814,8 +804,20 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun isSetWallpaperIntent() = intent.getBooleanExtra(SET_WALLPAPER_INTENT, false)
 
-    private fun itemClicked(path: String) {
+    private fun itemClicked(medium: Medium) {
+        val path = medium.path
         hideKeyboard()
+
+        // remote subfolder → drill deeper into the same server
+        if (path.startsWith("remote://") && medium.isRemoteDirectory) {
+            Intent(this, MediaActivity::class.java).apply {
+                putExtra(DIRECTORY, path)
+                putExtra(SKIP_AUTHENTICATION, true)
+                startActivity(this)
+            }
+            return
+        }
+
         if (isSetWallpaperIntent()) {
             toast(R.string.setting_wallpaper)
 
@@ -879,19 +881,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private fun gotMedia(media: ArrayList<ThumbnailItem>, isFromCache: Boolean) {
         mIsGettingMedia = false
         checkLastMediaChanged()
-
-        // remote subfolders (isDirectory) are navigational, not media: keep them on top but
-        // never persist them to the media database. Date-section headers are also dropped for
-        // remote folders — groupMedia cannot meaningfully section a mixed folder/subfolder list.
-        val hasRemoteDirs = media.any { it is Medium && it.isDirectory }
-        val sorted = if (hasRemoteDirs) {
-            val dirs = media.filterIsInstance<Medium>().filter { it.isDirectory }
-            val rest = media.filter { it !is ThumbnailSection && (it !is Medium || !(it as Medium).isDirectory) }
-            (dirs + rest) as ArrayList<ThumbnailItem>
-        } else {
-            media
-        }
-        mMedia = sorted
+        mMedia = media
 
         runOnUiThread {
             binding.mediaRefreshLayout.isRefreshing = false
@@ -908,7 +898,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         mLatestMediaId = getLatestMediaId()
         mLatestMediaDateId = getLatestMediaByDateId()
         if (!isFromCache) {
-            val mediaToInsert = (mMedia).filter { it is Medium && it.deletedTS == 0L && !it.isDirectory }.map { it as Medium }
+            val mediaToInsert = (mMedia).filter { it is Medium && it.deletedTS == 0L }.map { it as Medium }
             Thread {
                 try {
                     mediaDB.insertAll(mediaToInsert)
@@ -919,31 +909,27 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     override fun tryDeleteFiles(fileDirItems: ArrayList<FileDirItem>, skipRecycleBin: Boolean) {
-        // Remote files/folders are deleted directly on the server via FTP; the local
-        // recycle-bin flow does not apply to them.
-        val remoteItems = fileDirItems.filter { it.path.startsWith("remote://") }
-        if (remoteItems.isNotEmpty()) {
-            ensureBackgroundThread {
-                var allOk = true
-                remoteItems.forEach { item ->
-                    if (!RemoteOps.delete(config, item.path)) {
-                        allOk = false
-                    }
-                }
-                runOnUiThread {
-                    if (allOk) {
-                        toast(com.simplemobiletools.commons.R.string.deletion_confirmation)
-                    } else {
-                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
-                    }
-                    refreshItems()
-                }
-            }
+        val filtered = fileDirItems.filter { !getIsPathDirectory(it.path) && it.path.isMediaFile() } as ArrayList
+        if (filtered.isEmpty()) {
             return
         }
 
-        val filtered = fileDirItems.filter { !getIsPathDirectory(it.path) && it.path.isMediaFile() } as ArrayList
-        if (filtered.isEmpty()) {
+        // remote files: delete directly on the server (no local recycle bin)
+        if (filtered.all { it.path.startsWith("remote://") }) {
+            val paths = filtered.map { it.path }
+            val deletingItems = resources.getQuantityString(com.simplemobiletools.commons.R.plurals.deleting_items, filtered.size, filtered.size)
+            toast(deletingItems)
+            ensureBackgroundThread {
+                val allOk = paths.all { RemoteClient.delete(it) }
+                runOnUiThread {
+                    if (allOk) {
+                        mMedia.removeAll { paths.contains((it as? Medium)?.path) }
+                        refreshItems()
+                    } else {
+                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    }
+                }
+            }
             return
         }
 

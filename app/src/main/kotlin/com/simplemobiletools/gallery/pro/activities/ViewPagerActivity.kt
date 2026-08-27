@@ -54,6 +54,7 @@ import com.simplemobiletools.gallery.pro.fragments.ViewPagerFragment
 import com.simplemobiletools.gallery.pro.helpers.*
 import com.simplemobiletools.gallery.pro.models.Medium
 import com.simplemobiletools.gallery.pro.models.ThumbnailItem
+import android.net.Uri
 import java.io.File
 import kotlin.math.min
 
@@ -224,20 +225,20 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             }
 
             when (menuItem.itemId) {
-                R.id.menu_set_as -> withLocalizedPath { setAs(it) }
+                R.id.menu_set_as -> setAs(getCurrentPath())
                 R.id.menu_slideshow -> initSlideshow()
                 R.id.menu_copy_to -> checkMediaManagementAndCopy(true)
                 R.id.menu_move_to -> moveFileTo()
-                R.id.menu_open_with -> withLocalizedPath { openPath(it, true) }
+                R.id.menu_open_with -> openPath(getCurrentPath(), true)
                 R.id.menu_hide -> toggleFileVisibility(true)
                 R.id.menu_unhide -> toggleFileVisibility(false)
-                R.id.menu_share -> withLocalizedPath { shareMediumPath(it) }
+                R.id.menu_share -> shareMediumPath(getCurrentPath())
                 R.id.menu_delete -> checkDeleteConfirmation()
                 R.id.menu_rename -> checkMediaManagementAndRename()
                 R.id.menu_print -> printFile()
-                R.id.menu_edit -> withLocalizedPath { openEditor(it) }
+                R.id.menu_edit -> openEditor(getCurrentPath())
                 R.id.menu_properties -> showProperties()
-                R.id.menu_show_on_map -> withLocalizedPath { showFileOnMap(it) }
+                R.id.menu_show_on_map -> showFileOnMap(getCurrentPath())
                 R.id.menu_rotate_right -> rotateImage(90)
                 R.id.menu_rotate_left -> rotateImage(-90)
                 R.id.menu_rotate_one_eighty -> rotateImage(180)
@@ -425,15 +426,9 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                     val parent = mPath.getParentPath()
                     val type = getTypeFromPath(mPath)
                     val isFavorite = favoritesDB.isFavorite(mPath)
-                    val probePath = if (mPath.startsWith("remote://")) {
-                        downloadRemoteFileToTemp(mPath, config, cacheDir)
-                    } else {
-                        mPath
-                    }
-                    val duration = if (type == TYPE_VIDEOS) (if (probePath != null) getDuration(probePath) else null) ?: 0 else 0
-                    val size = if (probePath != null) File(probePath).length() else 0L
+                    val duration = if (type == TYPE_VIDEOS) getDuration(mPath) ?: 0 else 0
                     val ts = System.currentTimeMillis()
-                    val medium = Medium(null, filename, mPath, parent, ts, ts, size, type, duration, isFavorite, 0, 0L)
+                    val medium = Medium(null, filename, mPath, parent, ts, ts, File(mPath).length(), type, duration, isFavorite, 0, 0L)
                     mediaDB.insert(medium)
                 }
             }
@@ -824,17 +819,8 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     private fun getCurrentFragment() = (binding.viewPager.adapter as? MyPagerAdapter)?.getCurrentFragment(binding.viewPager.currentItem)
 
     private fun showProperties() {
-        val path = getCurrentPath()
-        if (path.isEmpty()) return
-        if (path.startsWith("remote://")) {
-            ensureBackgroundThread {
-                val tempPath = downloadRemoteFileToTemp(path, config, cacheDir)
-                runOnUiThread {
-                    if (tempPath != null) PropertiesDialog(this, tempPath, false)
-                }
-            }
-        } else {
-            PropertiesDialog(this, path, false)
+        if (getCurrentMedium() != null) {
+            PropertiesDialog(this, getCurrentPath(), false)
         }
     }
 
@@ -1004,22 +990,6 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
         printHelper.scaleMode = PrintHelper.SCALE_MODE_FIT
         printHelper.orientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
-        // Remote files need an FTP download (off the main thread) and the image resolution
-        // must be read from the downloaded temp copy — BitmapFactory cannot decode remote://.
-        if (path.startsWith("remote://")) {
-            ensureBackgroundThread {
-                val localPath = downloadRemoteFileToTemp(path, config, cacheDir)
-                runOnUiThread {
-                    if (localPath == null) {
-                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
-                    } else {
-                        sendPrintIntent(localPath)
-                    }
-                }
-            }
-            return
-        }
-
         try {
             val resolution = path.getImageResolution(this)
             if (resolution == null) {
@@ -1027,7 +997,6 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 return
             }
 
-            val file = File(path)
             var requestedWidth = resolution.x
             var requestedHeight = resolution.y
 
@@ -1045,7 +1014,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
 
             Glide.with(this)
                 .asBitmap()
-                .load(file)
+                .load(path)
                 .apply(options)
                 .listener(object : RequestListener<Bitmap> {
                     override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Bitmap>, isFirstResource: Boolean): Boolean {
@@ -1222,30 +1191,6 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             return
         }
 
-        // Remote rename happens on the server; no local FS or DB path update needed.
-        if (oldPath.startsWith("remote://")) {
-            RenameItemDialog(this, oldPath) { newName ->
-                val parentDir = oldPath.substring(0, oldPath.lastIndexOf('/'))
-                val newPath = "$parentDir/$newName"
-                ensureBackgroundThread {
-                    val ok = RemoteOps.rename(config, oldPath, newPath)
-                    runOnUiThread {
-                        if (ok) {
-                            getCurrentMedia().getOrNull(mPos)?.apply {
-                                path = newPath
-                                name = newName
-                            }
-                            updateActionbarTitle()
-                            refreshViewPager(true)
-                        } else {
-                            toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
-                        }
-                    }
-                }
-            }
-            return
-        }
-
         RenameItemDialog(this, oldPath) {
             getCurrentMedia().getOrNull(mPos)?.apply {
                 path = it
@@ -1388,35 +1333,38 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     override fun launchViewVideoIntent(path: String) {
         hideKeyboard()
         ensureBackgroundThread {
-            val newUri = if (path.startsWith("remote://")) {
-                // remote -> download to temp first, otherwise media3 tries to read a bogus provider URI
-                val tempPath = downloadRemoteFileToTemp(path, config, cacheDir)
-                if (tempPath == null) {
-                    // silently ignore unreachable remote servers
+            val playUri: Uri
+            val realPath: String
+            if (path.startsWith("remote://")) {
+                val temp = RemoteClient.download(path, cacheDir) ?: run {
+                    runOnUiThread { toast(com.simplemobiletools.commons.R.string.unknown_error_occurred) }
                     return@ensureBackgroundThread
                 }
-                getFinalUriFromPath(tempPath, BuildConfig.APPLICATION_ID) ?: return@ensureBackgroundThread
+                playUri = Uri.fromFile(File(temp))
+                realPath = "file://$temp"
             } else {
-                getFinalUriFromPath(path, BuildConfig.APPLICATION_ID) ?: return@ensureBackgroundThread
+                val newUri = getFinalUriFromPath(path, BuildConfig.APPLICATION_ID) ?: return@ensureBackgroundThread
+                playUri = newUri
+                realPath = path
             }
-            val mimeType = getUriMimeType(path, newUri)
+            val mimeType = getUriMimeType(realPath, playUri)
             Intent().apply {
                 action = Intent.ACTION_VIEW
-                setDataAndType(newUri, mimeType)
+                setDataAndType(playUri, mimeType)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 putExtra(IS_FROM_GALLERY, true)
-                putExtra(REAL_FILE_PATH, path)
+                putExtra(REAL_FILE_PATH, realPath)
                 putExtra(SHOW_PREV_ITEM, binding.viewPager.currentItem != 0)
                 putExtra(SHOW_NEXT_ITEM, binding.viewPager.currentItem != mMediaFiles.lastIndex)
 
                 try {
                     startActivityForResult(this, REQUEST_VIEW_VIDEO)
                 } catch (e: ActivityNotFoundException) {
-                    if (!tryGenericMimeType(this, mimeType, newUri)) {
-                        toast(com.simplemobiletools.commons.R.string.no_app_found)
+                    if (!tryGenericMimeType(this, mimeType, playUri)) {
+                        runOnUiThread { toast(com.simplemobiletools.commons.R.string.no_app_found) }
                     }
                 } catch (e: Exception) {
-                    showErrorToast(e)
+                    runOnUiThread { showErrorToast(e) }
                 }
             }
         }
@@ -1470,22 +1418,6 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     private fun getCurrentMedia() = if (mAreSlideShowMediaVisible || mRandomSlideshowStopped) mSlideshowMedia else mMediaFiles
 
     private fun getCurrentPath() = getCurrentMedium()?.path ?: ""
-
-    // Remote media has no local file, so file-based actions (open-with, share, set-as, edit,
-    // show-on-map) get a temp-downloaded copy first; local paths pass through untouched.
-    private fun withLocalizedPath(action: (String) -> Unit) {
-        val path = getCurrentPath()
-        if (path.startsWith("remote://")) {
-            ensureBackgroundThread {
-                val tempPath = downloadRemoteFileToTemp(path, config, cacheDir)
-                runOnUiThread {
-                    if (tempPath != null) action(tempPath)
-                }
-            }
-        } else {
-            action(path)
-        }
-    }
 
     override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
 

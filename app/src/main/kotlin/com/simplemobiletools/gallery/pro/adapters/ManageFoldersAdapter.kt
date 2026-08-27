@@ -11,14 +11,10 @@ import com.simplemobiletools.commons.interfaces.RefreshRecyclerViewListener
 import com.simplemobiletools.commons.views.MyRecyclerView
 import com.simplemobiletools.gallery.pro.databinding.ItemManageFolderBinding
 import com.simplemobiletools.gallery.pro.extensions.config
-import com.simplemobiletools.gallery.pro.models.RemoteServer
-import com.google.gson.Gson
-
-private const val MENU_EDIT = 1001
 
 class ManageFoldersAdapter(
-    activity: BaseSimpleActivity, var folders: ArrayList<Any>, val isShowingExcludedFolders: Boolean, val listener: RefreshRecyclerViewListener?,
-    recyclerView: MyRecyclerView, val editCallback: ((Any) -> Unit)? = null, itemClick: (Any) -> Unit
+    activity: BaseSimpleActivity, var folders: ArrayList<String>, val isShowingExcludedFolders: Boolean, val listener: RefreshRecyclerViewListener?,
+    recyclerView: MyRecyclerView, itemClick: (Any) -> Unit
 ) : MyRecyclerViewAdapter(activity, recyclerView, itemClick) {
 
     private val config = activity.config
@@ -63,34 +59,14 @@ class ManageFoldersAdapter(
 
     override fun getItemCount() = folders.size
 
-    private fun getSelectedItems() = folders.filter { selectedKeys.contains(it.hashCode()) } as ArrayList<Any>
+    private fun getSelectedItems() = folders.filter { selectedKeys.contains(it.hashCode()) } as ArrayList<String>
 
-    private fun setupView(view: View, folder: Any) {
-        val title = when (folder) {
-            is String -> {
-                // Show folder name + indicate if it's a remote path
-                if (folder.startsWith("remote://")) {
-                    val parts = folder.removePrefix("remote://").split("/", limit = 3)
-                    if (parts.size >= 3) {
-                        val protocol = parts[0].uppercase()
-                        val remotePath = "/${parts[2]}"
-                        "$protocol: $remotePath"
-                    } else {
-                        folder
-                    }
-                } else {
-                    folder
-                }
-            }
-            is RemoteServer -> "FTP: ${folder.name} (${folder.host})"
-            else -> ""
-        }
-
+    private fun setupView(view: View, folder: String) {
         ItemManageFolderBinding.bind(view).apply {
             root.setupViewBackground(activity)
             manageFolderHolder.isSelected = selectedKeys.contains(folder.hashCode())
             manageFolderTitle.apply {
-                text = title
+                text = folder
                 setTextColor(context.getProperTextColor())
             }
 
@@ -105,25 +81,18 @@ class ManageFoldersAdapter(
         }
     }
 
-    private fun showPopupMenu(view: View, folder: Any) {
+    private fun showPopupMenu(view: View, folder: String) {
         finishActMode()
         val theme = activity.getPopupMenuTheme()
         val contextTheme = ContextThemeWrapper(activity, theme)
 
         PopupMenu(contextTheme, view, Gravity.END).apply {
-            // Edit for both local paths and remote servers
-            if (editCallback != null) {
-                menu.add(0, MENU_EDIT, 0, com.simplemobiletools.commons.R.string.edit)
-            }
-            menu.add(0, com.simplemobiletools.commons.R.id.cab_remove, 1, com.simplemobiletools.commons.R.string.remove)
+            inflate(getActionMenuId())
             setOnMenuItemClickListener { item ->
+                val eventTypeId = folder.hashCode()
                 when (item.itemId) {
-                    MENU_EDIT -> {
-                        editCallback?.invoke(folder)
-                    }
-
                     com.simplemobiletools.commons.R.id.cab_remove -> {
-                        executeItemMenuOperation(folder.hashCode()) {
+                        executeItemMenuOperation(eventTypeId) {
                             removeSelection()
                         }
                     }
@@ -141,25 +110,15 @@ class ManageFoldersAdapter(
     }
 
     private fun removeSelection() {
-        val removeFolders = ArrayList<Any>(selectedKeys.size)
+        val removeFolders = ArrayList<String>(selectedKeys.size)
         val positions = getSelectedItemPositions()
 
-        getSelectedItems().forEach { item ->
-            removeFolders.add(item)
-            when (item) {
-                is String -> {
-                    if (isShowingExcludedFolders) {
-                        config.removeExcludedFolder(item)
-                    } else {
-                        config.removeIncludedFolder(item)
-                    }
-                }
-
-                is RemoteServer -> {
-                    val servers = config.parseRemoteServers()
-                    servers.removeAll { s -> s.id == item.id }
-                    config.remoteServers = Gson().toJson(servers)
-                }
+        getSelectedItems().forEach {
+            removeFolders.add(it)
+            if (isShowingExcludedFolders) {
+                config.removeExcludedFolder(it)
+            } else {
+                config.removeIncludedFolder(it)
             }
         }
 

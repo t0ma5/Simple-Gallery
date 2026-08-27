@@ -37,6 +37,8 @@ import com.simplemobiletools.gallery.pro.extensions.parseFileChannel
 import com.simplemobiletools.gallery.pro.helpers.*
 import com.simplemobiletools.gallery.pro.models.Medium
 import com.simplemobiletools.gallery.pro.views.MediaSideScroll
+import com.simplemobiletools.gallery.pro.helpers.RemoteClient
+import androidx.media3.datasource.DefaultDataSource
 import java.io.File
 import java.io.FileInputStream
 
@@ -179,16 +181,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
         checkIfPanorama()
 
         ensureBackgroundThread {
-            val pathForProbe = if (mMedium.path.startsWith("remote://")) {
-                downloadRemoteFileToTemp(mMedium.path, mConfig, requireContext().cacheDir)
-            } else {
-                mMedium.path
-            }
-            if (pathForProbe != null) {
-                activity.getVideoResolution(pathForProbe)?.apply {
-                    mVideoSize.x = x
-                    mVideoSize.y = y
-                }
+            activity.getVideoResolution(mMedium.path)?.apply {
+                mVideoSize.x = x
+                mVideoSize.y = y
             }
         }
 
@@ -359,67 +354,44 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
             return
         }
 
-        val isContentUri = mMedium.path.startsWith("content://")
-        val isRemote = mMedium.path.startsWith("remote://")
-
-        if (isRemote) {
-            // FTP download must not run on the main thread (called from playVideo click);
-            // resume ExoPlayer setup on the UI thread once the temp file is ready.
+        if (mMedium.path.startsWith("remote://")) {
+            // download on a background thread, then play from the temp File
             ensureBackgroundThread {
-                val tempPath = downloadRemoteFileToTemp(mMedium.path, mConfig, requireContext().cacheDir)
+                val tempPath = RemoteClient.download(mMedium.path, requireContext().cacheDir)
                 activity?.runOnUiThread {
                     if (tempPath == null) {
-                        activity?.toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                        activity?.showErrorToast(Exception(getString(com.simplemobiletools.commons.R.string.unknown_error_occurred)))
                     } else {
-                        startExoPlayerWithTemp(tempPath)
+                        startExoPlayerFromFile(tempPath)
                     }
                 }
             }
             return
         }
-        startExoPlayerWithTemp(null)
-    }
-
-    private fun startExoPlayerWithTemp(remoteTempPath: String?) {
-        if (activity == null || mConfig.openVideosOnSeparateScreen || mIsPanorama || mExoPlayer != null) {
-            return
-        }
 
         val isContentUri = mMedium.path.startsWith("content://")
-        val isRemote = remoteTempPath != null
-        val uri = if (isRemote) {
-            Uri.fromFile(File(remoteTempPath!!))
-        } else if (isContentUri) {
-            Uri.parse(mMedium.path)
-        } else {
-            Uri.fromFile(File(mMedium.path))
-        }
+        val uri = if (isContentUri) Uri.parse(mMedium.path) else Uri.fromFile(File(mMedium.path))
         val dataSpec = DataSpec(uri)
-        // remote/media3 must build a FRESH datasource on every open() call. Reusing a single
-        // closed instance (the old bug) made media3 throw during playback. For a real
-        // content:// URI use ContentDataSource; for plain files and downloaded remote temp
-        // files use FileDataSource.
-        val usesContent = isContentUri && !isRemote
-        val factory = DataSource.Factory {
-            if (usesContent) {
-                ContentDataSource(requireContext())
-            } else {
-                FileDataSource()
-            }
+        val fileDataSource = if (isContentUri) {
+            ContentDataSource(requireContext())
+        } else {
+            FileDataSource()
         }
-        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
-            .createMediaSource(MediaItem.fromUri(uri))
 
         try {
-            // open once up front to fail fast on unreachable/closing files
-            factory.createDataSource().open(dataSpec)
+            fileDataSource.open(dataSpec)
         } catch (e: Exception) {
-            // don't surface confusing media3 datasource errors (e.g. ContentID) for remote media
-            if (!isRemote) {
-                activity?.showErrorToast(e)
-            }
+            fileDataSource.close()
+            activity?.showErrorToast(e)
             return
         }
+
+        val factory = DataSource.Factory { fileDataSource }
+        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
+            .createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
+
+        fileDataSource.close()
+
         mPlayOnPrepared = true
 
         mExoPlayer = ExoPlayer.Builder(requireContext())
@@ -443,6 +415,36 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
                     setVideoSurface(Surface(mTextureView.surfaceTexture))
                 }
 
+                initListeners()
+            }
+    }
+
+    private fun startExoPlayerFromFile(path: String) {
+        if (activity == null || mExoPlayer != null) return
+        val uri = Uri.fromFile(File(path))
+        val mediaSource: MediaSource = ProgressiveMediaSource.Factory(DefaultDataSource.Factory(requireContext()))
+            .createMediaSource(MediaItem.fromUri(uri))
+
+        mPlayOnPrepared = true
+        mExoPlayer = ExoPlayer.Builder(requireContext())
+            .setMediaSourceFactory(DefaultMediaSourceFactory(requireContext()))
+            .setSeekParameters(SeekParameters.CLOSEST_SYNC)
+            .build()
+            .apply {
+                if (mConfig.loopVideos && listener?.isSlideShowActive() == false) {
+                    repeatMode = Player.REPEAT_MODE_ONE
+                }
+                setMediaSource(mediaSource)
+                setAudioAttributes(
+                    AudioAttributes
+                        .Builder()
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                        .build(), false
+                )
+                prepare()
+                if (mTextureView.surfaceTexture != null) {
+                    setVideoSurface(Surface(mTextureView.surfaceTexture))
+                }
                 initListeners()
             }
     }
@@ -748,12 +750,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
 
     private fun setupVideoDuration() {
         ensureBackgroundThread {
-            val pathForProbe = if (mMedium.path.startsWith("remote://")) {
-                downloadRemoteFileToTemp(mMedium.path, mConfig, requireContext().cacheDir)
-            } else {
-                mMedium.path
-            }
-            mDuration = if (pathForProbe != null) context?.getDuration(pathForProbe) ?: 0 else 0
+            mDuration = context?.getDuration(mMedium.path) ?: 0
 
             activity?.runOnUiThread {
                 setupTimeHolder()

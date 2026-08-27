@@ -18,8 +18,6 @@ import android.provider.MediaStore
 import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
 import android.provider.Settings
-import com.simplemobiletools.gallery.pro.helpers.RemoteOps
-import com.simplemobiletools.gallery.pro.helpers.downloadRemoteFileToTemp
 import android.util.DisplayMetrics
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -45,7 +43,6 @@ import com.simplemobiletools.gallery.pro.dialogs.PickDirectoryDialog
 import com.simplemobiletools.gallery.pro.dialogs.ResizeMultipleImagesDialog
 import com.simplemobiletools.gallery.pro.dialogs.ResizeWithPathDialog
 import com.simplemobiletools.gallery.pro.helpers.DIRECTORY
-import com.simplemobiletools.gallery.pro.helpers.EncryptionHelper
 import com.simplemobiletools.gallery.pro.helpers.RECYCLE_BIN
 import com.simplemobiletools.gallery.pro.models.DateTaken
 import com.squareup.picasso.Picasso
@@ -303,150 +300,14 @@ fun BaseSimpleActivity.tryCopyMoveFilesTo(fileDirItems: ArrayList<FileDirItem>, 
         return
     }
 
-    // Remote-aware copy/move. Four combos are supported:
-    //   remote -> remote (same server): server-side stream copy (+ delete for move)
-    //   remote -> local:  download into the locally-picked destination
-    //   local  -> remote: upload from local file into the remotely-picked destination
-    //   local  -> local:  falls through to the commons copyMoveFilesTo below
-    val anyRemote = fileDirItems.any { it.path.startsWith("remote://") }
-    if (anyRemote) {
-        val source = fileDirItems.first().getParentPath()
-        PickDirectoryDialog(this, source, true, false, true, false) { destination ->
-            val destIsRemote = destination.startsWith("remote://")
-            ensureBackgroundThread {
-                var allOk = true
-                fileDirItems.forEach { item ->
-                    val srcIsRemote = item.path.startsWith("remote://")
-                    val target = "$destination/${item.name}"
-                    try {
-                        when {
-                            srcIsRemote && destIsRemote -> {
-                                if (!RemoteOps.copyRemote(config, item.path, target)) {
-                                    allOk = false
-                                }
-                            }
-                            srcIsRemote && !destIsRemote -> {
-                                val tempPath = downloadRemoteFileToTemp(item.path, config, cacheDir)
-                                if (tempPath == null) {
-                                    allOk = false
-                                } else {
-                                    File(tempPath).copyTo(File(target), overwrite = true)
-                                }
-                            }
-                            !srcIsRemote && destIsRemote -> {
-                                File(item.path).inputStream().use { input ->
-                                    if (!RemoteOps.storeFile(config, target, input)) {
-                                        allOk = false
-                                    }
-                                }
-                            }
-                            else -> {
-                                File(item.path).copyTo(File(target), overwrite = true)
-                            }
-                        }
-                    } catch (e: Exception) {
-                        allOk = false
-                    }
-
-                    if (allOk && !isCopyOperation && srcIsRemote) {
-                        RemoteOps.delete(config, item.path)
-                    }
-                }
-                runOnUiThread {
-                    if (allOk) {
-                        // local destinations get a media-store rescan; remote folders list
-                        // live from the server so no rescan is needed
-                        if (!destination.startsWith("remote://")) {
-                            rescanFolderMedia(destination)
-                        }
-                        callback(destination)
-                    } else {
-                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
-                    }
-                }
-            }
-        }
-        return
-    }
-
     val source = fileDirItems[0].getParentPath()
     PickDirectoryDialog(this, source, true, false, true, false) {
         val destination = it
         handleSAFDialog(source) {
             if (it) {
-                copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden) {
-                    val isSourceEncrypted = config.isFolderEncrypted(source)
-                    val isDestEncrypted = config.isFolderEncrypted(destination)
-                    
-                    if (!isSourceEncrypted && isDestEncrypted) {
-                        ensureBackgroundThread {
-                            fileDirItems.forEachIndexed { index, item ->
-                                val copiedFile = File(destination, item.name)
-                                if (copiedFile.exists() && !copiedFile.name.endsWith(".enc")) {
-                                    val encryptedFile = File(destination, "${item.name}.enc")
-                                    val secret = config.getFolderEncryptionSecret(destination)
-                                    if (secret != null) {
-                                        EncryptionHelper.encryptFile(this@tryCopyMoveFilesTo, copiedFile, encryptedFile, secret)
-                                    } else {
-                                        EncryptionHelper.encryptFile(this@tryCopyMoveFilesTo, copiedFile, encryptedFile)
-                                    }
-                                    copiedFile.delete()
-                                    fileDirItems[index] = FileDirItem(
-                                        path = "$destination/${item.name}.enc",
-                                        name = "${item.name}.enc",
-                                        isDirectory = item.isDirectory,
-                                        children = item.children,
-                                        size = item.size,
-                                        modified = item.modified,
-                                        mediaStoreId = item.mediaStoreId
-                                    )
-                                }
-                            }
-                            runOnUiThread { callback(destination) }
-                        }
-                    } else if (isSourceEncrypted && !isDestEncrypted) {
-                        ensureBackgroundThread {
-                            fileDirItems.forEachIndexed { index, item ->
-                                val copiedFile = File(destination, item.name)
-                                if (copiedFile.exists() && copiedFile.name.endsWith(".enc")) {
-                                    val decryptedName = item.name.removeSuffix(".enc")
-                                    val decryptedFile = File(destination, decryptedName)
-                                    val secret = config.getFolderEncryptionSecret(destination)
-                                    if (secret != null) {
-                                        EncryptionHelper.decryptFile(this@tryCopyMoveFilesTo, copiedFile, decryptedFile, secret)
-                                    } else {
-                                        EncryptionHelper.decryptFile(this@tryCopyMoveFilesTo, copiedFile, decryptedFile)
-                                    }
-                                    copiedFile.delete()
-                                    fileDirItems[index] = FileDirItem(
-                                        path = "$destination/$decryptedName",
-                                        name = decryptedName,
-                                        isDirectory = item.isDirectory,
-                                        children = item.children,
-                                        size = item.size,
-                                        modified = item.modified,
-                                        mediaStoreId = item.mediaStoreId
-                                    )
-                                }
-                            }
-                            runOnUiThread { callback(destination) }
-                        }
-                    } else {
-                        callback(destination)
-                    }
-                }
+                copyMoveFilesTo(fileDirItems, source.trimEnd('/'), destination, isCopyOperation, true, config.shouldShowHidden, callback)
             }
         }
-    }
-}
-
-fun BaseSimpleActivity.requestFolderSecret(path: String, callback: (hash: String?) -> Unit) {
-    SecurityDialog(
-        this,
-        config.getFolderProtectionHash(path),
-        config.getFolderProtectionType(path)
-    ) { hash, _, success ->
-        callback(if (success) hash else null)
     }
 }
 

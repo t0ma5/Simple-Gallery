@@ -223,21 +223,10 @@ class MediaAdapter(
     private fun showProperties() {
         if (selectedKeys.size <= 1) {
             val path = getFirstSelectedItemPath() ?: return
-            if (path.startsWith("remote://")) {
-                ensureBackgroundThread {
-                    val tempPath = downloadRemoteFileToTemp(path, activity.config, activity.cacheDir)
-                    activity.runOnUiThread {
-                        if (tempPath != null) PropertiesDialog(activity, tempPath, config.shouldShowHidden)
-                    }
-                }
-            } else {
-                PropertiesDialog(activity, path, config.shouldShowHidden)
-            }
+            PropertiesDialog(activity, path, config.shouldShowHidden)
         } else {
-            val paths = getSelectedPaths().filter { !it.startsWith("remote://") }
-            if (paths.isNotEmpty()) {
-                PropertiesDialog(activity, paths, config.shouldShowHidden)
-            }
+            val paths = getSelectedPaths()
+            PropertiesDialog(activity, paths, config.shouldShowHidden)
         }
     }
 
@@ -249,27 +238,6 @@ class MediaAdapter(
 
     private fun renameFile() {
         val firstPath = getFirstSelectedItemPath() ?: return
-
-        // Remote rename happens on the server; no local FS or DB path update needed.
-        if (firstPath.startsWith("remote://")) {
-            RenameItemDialog(activity, firstPath) { newName ->
-                val parentDir = firstPath.substring(0, firstPath.lastIndexOf('/'))
-                val newPath = "$parentDir/$newName"
-                ensureBackgroundThread {
-                    val ok = RemoteOps.rename(activity.config, firstPath, newPath)
-                    activity.runOnUiThread {
-                        if (ok) {
-                            enableInstantLoad()
-                            listener?.refreshItems()
-                        } else {
-                            activity.toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
-                        }
-                        finishActMode()
-                    }
-                }
-            }
-            return
-        }
 
         val isSDOrOtgRootFolder = activity.isAStorageRootFolder(firstPath.getParentPath()) && !firstPath.startsWith(activity.internalStoragePath)
         if (isRPlus() && isSDOrOtgRootFolder && !isExternalStorageManager()) {
@@ -648,20 +616,6 @@ class MediaAdapter(
             mediaItemHolder.setPadding(padding, padding, padding, padding)
 
             favorite.beVisibleIf(medium.isFavorite && config.markFavoriteItems)
-
-            if (medium.isDirectory) {
-                // remote subfolder entry: render as a folder thumbnail, do not load media
-                playPortraitOutline?.beGone()
-                fileType?.beGone()
-                mediumName.beVisibleIf(displayFilenames || isListViewType)
-                mediumName.text = medium.name
-                mediumName.setTextColor(textColor)
-                videoDuration?.beGone()
-                mediumCheck.beVisibleIf(isSelected)
-                mediumThumbnail.setImageResource(com.simplemobiletools.commons.R.drawable.ic_folder_vector)
-                mediumThumbnail.setTag(null)
-                return
-            }
 
             playPortraitOutline?.beVisibleIf(medium.isVideo() || medium.isPortrait())
             if (medium.isVideo()) {

@@ -8,8 +8,6 @@ import com.google.gson.reflect.TypeToken
 import com.simplemobiletools.commons.helpers.*
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.models.AlbumCover
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKeys
 import java.util.Arrays
 
 class Config(context: Context) : BaseConfig(context) {
@@ -73,10 +71,6 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(TEMPORARILY_SHOW_HIDDEN, false)
         set(temporarilyShowHidden) = prefs.edit().putBoolean(TEMPORARILY_SHOW_HIDDEN, temporarilyShowHidden).apply()
 
-    var temporarilyShowHiddenOnly: Boolean
-        get() = prefs.getBoolean("temporarily_show_hidden_only", false)
-        set(temporarilyShowHiddenOnly) = prefs.edit().putBoolean("temporarily_show_hidden_only", temporarilyShowHiddenOnly).apply()
-
     var temporarilyShowExcluded: Boolean
         get() = prefs.getBoolean(TEMPORARILY_SHOW_EXCLUDED, false)
         set(temporarilyShowExcluded) = prefs.edit().putBoolean(TEMPORARILY_SHOW_EXCLUDED, temporarilyShowExcluded).apply()
@@ -92,11 +86,6 @@ class Config(context: Context) : BaseConfig(context) {
     var showAll: Boolean
         get() = prefs.getBoolean(SHOW_ALL, false)
         set(showAll) = prefs.edit().putBoolean(SHOW_ALL, showAll).apply()
-
-    // persists the tree (folder-in-folder) mode so it survives app restarts
-    var treeModeEnabled: Boolean
-        get() = prefs.getBoolean("tree_mode_enabled", false)
-        set(treeModeEnabled) = prefs.edit().putBoolean("tree_mode_enabled", treeModeEnabled).apply()
 
     fun addPinnedFolders(paths: Set<String>) {
         val currPinnedFolders = HashSet<String>(pinnedFolders)
@@ -498,6 +487,10 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(GROUP_DIRECT_SUBFOLDERS, false)
         set(groupDirectSubfolders) = prefs.edit().putBoolean(GROUP_DIRECT_SUBFOLDERS, groupDirectSubfolders).apply()
 
+    var treeModeEnabled: Boolean
+        get() = prefs.getBoolean(TREE_MODE_ENABLED, false)
+        set(treeModeEnabled) = prefs.edit().putBoolean(TREE_MODE_ENABLED, treeModeEnabled).apply()
+
     var showWidgetFolderName: Boolean
         get() = prefs.getBoolean(SHOW_WIDGET_FOLDER_NAME, true)
         set(showWidgetFolderName) = prefs.edit().putBoolean(SHOW_WIDGET_FOLDER_NAME, showWidgetFolderName).apply()
@@ -577,93 +570,4 @@ class Config(context: Context) : BaseConfig(context) {
     var lastExportedFavoritesFolder: String
         get() = prefs.getString(LAST_EXPORTED_FAVORITES_FOLDER, "")!!
         set(lastExportedFavoritesFolder) = prefs.edit().putString(LAST_EXPORTED_FAVORITES_FOLDER, lastExportedFavoritesFolder).apply()
-
-    var remoteServers: String
-        get() = prefs.getString("remote_servers", "")!!
-        set(remoteServers) = prefs.edit().putString("remote_servers", remoteServers).apply()
-
-    var encryptedFolders: MutableSet<String>
-        get() = prefs.getStringSet("encrypted_folders", HashSet())!!
-        set(encryptedFolders) = prefs.edit().remove("encrypted_folders").putStringSet("encrypted_folders", encryptedFolders).apply()
-
-    fun addEncryptedFolder(path: String) {
-        val currEncryptedFolders = HashSet<String>(encryptedFolders)
-        currEncryptedFolders.add(path)
-        encryptedFolders = currEncryptedFolders
-    }
-
-    fun removeEncryptedFolder(path: String) {
-        val currEncryptedFolders = HashSet<String>(encryptedFolders)
-        currEncryptedFolders.remove(path)
-        encryptedFolders = currEncryptedFolders
-    }
-
-    fun isFolderEncrypted(path: String) = encryptedFolders.contains(path)
-
-    fun parseRemoteServers(): ArrayList<com.simplemobiletools.gallery.pro.models.RemoteServer> {
-        val listType = object : TypeToken<List<com.simplemobiletools.gallery.pro.models.RemoteServer>>() {}.type
-        return Gson().fromJson<ArrayList<com.simplemobiletools.gallery.pro.models.RemoteServer>>(remoteServers, listType) ?: ArrayList(1)
-    }
-
-    fun removeRemoteServer(serverId: Long) {
-        val servers = parseRemoteServers().filter { it.id != serverId }
-        remoteServers = Gson().toJson(servers)
-    }
-
-    private val encryptedPrefs by lazy {
-        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-        EncryptedSharedPreferences.create(
-            "secure_prefs",
-            masterKeyAlias,
-            context,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    }
-
-    fun saveRemoteServerPassword(serverId: Long, password: String) {
-        encryptedPrefs.edit().putString("remote_password_$serverId", password).apply()
-    }
-
-    fun getRemoteServerPassword(serverId: Long, fallbackHash: String = ""): String {
-        val fromKeystore = encryptedPrefs.getString("remote_password_$serverId", "") ?: ""
-        return if (fromKeystore.isNotEmpty()) {
-            fromKeystore
-        } else {
-            // Legacy servers (added before the keystore migration) stored the
-            // plaintext password in the Gson passwordHash field. Migrate it once.
-            if (fallbackHash.isNotEmpty()) {
-                saveRemoteServerPassword(serverId, fallbackHash)
-                fallbackHash
-            } else {
-                ""
-            }
-        }
-    }
-
-    // Plaintext store of folder -> encryption secret (the user's lock pattern/pin hash).
-    // Stored in regular prefs (NOT EncryptedSharedPreferences) on purpose: the user wants to be
-    // able to recover the secret from app data without brute force on a beta build.
-    var folderEncryptionSecrets: HashMap<String, String>
-        get() {
-            val json = prefs.getString("folder_encryption_secrets", "")
-            if (json.isNullOrEmpty()) return HashMap()
-            val type = object : TypeToken<HashMap<String, String>>() {}.type
-            return Gson().fromJson(json, type) ?: HashMap()
-        }
-        set(value) = prefs.edit().putString("folder_encryption_secrets", Gson().toJson(value)).apply()
-
-    fun getFolderEncryptionSecret(path: String): String? = folderEncryptionSecrets[path]
-
-    fun setFolderEncryptionSecret(path: String, secret: String) {
-        val curr = folderEncryptionSecrets
-        curr[path] = secret
-        folderEncryptionSecrets = curr
-    }
-
-    fun clearFolderEncryptionSecret(path: String) {
-        val curr = folderEncryptionSecrets
-        curr.remove(path)
-        folderEncryptionSecrets = curr
-    }
 }
