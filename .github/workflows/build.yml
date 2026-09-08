@@ -32,7 +32,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Optional release signing
+      - name: Release signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -40,8 +40,8 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "No KEYSTORE_BASE64 secret; building without release signing"
-            exit 0
+            echo "KEYSTORE_BASE64 is required so this APK is release-signed"
+            exit 1
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > app/keystore.jks
           printf '%s\n' "keyAlias=$KEY_ALIAS" "keyPassword=$KEY_PASSWORD" "storeFile=keystore.jks" "storePassword=$KEYSTORE_PASSWORD" > keystore.properties
@@ -65,8 +65,8 @@ jobs:
           files: app/build/outputs/apk/foss/release/*.apk
           generate_release_notes: true
           body: |
-            FOSS APK (assembleFossRelease).
+            Release-signed FOSS APK (assembleFossRelease).
 
-            If repository secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD were not set, this APK is unsigned or debug-signed. Android will still install it after the unknown-source prompt.
+            This signature is for the t0ma5 fork. It will not update Play Store Simple Gallery Pro (same applicationId, different key). Uninstall the Play app first if both cannot coexist.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
