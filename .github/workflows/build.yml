@@ -46,6 +46,21 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 -d > app/keystore.jks
           printf '%s\n' "keyAlias=$KEY_ALIAS" "keyPassword=$KEY_PASSWORD" "storeFile=keystore.jks" "storePassword=$KEYSTORE_PASSWORD" > keystore.properties
 
+      - name: Warm JitPack Simple-Commons
+        run: |
+          set -e
+          url="https://jitpack.io/com/github/SimpleMobileTools/Simple-Commons/9e60e24790/Simple-Commons-9e60e24790.pom"
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            code=$(curl -sS -o /tmp/simple-commons.pom -w "%{http_code}" "$url" || true)
+            echo "JitPack attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "JitPack did not publish Simple-Commons in time"
+          exit 1
+
       - name: Build FOSS release APK
         run: |
           chmod +x gradlew
