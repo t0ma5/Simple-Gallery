@@ -26,8 +26,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: SimpleMobileTools/Simple-Commons
-          ref: 9e60e24790
+          ref: 9e60e2479050b9dcc9d8fccdc240398a5f993184
           path: Simple-Commons
+          persist-credentials: false
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
