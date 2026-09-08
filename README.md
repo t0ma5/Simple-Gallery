@@ -21,6 +21,7 @@ This fork ships the **FOSS editor** (crop, rotate, resize, draw, filters). The P
 - Folder tree view (indent nested albums instead of a flat list).
 - Temporarily showing hidden folders no longer leaks `Android/data`, `Android/obb`, or app-private trees unless you explicitly include them.
 - minSdk 26, targetSdk 34, compileSdk 35.
+- 360° Cardboard VR viewer removed (Google VR widgets; panoramas open as normal photos/videos).
 
 ## About
 
