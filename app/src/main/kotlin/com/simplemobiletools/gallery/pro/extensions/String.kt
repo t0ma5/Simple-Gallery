@@ -39,6 +39,12 @@ fun String.shouldFolderBeVisible(
         return true
     }
 
+    // Keep Android/data, Android/obb, and app-private trees hidden even when the eye icon
+    // temporarily shows hidden folders. Included paths (and their children) stay visible.
+    if (isRestrictedAndroidFolder() && !isThisOrParentIncluded(includedPaths)) {
+        return false
+    }
+
     val containsNoMedia = if (showHidden) {
         false
     } else {
@@ -91,6 +97,13 @@ fun String.getDistinctPath(): String {
 }
 
 fun String.isDownloadsFolder() = equals(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).toString(), true)
+
+fun String.isRestrictedAndroidFolder(): Boolean {
+    val normalized = replace('\\', '/').lowercase()
+    return listOf("/android/data", "/android/obb", "/data/data", "/data/user").any { marker ->
+        normalized == marker.trimStart('/') || normalized.contains("$marker/") || normalized.endsWith(marker)
+    }
+}
 
 fun String.isThisOrParentFolderHidden(): Boolean {
     var curFile = File(this)

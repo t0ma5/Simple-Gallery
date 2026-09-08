@@ -367,6 +367,11 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
             findItem(R.id.temporarily_show_excluded).isVisible = !config.temporarilyShowExcluded
             findItem(R.id.stop_showing_excluded).isVisible = config.temporarilyShowExcluded
+
+            val treeItem = findItem(R.id.tree_view)
+            if (treeItem != null) {
+                treeItem.isChecked = config.treeModeEnabled
+            }
         }
     }
 
@@ -405,6 +410,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 R.id.temporarily_show_excluded -> tryToggleTemporarilyShowExcluded()
                 R.id.stop_showing_excluded -> tryToggleTemporarilyShowExcluded()
                 R.id.create_new_folder -> createNewFolder()
+                R.id.tree_view -> toggleTreeMode()
                 R.id.open_recycle_bin -> openRecycleBin()
                 R.id.column_count -> changeColumnCount()
                 R.id.set_as_default_folder -> setAsDefaultFolder()
@@ -1252,11 +1258,61 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         binding.directoriesFastscroller.beVisibleIf(binding.directoriesEmptyPlaceholder.isGone())
     }
 
+    private fun toggleTreeMode() {
+        config.treeModeEnabled = !config.treeModeEnabled
+        refreshMenuItems()
+        setupAdapter(mDirsIgnoringSearch.ifEmpty { mDirs }, forceRecreate = true)
+    }
+
+    /**
+     * Nested folder list for tree view. Roots are albums whose parent is not in the current
+     * directory set, so `/storage/emulated/0/...` paths indent correctly. Favorites and
+     * Recycle Bin stay at depth 0. Empty branches with no descendants are omitted.
+     */
+    private fun getTreeDirectories(dirs: ArrayList<Directory>): ArrayList<Directory> {
+        val source = dirs.filter { it.path.isNotEmpty() }
+        val pathSet = source.map { it.path }.toHashSet()
+        val byParent = HashMap<String, ArrayList<Directory>>()
+        source.forEach { directory ->
+            val parent = directory.path.getParentPath()
+            byParent.getOrPut(parent) { ArrayList() }.add(directory)
+        }
+
+        val result = ArrayList<Directory>()
+        fun walk(children: List<Directory>, depth: Int) {
+            for (child in children.sortedBy { it.name.lowercase() }) {
+                val nested = byParent[child.path]
+                val hasMedia = child.mediaCnt > 0
+                val hasDescendants = nested?.isNotEmpty() == true
+                child.treeDepth = depth
+                child.containsMediaFilesDirectly = hasMedia
+                if (hasMedia || hasDescendants) {
+                    result.add(child)
+                    if (nested != null) {
+                        walk(nested, depth + 1)
+                    }
+                } else if (nested != null) {
+                    walk(nested, depth + 1)
+                }
+            }
+        }
+
+        val roots = source.filter { directory ->
+            directory.areFavorites() || directory.isRecycleBin() || directory.path.getParentPath() !in pathSet
+        }
+        walk(roots, 0)
+        return result
+    }
+
     private fun setupAdapter(dirs: ArrayList<Directory>, textToSearch: String = binding.mainMenu.getCurrentQuery(), forceRecreate: Boolean = false) {
         val currAdapter = binding.directoriesGrid.adapter
         val distinctDirs = dirs.distinctBy { it.path.getDistinctPath() }.toMutableList() as ArrayList<Directory>
-        val sortedDirs = getSortedDirectories(distinctDirs)
-        var dirsToShow = getDirsToShow(sortedDirs, mDirs, mCurrentPathPrefix).clone() as ArrayList<Directory>
+        var dirsToShow = if (config.treeModeEnabled) {
+            getTreeDirectories(distinctDirs)
+        } else {
+            val sortedDirs = getSortedDirectories(distinctDirs)
+            getDirsToShow(sortedDirs, mDirs, mCurrentPathPrefix).clone() as ArrayList<Directory>
+        }
 
         if (currAdapter == null || forceRecreate) {
             mDirsIgnoringSearch = dirs
@@ -1271,7 +1327,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             ) {
                 val clickedDir = it as Directory
                 val path = clickedDir.path
-                if (clickedDir.subfoldersCount == 1 || !config.groupDirectSubfolders) {
+                if (config.treeModeEnabled || clickedDir.subfoldersCount == 1 || !config.groupDirectSubfolders) {
                     if (path != config.tempFolderPath) {
                         itemClicked(path)
                     }
