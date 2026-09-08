@@ -36,6 +36,8 @@ import com.simplemobiletools.gallery.pro.BuildConfig
 import com.simplemobiletools.gallery.pro.R
 import com.simplemobiletools.gallery.pro.adapters.FiltersAdapter
 import com.simplemobiletools.gallery.pro.databinding.ActivityEditBinding
+import com.simplemobiletools.gallery.pro.dialogs.AddStickerDialog
+import com.simplemobiletools.gallery.pro.dialogs.AddTextDialog
 import com.simplemobiletools.gallery.pro.dialogs.OtherAspectRatioDialog
 import com.simplemobiletools.gallery.pro.dialogs.ResizeDialog
 import com.simplemobiletools.gallery.pro.dialogs.SaveAsDialog
@@ -66,6 +68,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         private const val PRIMARY_ACTION_FILTER = 1
         private const val PRIMARY_ACTION_CROP_ROTATE = 2
         private const val PRIMARY_ACTION_DRAW = 3
+        private const val PRIMARY_ACTION_ADJUST = 4
+        private const val PRIMARY_ACTION_TEXT = 5
 
         private const val CROP_ROTATE_NONE = 0
         private const val CROP_ROTATE_ASPECT_RATIO = 1
@@ -85,7 +89,14 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private var isEditingWithThirdParty = false
     private var isSharingBitmap = false
     private var wasDrawCanvasPositioned = false
+    private var wasOverlayPositioned = false
     private var oldExif: ExifInterface? = null
+    private var filterInitialBitmap: Bitmap? = null
+    private var originalUri: Uri? = null
+    private var workingBitmap: Bitmap? = null
+    private var adjustSourceBitmap: Bitmap? = null
+    private var adjustPreviewBitmap: Bitmap? = null
+    private var overwriteRequested = false
     private var filterInitialBitmap: Bitmap? = null
     private var originalUri: Uri? = null
     private var workingBitmap: Bitmap? = null
@@ -114,6 +125,11 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         super.onResume()
         isEditingWithThirdParty = false
         binding.bottomEditorDrawActions.bottomDrawWidth.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
+        binding.bottomEditorAdjustActions.adjustBrightness.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
+        binding.bottomEditorAdjustActions.adjustContrast.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
+        binding.bottomEditorAdjustActions.adjustSaturation.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
+        binding.bottomEditorAdjustActions.adjustTemperature.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
+        binding.bottomEditorTextActions.bottomTextWidth.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
         setupToolbar(binding.editorToolbar, NavigationIcon.Arrow)
     }
 
@@ -202,6 +218,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.defaultImageView.beVisible()
         binding.cropImageView.beGone()
         binding.editorDrawCanvas.beGone()
+        binding.editorOverlayView.beGone()
 
         val stacked = usableWorkingBitmap()
         if (stacked != null) {
@@ -216,6 +233,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             if (isCropIntent) {
                 binding.bottomEditorPrimaryActions.bottomPrimaryFilter.beGone()
                 binding.bottomEditorPrimaryActions.bottomPrimaryDraw.beGone()
+                binding.bottomEditorPrimaryActions.bottomPrimaryAdjust.beGone()
+                binding.bottomEditorPrimaryActions.bottomPrimaryText.beGone()
             }
             return
         }
@@ -263,6 +282,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                     if (isCropIntent) {
                         binding.bottomEditorPrimaryActions.bottomPrimaryFilter.beGone()
                         binding.bottomEditorPrimaryActions.bottomPrimaryDraw.beGone()
+                        binding.bottomEditorPrimaryActions.bottomPrimaryAdjust.beGone()
+                        binding.bottomEditorPrimaryActions.bottomPrimaryText.beGone()
                     }
 
                     return false
@@ -273,6 +294,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private fun loadCropImageView() {
         binding.defaultImageView.beGone()
         binding.editorDrawCanvas.beGone()
+        binding.editorOverlayView.beGone()
         binding.cropImageView.apply {
             beVisible()
             setOnCropImageCompleteListener(this@EditActivity)
@@ -295,6 +317,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private fun loadDrawCanvas() {
         binding.defaultImageView.beGone()
         binding.cropImageView.beGone()
+        binding.editorOverlayView.beGone()
         binding.editorDrawCanvas.beVisible()
 
         if (!wasDrawCanvasPositioned) {
@@ -344,6 +367,72 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         }
     }
 
+    private fun loadAdjustView() {
+        binding.cropImageView.beGone()
+        binding.editorDrawCanvas.beGone()
+        binding.editorOverlayView.beGone()
+        binding.defaultImageView.beVisible()
+        resetAdjustSliders()
+        val source = usableWorkingBitmap() ?: filterInitialBitmap
+        if (source != null && !source.isRecycled) {
+            adjustSourceBitmap = source
+            binding.defaultImageView.setImageBitmap(source)
+        } else {
+            loadDefaultImageView()
+        }
+    }
+
+    private fun loadOverlayCanvas() {
+        binding.defaultImageView.beGone()
+        binding.cropImageView.beGone()
+        binding.editorDrawCanvas.beGone()
+        binding.editorOverlayView.beVisible()
+
+        if (!wasOverlayPositioned) {
+            wasOverlayPositioned = true
+            binding.editorOverlayView.onGlobalLayout {
+                ensureBackgroundThread {
+                    fillOverlayBackground()
+                }
+            }
+        }
+    }
+
+    private fun fillOverlayBackground() {
+        val options = RequestOptions()
+            .format(DecodeFormat.PREFER_ARGB_8888)
+            .skipMemoryCache(true)
+            .diskCacheStrategy(DiskCacheStrategy.NONE)
+            .fitCenter()
+
+        try {
+            val stacked = usableWorkingBitmap()
+            val bitmap = if (stacked != null) {
+                val width = binding.editorOverlayView.width.coerceAtLeast(1)
+                val height = binding.editorOverlayView.height.coerceAtLeast(1)
+                Bitmap.createScaledBitmap(stacked, width, height, true)
+            } else {
+                Glide.with(applicationContext)
+                    .asBitmap()
+                    .load(uri)
+                    .apply(options)
+                    .into(binding.editorOverlayView.width, binding.editorOverlayView.height)
+                    .get()
+            }
+            runOnUiThread {
+                binding.editorOverlayView.apply {
+                    updateBackgroundBitmap(bitmap)
+                    layoutParams.width = bitmap.width
+                    layoutParams.height = bitmap.height
+                    y = (height - bitmap.height) / 2f
+                    requestLayout()
+                }
+            }
+        } catch (e: Exception) {
+            showErrorToast(e)
+        }
+    }
+
     @TargetApi(Build.VERSION_CODES.N)
     private fun startSaveFlow(overwrite: Boolean) {
         overwriteRequested = overwrite
@@ -351,6 +440,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         when {
             binding.cropImageView.isVisible() -> binding.cropImageView.croppedImageAsync()
             binding.editorDrawCanvas.isVisible() -> saveEditedBitmap(binding.editorDrawCanvas.getBitmap())
+            binding.editorOverlayView.isVisible() -> saveEditedBitmap(binding.editorOverlayView.getBitmap())
+            currPrimaryAction == PRIMARY_ACTION_ADJUST -> saveEditedBitmap(currentAdjustBitmap() ?: return)
             else -> saveFilteredImage()
         }
     }
@@ -449,6 +540,15 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                 }
 
                 binding.editorDrawCanvas.isVisible() -> shareBitmap(binding.editorDrawCanvas.getBitmap())
+                binding.editorOverlayView.isVisible() -> shareBitmap(binding.editorOverlayView.getBitmap())
+                currPrimaryAction == PRIMARY_ACTION_ADJUST -> {
+                    val bitmap = currentAdjustBitmap()
+                    if (bitmap == null) {
+                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    } else {
+                        shareBitmap(bitmap)
+                    }
+                }
             }
         }
     }
@@ -500,6 +600,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         setupCropRotateActionButtons()
         setupAspectRatioButtons()
         setupDrawButtons()
+        setupAdjustButtons()
+        setupTextButtons()
     }
 
     private fun setupPrimaryActionButtons() {
@@ -514,10 +616,20 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.bottomEditorPrimaryActions.bottomPrimaryDraw.setOnClickListener {
             bottomDrawClicked()
         }
+
+        binding.bottomEditorPrimaryActions.bottomPrimaryAdjust.setOnClickListener {
+            bottomAdjustClicked()
+        }
+
+        binding.bottomEditorPrimaryActions.bottomPrimaryText.setOnClickListener {
+            bottomTextClicked()
+        }
         arrayOf(
             binding.bottomEditorPrimaryActions.bottomPrimaryFilter,
             binding.bottomEditorPrimaryActions.bottomPrimaryCropRotate,
-            binding.bottomEditorPrimaryActions.bottomPrimaryDraw
+            binding.bottomEditorPrimaryActions.bottomPrimaryDraw,
+            binding.bottomEditorPrimaryActions.bottomPrimaryAdjust,
+            binding.bottomEditorPrimaryActions.bottomPrimaryText
         ).forEach {
             setupLongPress(it)
         }
@@ -551,6 +663,28 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                 PRIMARY_ACTION_NONE
             } else {
                 PRIMARY_ACTION_DRAW
+            }
+            updatePrimaryActionButtons()
+        }
+    }
+
+    private fun bottomAdjustClicked() {
+        commitCurrentTool {
+            currPrimaryAction = if (currPrimaryAction == PRIMARY_ACTION_ADJUST) {
+                PRIMARY_ACTION_NONE
+            } else {
+                PRIMARY_ACTION_ADJUST
+            }
+            updatePrimaryActionButtons()
+        }
+    }
+
+    private fun bottomTextClicked() {
+        commitCurrentTool {
+            currPrimaryAction = if (currPrimaryAction == PRIMARY_ACTION_TEXT) {
+                PRIMARY_ACTION_NONE
+            } else {
+                PRIMARY_ACTION_TEXT
             }
             updatePrimaryActionButtons()
         }
@@ -650,6 +784,98 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         }
     }
 
+    private fun setupAdjustButtons() {
+        resetAdjustSliders()
+        val listener: (Int) -> Unit = { applyAdjustPreview() }
+        binding.bottomEditorAdjustActions.adjustBrightness.onSeekBarChangeListener(listener)
+        binding.bottomEditorAdjustActions.adjustContrast.onSeekBarChangeListener(listener)
+        binding.bottomEditorAdjustActions.adjustSaturation.onSeekBarChangeListener(listener)
+        binding.bottomEditorAdjustActions.adjustTemperature.onSeekBarChangeListener(listener)
+    }
+
+    private fun resetAdjustSliders() {
+        binding.bottomEditorAdjustActions.adjustBrightness.progress = EditorColorMatrix.SLIDER_CENTER
+        binding.bottomEditorAdjustActions.adjustContrast.progress = EditorColorMatrix.SLIDER_CENTER
+        binding.bottomEditorAdjustActions.adjustSaturation.progress = EditorColorMatrix.SLIDER_CENTER
+        binding.bottomEditorAdjustActions.adjustTemperature.progress = EditorColorMatrix.SLIDER_CENTER
+        recycleAdjustPreview()
+    }
+
+    private fun applyAdjustPreview() {
+        val source = adjustSourceBitmap ?: usableWorkingBitmap() ?: filterInitialBitmap ?: return
+        if (source.isRecycled) {
+            return
+        }
+        val brightness = binding.bottomEditorAdjustActions.adjustBrightness.progress
+        val contrast = binding.bottomEditorAdjustActions.adjustContrast.progress
+        val saturation = binding.bottomEditorAdjustActions.adjustSaturation.progress
+        val temperature = binding.bottomEditorAdjustActions.adjustTemperature.progress
+        if (EditorColorMatrix.isIdentity(brightness, contrast, saturation, temperature)) {
+            recycleAdjustPreview()
+            binding.defaultImageView.setImageBitmap(source)
+            return
+        }
+        val preview = EditorColorMatrix.apply(source, brightness, contrast, saturation, temperature)
+        recycleAdjustPreview()
+        adjustPreviewBitmap = preview
+        binding.defaultImageView.setImageBitmap(preview)
+    }
+
+    private fun currentAdjustBitmap(): Bitmap? {
+        val preview = adjustPreviewBitmap
+        if (preview != null && !preview.isRecycled) {
+            return preview
+        }
+        return adjustSourceBitmap ?: usableWorkingBitmap() ?: filterInitialBitmap
+    }
+
+    private fun recycleAdjustPreview() {
+        val preview = adjustPreviewBitmap
+        adjustPreviewBitmap = null
+        if (preview != null && preview !== adjustSourceBitmap && preview !== workingBitmap && preview !== filterInitialBitmap && !preview.isRecycled) {
+            preview.recycle()
+        }
+    }
+
+    private fun setupTextButtons() {
+        updateTextColor(config.lastEditorDrawColor)
+        binding.bottomEditorTextActions.bottomTextWidth.progress = 40
+        binding.editorOverlayView.applySizeToSelected(40)
+
+        binding.bottomEditorTextActions.bottomTextAdd.setOnClickListener {
+            AddTextDialog(this) { text ->
+                binding.editorOverlayView.addLabel(text)
+            }
+        }
+
+        binding.bottomEditorTextActions.bottomTextSticker.setOnClickListener {
+            AddStickerDialog(this) { emoji ->
+                binding.editorOverlayView.addLabel(emoji)
+            }
+        }
+
+        binding.bottomEditorTextActions.bottomTextWidth.onSeekBarChangeListener {
+            binding.editorOverlayView.applySizeToSelected(it)
+        }
+
+        binding.bottomEditorTextActions.bottomTextColor.setOnClickListener {
+            ColorPickerDialog(this, binding.editorOverlayView.overlayColor) { wasPositivePressed, color ->
+                if (wasPositivePressed) {
+                    updateTextColor(color)
+                }
+            }
+        }
+
+        binding.bottomEditorTextActions.bottomTextUndo.setOnClickListener {
+            binding.editorOverlayView.undo()
+        }
+    }
+
+    private fun updateTextColor(color: Int) {
+        binding.editorOverlayView.applyColorToSelected(color)
+        binding.bottomEditorTextActions.bottomTextColor.applyColorFilter(color)
+    }
+
     private fun updateBrushSize(percent: Int) {
         binding.editorDrawCanvas.updateBrushSize(percent)
         val scale = max(0.03f, percent / 100f)
@@ -660,16 +886,22 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private fun updatePrimaryActionButtons() {
         if (binding.cropImageView.isGone() && currPrimaryAction == PRIMARY_ACTION_CROP_ROTATE) {
             loadCropImageView()
+        } else if (currPrimaryAction == PRIMARY_ACTION_ADJUST) {
+            loadAdjustView()
         } else if (binding.defaultImageView.isGone() && currPrimaryAction == PRIMARY_ACTION_FILTER) {
             loadDefaultImageView()
         } else if (binding.editorDrawCanvas.isGone() && currPrimaryAction == PRIMARY_ACTION_DRAW) {
             loadDrawCanvas()
+        } else if (binding.editorOverlayView.isGone() && currPrimaryAction == PRIMARY_ACTION_TEXT) {
+            loadOverlayCanvas()
         }
 
         arrayOf(
             binding.bottomEditorPrimaryActions.bottomPrimaryFilter,
             binding.bottomEditorPrimaryActions.bottomPrimaryCropRotate,
-            binding.bottomEditorPrimaryActions.bottomPrimaryDraw
+            binding.bottomEditorPrimaryActions.bottomPrimaryDraw,
+            binding.bottomEditorPrimaryActions.bottomPrimaryAdjust,
+            binding.bottomEditorPrimaryActions.bottomPrimaryText
         ).forEach {
             it.applyColorFilter(Color.WHITE)
         }
@@ -678,6 +910,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             PRIMARY_ACTION_FILTER -> binding.bottomEditorPrimaryActions.bottomPrimaryFilter
             PRIMARY_ACTION_CROP_ROTATE -> binding.bottomEditorPrimaryActions.bottomPrimaryCropRotate
             PRIMARY_ACTION_DRAW -> binding.bottomEditorPrimaryActions.bottomPrimaryDraw
+            PRIMARY_ACTION_ADJUST -> binding.bottomEditorPrimaryActions.bottomPrimaryAdjust
+            PRIMARY_ACTION_TEXT -> binding.bottomEditorPrimaryActions.bottomPrimaryText
             else -> null
         }
 
@@ -685,6 +919,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.bottomEditorFilterActions.root.beVisibleIf(currPrimaryAction == PRIMARY_ACTION_FILTER)
         binding.bottomEditorCropRotateActions.root.beVisibleIf(currPrimaryAction == PRIMARY_ACTION_CROP_ROTATE)
         binding.bottomEditorDrawActions.root.beVisibleIf(currPrimaryAction == PRIMARY_ACTION_DRAW)
+        binding.bottomEditorAdjustActions.root.beVisibleIf(currPrimaryAction == PRIMARY_ACTION_ADJUST)
+        binding.bottomEditorTextActions.root.beVisibleIf(currPrimaryAction == PRIMARY_ACTION_TEXT)
 
         if (currPrimaryAction == PRIMARY_ACTION_FILTER && binding.bottomEditorFilterActions.bottomActionsFilterList.adapter == null) {
             ensureBackgroundThread {
@@ -1035,7 +1271,11 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         filterInitialBitmap = workingBitmap
         binding.bottomEditorFilterActions.bottomActionsFilterList.adapter = null
         wasDrawCanvasPositioned = false
+        wasOverlayPositioned = false
         binding.editorDrawCanvas.clearDrawing()
+        binding.editorOverlayView.clearOverlays()
+        recycleAdjustPreview()
+        adjustSourceBitmap = null
     }
 
     private fun commitCurrentTool(done: () -> Unit) {
@@ -1051,6 +1291,25 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                 binding.editorDrawCanvas.isVisible() && wasDrawCanvasPositioned -> {
                     replaceWorkingBitmap(binding.editorDrawCanvas.getBitmap())
                     invalidateToolCaches()
+                }
+                binding.editorOverlayView.isVisible() && wasOverlayPositioned -> {
+                    if (binding.editorOverlayView.hasOverlays()) {
+                        replaceWorkingBitmap(binding.editorOverlayView.getBitmap())
+                        invalidateToolCaches()
+                    }
+                }
+                currPrimaryAction == PRIMARY_ACTION_ADJUST -> {
+                    val adjusted = currentAdjustBitmap()
+                    if (adjusted != null && !adjusted.isRecycled) {
+                        val keep = if (adjusted === adjustSourceBitmap || adjusted === workingBitmap || adjusted === filterInitialBitmap) {
+                            adjusted.copy(adjusted.config ?: Bitmap.Config.ARGB_8888, true)
+                        } else {
+                            adjusted
+                        }
+                        adjustPreviewBitmap = null
+                        replaceWorkingBitmap(keep)
+                        invalidateToolCaches()
+                    }
                 }
                 binding.defaultImageView.isVisible() -> {
                     val currentFilter = getFiltersAdapter()?.getCurrentFilter()
