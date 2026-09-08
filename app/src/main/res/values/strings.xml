@@ -3,6 +3,7 @@
     <string name="app_name">Simple Gallery</string>
     <string name="app_launcher_name">Gallery</string>
     <string name="edit">Edit</string>
+    <string name="overwrite_original">Overwrite original</string>
     <string name="open_camera">Open camera</string>
     <string name="hidden">(hidden)</string>
     <string name="excluded">(excluded)</string>
@@ -10,6 +11,7 @@
     <string name="unpin_folder">Unpin folder</string>
     <string name="pin_to_the_top">Pin to the top</string>
     <string name="show_all">Show all folders content</string>
+    <string name="tree_view">Tree view</string>
     <string name="all_folders">All folders</string>
     <string name="folder_view">Switch to folder view</string>
     <string name="other_folder">Other folder</string>

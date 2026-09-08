@@ -2,6 +2,28 @@
 
 <img alt="Logo" src="graphics/icon.png" width="120" />
 
+**Forked from** [SimpleMobileTools/Simple-Gallery](https://github.com/SimpleMobileTools/Simple-Gallery) (GPL-3.0).
+
+This is an independent fork of Simple Gallery Pro 6.28.1. It is not affiliated with Simple Mobile Tools or Fossify.
+
+APKs are published on [GitHub Releases](https://github.com/t0ma5/Simple-Gallery/releases). Push a tag `vX.Y.Z` to attach a FOSS APK to a release. Every push, pull request, and manual **Build APK** run also uploads the APK as a workflow artifact.
+
+## Photo editor
+
+This fork ships the **FOSS editor** (crop, rotate, resize, draw, filters). The Play-style IMG.LY PhotoEditor SDK (upstream 10.7.3; latest 10.10.14) is proprietary. Its license files were removed from git and it cannot be built without a paid license tied to `com.simplemobiletools.gallery.pro`.
+
+## New features ahead of mainstream
+
+- Stack crop, draw, and filters in one edit session (upstream still discards work when you switch tools).
+- Overwrite the original file when saving edits (upstream 6.28.1 is save-as only).
+- Reliable filter save (resource cleanup before applying the filter).
+- No donation prompts; no “fake version” block on save.
+- Folder tree view (indent nested albums instead of a flat list).
+- Temporarily showing hidden folders no longer leaks `Android/data`, `Android/obb`, or app-private trees unless you explicitly include them.
+- minSdk 26, targetSdk 34, compileSdk 35.
+
+## About
+
 Simple Gallery brings you all the photo viewing and editing features you have been missing on your Android in one stylish easy-to-use app. Browse, manage, crop and edit photos or videos faster than ever, recover accidentally deleted files or create hidden galleries for your most precious images and videos. And with advanced file-support and full customization, finally, your gallery works just the way you want.
 
 ADVANCED PHOTO EDITOR  
@@ -18,18 +40,6 @@ Never worry about accidentally deleting that one precious photo or video you jus
 
 PROTECT YOUR PRIVATE PHOTOS, VIDEOS & FILES  
 Rest assured your photo album is safe. With Simple Gallery's superior security features you can use a pin, pattern or your device’s fingerprint scanner to limit who can view or edit selected photos and videos or access important files. You can even protect the app itself or place locks on specific functions of the file organizer.
-
-<a href="https://f-droid.org/packages/com.simplemobiletools.gallery.pro">Get it on F-Droid</a>
-
-Support us:  
-IBAN: SK4083300000002000965231  
-Bitcoin: 19Hc8A7sWGud8sP19VXDC5a5j28UyJfpyJ  
-Ethereum: 0xB7a2DD6f2408Bce77334655CF5E7639aE31feb30  
-Litecoin: LYACbHTKaM9ZubKQGxJ4NRyVy1gHUuztRP  
-Bitcoin Cash: qz6dvmhq5vzkcsypxpp2mnur30muxdah4gvulx3y85  
-Tether: 0x250f9cC32863E59b87037a14955Ed64F879653F0  
-<a href="https://paypal.me/SimpleMobileTools?country.x=SK&locale.x=en_US">PayPal</a>  
-<a href="https://www.patreon.com/tiborkaputa">Patreon</a>
 
 <div style="display:flex;">
 <img alt="App image" src="fastlane/metadata/android/en-US/images/phoneScreenshots/1_en-US.jpeg" width="30%">
