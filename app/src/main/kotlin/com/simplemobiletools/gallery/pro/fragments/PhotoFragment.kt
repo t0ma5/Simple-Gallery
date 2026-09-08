@@ -631,8 +631,6 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun getFilePathToShow() = if (mMedium.isPortrait()) mCurrentPortraitPhotoPath else getPathToLoad(mMedium)
 
-    private fun getImageOrientation(): Int {
-
     private fun scheduleZoomableView() {
         mLoadZoomableViewHandler.removeCallbacksAndMessages(null)
         mLoadZoomableViewHandler.postDelayed({
