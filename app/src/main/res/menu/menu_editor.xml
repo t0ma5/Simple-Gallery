@@ -7,6 +7,10 @@
         android:title="@string/save_as"
         app:showAsAction="always" />
     <item
+        android:id="@+id/overwrite_original"
+        android:title="@string/overwrite_original"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/edit"
         android:icon="@drawable/ic_edit_vector"
         android:title="@string/edit_with"

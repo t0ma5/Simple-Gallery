@@ -26,7 +26,6 @@ import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.Target
 import com.canhub.cropper.CropImageView
 import com.simplemobiletools.commons.dialogs.ColorPickerDialog
-import com.simplemobiletools.commons.dialogs.ConfirmationDialog
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.NavigationIcon
 import com.simplemobiletools.commons.helpers.REAL_FILE_PATH
@@ -89,6 +88,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private var oldExif: ExifInterface? = null
     private var filterInitialBitmap: Bitmap? = null
     private var originalUri: Uri? = null
+    private var workingBitmap: Bitmap? = null
+    private var overwriteRequested = false
     private val binding by viewBinding(ActivityEditBinding::inflate)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -126,7 +127,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private fun setupOptionsMenu() {
         binding.editorToolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
-                R.id.save_as -> saveImage()
+                R.id.save_as -> startSaveFlow(overwrite = false)
+                R.id.overwrite_original -> startSaveFlow(overwrite = true)
                 R.id.edit -> editWith()
                 R.id.share -> shareImage()
                 else -> return@setOnMenuItemClickListener false
@@ -174,6 +176,9 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             (binding.bottomEditorCropRotateActions.root.layoutParams as RelativeLayout.LayoutParams).addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, 1)
         }
 
+        val hideOverwrite = isCropIntent || (intent.extras?.containsKey(MediaStore.EXTRA_OUTPUT) == true)
+        binding.editorToolbar.menu.findItem(R.id.overwrite_original)?.isVisible = !hideOverwrite
+
         loadDefaultImageView()
         setupBottomActions()
 
@@ -197,6 +202,23 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.defaultImageView.beVisible()
         binding.cropImageView.beGone()
         binding.editorDrawCanvas.beGone()
+
+        val stacked = usableWorkingBitmap()
+        if (stacked != null) {
+            binding.defaultImageView.setImageBitmap(stacked)
+            if (filterInitialBitmap == null) {
+                filterInitialBitmap = stacked
+            }
+            val currentFilter = getFiltersAdapter()?.getCurrentFilter()
+            if (currentFilter != null && currentFilter.filter.name != getString(com.simplemobiletools.commons.R.string.none)) {
+                applyFilter(currentFilter)
+            }
+            if (isCropIntent) {
+                binding.bottomEditorPrimaryActions.bottomPrimaryFilter.beGone()
+                binding.bottomEditorPrimaryActions.bottomPrimaryDraw.beGone()
+            }
+            return
+        }
 
         val options = RequestOptions()
             .skipMemoryCache(true)
@@ -254,7 +276,12 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.cropImageView.apply {
             beVisible()
             setOnCropImageCompleteListener(this@EditActivity)
-            setImageUriAsync(uri)
+            val stacked = usableWorkingBitmap()
+            if (stacked != null) {
+                setImageBitmap(stacked)
+            } else {
+                setImageUriAsync(uri)
+            }
             guidelines = CropImageView.Guidelines.ON
 
             if (isCropIntent && shouldCropSquare()) {
@@ -290,13 +317,19 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             .fitCenter()
 
         try {
-            val builder = Glide.with(applicationContext)
-                .asBitmap()
-                .load(uri)
-                .apply(options)
-                .into(binding.editorDrawCanvas.width, binding.editorDrawCanvas.height)
-
-            val bitmap = builder.get()
+            val stacked = usableWorkingBitmap()
+            val bitmap = if (stacked != null) {
+                val width = binding.editorDrawCanvas.width.coerceAtLeast(1)
+                val height = binding.editorDrawCanvas.height.coerceAtLeast(1)
+                Bitmap.createScaledBitmap(stacked, width, height, true)
+            } else {
+                val builder = Glide.with(applicationContext)
+                    .asBitmap()
+                    .load(uri)
+                    .apply(options)
+                    .into(binding.editorDrawCanvas.width, binding.editorDrawCanvas.height)
+                builder.get()
+            }
             runOnUiThread {
                 binding.editorDrawCanvas.apply {
                     updateBackgroundBitmap(bitmap)
@@ -312,46 +345,71 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     }
 
     @TargetApi(Build.VERSION_CODES.N)
-    private fun saveImage() {
+    private fun startSaveFlow(overwrite: Boolean) {
+        overwriteRequested = overwrite
         setOldExif()
+        when {
+            binding.cropImageView.isVisible() -> binding.cropImageView.croppedImageAsync()
+            binding.editorDrawCanvas.isVisible() -> saveEditedBitmap(binding.editorDrawCanvas.getBitmap())
+            else -> saveFilteredImage()
+        }
+    }
 
-        if (binding.cropImageView.isVisible()) {
-            binding.cropImageView.croppedImageAsync()
-        } else if (binding.editorDrawCanvas.isVisible()) {
-            val bitmap = binding.editorDrawCanvas.getBitmap()
-            if (saveUri.scheme == "file") {
-                SaveAsDialog(this, saveUri.path!!, true) {
-                    saveBitmapToFile(bitmap, it, true)
+    private fun saveFilteredImage() {
+        val currentFilter = getFiltersAdapter()?.getCurrentFilter()?.filter ?: return
+        freeMemory()
+        ensureBackgroundThread {
+            try {
+                val original = getSourceBitmapForFilter()
+                currentFilter.processFilter(original)
+                runOnUiThread {
+                    saveEditedBitmap(original, showSavingToast = true)
                 }
-            } else if (saveUri.scheme == "content") {
-                val filePathGetter = getNewFilePath()
-                SaveAsDialog(this, filePathGetter.first, filePathGetter.second) {
-                    saveBitmapToFile(bitmap, it, true)
-                }
-            }
-        } else {
-            val currentFilter = getFiltersAdapter()?.getCurrentFilter() ?: return
-            val filePathGetter = getNewFilePath()
-            SaveAsDialog(this, filePathGetter.first, filePathGetter.second) {
-                toast(com.simplemobiletools.commons.R.string.saving)
-
-                // clean up everything to free as much memory as possible
-                binding.defaultImageView.setImageResource(0)
-                binding.cropImageView.setImageBitmap(null)
-                binding.bottomEditorFilterActions.bottomActionsFilterList.adapter = null
-                binding.bottomEditorFilterActions.bottomActionsFilterList.beGone()
-
-                ensureBackgroundThread {
-                    try {
-                        val originalBitmap = Glide.with(applicationContext).asBitmap().load(uri).submit(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL).get()
-                        currentFilter.filter.processFilter(originalBitmap)
-                        saveBitmapToFile(originalBitmap, it, false)
-                    } catch (e: OutOfMemoryError) {
-                        toast(com.simplemobiletools.commons.R.string.out_of_memory_error)
-                    }
-                }
+            } catch (e: OutOfMemoryError) {
+                toast(com.simplemobiletools.commons.R.string.out_of_memory_error)
+            } catch (e: Exception) {
+                showErrorToast(e)
             }
         }
+    }
+
+    private fun saveEditedBitmap(bitmap: Bitmap, showSavingToast: Boolean = true) {
+        if (overwriteRequested) {
+            val path = overwritePath()
+            if (path.isNullOrEmpty()) {
+                toast(R.string.error_saving_file)
+            } else {
+                saveBitmapToFile(bitmap, path, showSavingToast)
+            }
+            return
+        }
+
+        if (saveUri.scheme == "file") {
+            SaveAsDialog(this, saveUri.path!!, true) {
+                saveBitmapToFile(bitmap, it, showSavingToast)
+            }
+        } else if (saveUri.scheme == "content") {
+            val filePathGetter = getNewFilePath()
+            SaveAsDialog(this, filePathGetter.first, filePathGetter.second) {
+                saveBitmapToFile(bitmap, it, showSavingToast)
+            }
+        } else {
+            toast(R.string.unknown_file_location)
+        }
+    }
+
+    private fun overwritePath(): String? {
+        return when {
+            saveUri.scheme == "file" -> saveUri.path
+            else -> getNewFilePath().first.takeIf { it.isNotEmpty() }
+        }
+    }
+
+    private fun freeMemory() {
+        binding.defaultImageView.setImageResource(0)
+        binding.cropImageView.setImageBitmap(null)
+        binding.bottomEditorFilterActions.bottomActionsFilterList.adapter = null
+        binding.bottomEditorFilterActions.bottomActionsFilterList.beGone()
     }
 
     @TargetApi(Build.VERSION_CODES.N)
@@ -378,7 +436,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                         return@ensureBackgroundThread
                     }
 
-                    val originalBitmap = Glide.with(applicationContext).asBitmap().load(uri).submit(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL).get()
+                    val originalBitmap = getSourceBitmapForFilter()
                     currentFilter.filter.processFilter(originalBitmap)
                     shareBitmap(originalBitmap)
                 }
@@ -466,30 +524,36 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     }
 
     private fun bottomFilterClicked() {
-        currPrimaryAction = if (currPrimaryAction == PRIMARY_ACTION_FILTER) {
-            PRIMARY_ACTION_NONE
-        } else {
-            PRIMARY_ACTION_FILTER
+        commitCurrentTool {
+            currPrimaryAction = if (currPrimaryAction == PRIMARY_ACTION_FILTER) {
+                PRIMARY_ACTION_NONE
+            } else {
+                PRIMARY_ACTION_FILTER
+            }
+            updatePrimaryActionButtons()
         }
-        updatePrimaryActionButtons()
     }
 
     private fun bottomCropRotateClicked() {
-        currPrimaryAction = if (currPrimaryAction == PRIMARY_ACTION_CROP_ROTATE) {
-            PRIMARY_ACTION_NONE
-        } else {
-            PRIMARY_ACTION_CROP_ROTATE
+        commitCurrentTool {
+            currPrimaryAction = if (currPrimaryAction == PRIMARY_ACTION_CROP_ROTATE) {
+                PRIMARY_ACTION_NONE
+            } else {
+                PRIMARY_ACTION_CROP_ROTATE
+            }
+            updatePrimaryActionButtons()
         }
-        updatePrimaryActionButtons()
     }
 
     private fun bottomDrawClicked() {
-        currPrimaryAction = if (currPrimaryAction == PRIMARY_ACTION_DRAW) {
-            PRIMARY_ACTION_NONE
-        } else {
-            PRIMARY_ACTION_DRAW
+        commitCurrentTool {
+            currPrimaryAction = if (currPrimaryAction == PRIMARY_ACTION_DRAW) {
+                PRIMARY_ACTION_NONE
+            } else {
+                PRIMARY_ACTION_DRAW
+            }
+            updatePrimaryActionButtons()
         }
-        updatePrimaryActionButtons()
     }
 
     private fun setupCropRotateActionButtons() {
@@ -627,24 +691,29 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                 val thumbnailSize = resources.getDimension(R.dimen.bottom_filters_thumbnail_size).toInt()
 
                 val bitmap = try {
-                    Glide.with(this)
-                        .asBitmap()
-                        .load(uri).listener(object : RequestListener<Bitmap> {
-                            override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Bitmap>, isFirstResource: Boolean): Boolean {
-                                showErrorToast(e.toString())
-                                return false
-                            }
+                    val stacked = usableWorkingBitmap()
+                    if (stacked != null) {
+                        Bitmap.createScaledBitmap(stacked, thumbnailSize, thumbnailSize, true)
+                    } else {
+                        Glide.with(this)
+                            .asBitmap()
+                            .load(uri).listener(object : RequestListener<Bitmap> {
+                                override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Bitmap>, isFirstResource: Boolean): Boolean {
+                                    showErrorToast(e.toString())
+                                    return false
+                                }
 
-                            override fun onResourceReady(
-                                resource: Bitmap,
-                                model: Any,
-                                target: Target<Bitmap>,
-                                dataSource: DataSource,
-                                isFirstResource: Boolean
-                            ) = false
-                        })
-                        .submit(thumbnailSize, thumbnailSize)
-                        .get()
+                                override fun onResourceReady(
+                                    resource: Bitmap,
+                                    model: Any,
+                                    target: Target<Bitmap>,
+                                    dataSource: DataSource,
+                                    isFirstResource: Boolean
+                                ) = false
+                            })
+                            .submit(thumbnailSize, thumbnailSize)
+                            .get()
+                    }
                 } catch (e: GlideException) {
                     showErrorToast(e)
                     finish()
@@ -827,17 +896,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                     }
                     finish()
                 }
-            } else if (saveUri.scheme == "file") {
-                SaveAsDialog(this, saveUri.path!!, true) {
-                    saveBitmapToFile(bitmap, it, true)
-                }
-            } else if (saveUri.scheme == "content") {
-                val filePathGetter = getNewFilePath()
-                SaveAsDialog(this, filePathGetter.first, filePathGetter.second) {
-                    saveBitmapToFile(bitmap, it, true)
-                }
             } else {
-                toast(R.string.unknown_file_location)
+                saveEditedBitmap(bitmap)
             }
         } else {
             toast("${getString(R.string.image_editing_failed)}: ${result.error?.message}")
@@ -870,19 +930,6 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     }
 
     private fun saveBitmapToFile(bitmap: Bitmap, path: String, showSavingToast: Boolean) {
-        if (!packageName.contains("slootelibomelpmis".reversed(), true)) {
-            if (baseConfig.appRunCount > 100) {
-                val label =
-                    "sknahT .moc.slootelibomelpmis.www morf eno lanigiro eht daolnwod ytefas nwo ruoy roF .ppa eht fo noisrev ekaf a gnisu era uoY".reversed()
-                runOnUiThread {
-                    ConfirmationDialog(this, label, positive = com.simplemobiletools.commons.R.string.ok, negative = 0) {
-                        launchViewIntent("6629852208836920709=di?ved/sppa/erots/moc.elgoog.yalp//:sptth".reversed())
-                    }
-                }
-                return
-            }
-        }
-
         try {
             ensureBackgroundThread {
                 val file = File(path)
@@ -956,5 +1003,76 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             }
             true
         }
+    }
+
+    private fun usableWorkingBitmap(): Bitmap? {
+        val bitmap = workingBitmap
+        return if (bitmap != null && !bitmap.isRecycled) bitmap else null
+    }
+
+    private fun getSourceBitmapForFilter(): Bitmap {
+        val stacked = usableWorkingBitmap()
+        if (stacked != null) {
+            val config = stacked.config ?: Bitmap.Config.ARGB_8888
+            return stacked.copy(config, true)
+        }
+        return Glide.with(applicationContext)
+            .asBitmap()
+            .load(uri)
+            .submit(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+            .get()
+    }
+
+    private fun replaceWorkingBitmap(bitmap: Bitmap) {
+        val previous = workingBitmap
+        workingBitmap = bitmap
+        if (previous != null && previous !== bitmap && previous !== filterInitialBitmap && !previous.isRecycled) {
+            previous.recycle()
+        }
+    }
+
+    private fun invalidateToolCaches() {
+        filterInitialBitmap = workingBitmap
+        binding.bottomEditorFilterActions.bottomActionsFilterList.adapter = null
+        wasDrawCanvasPositioned = false
+        binding.editorDrawCanvas.clearDrawing()
+    }
+
+    private fun commitCurrentTool(done: () -> Unit) {
+        try {
+            when {
+                binding.cropImageView.isVisible() -> {
+                    val cropped = binding.cropImageView.getCroppedImage()
+                    if (cropped != null) {
+                        replaceWorkingBitmap(cropped)
+                        invalidateToolCaches()
+                    }
+                }
+                binding.editorDrawCanvas.isVisible() && wasDrawCanvasPositioned -> {
+                    replaceWorkingBitmap(binding.editorDrawCanvas.getBitmap())
+                    invalidateToolCaches()
+                }
+                binding.defaultImageView.isVisible() -> {
+                    val currentFilter = getFiltersAdapter()?.getCurrentFilter()
+                    val source = usableWorkingBitmap() ?: filterInitialBitmap
+                    if (
+                        source != null &&
+                        !source.isRecycled &&
+                        currentFilter != null &&
+                        currentFilter.filter.name != getString(com.simplemobiletools.commons.R.string.none)
+                    ) {
+                        val filtered = Bitmap.createBitmap(source)
+                        currentFilter.filter.processFilter(filtered)
+                        replaceWorkingBitmap(filtered)
+                        invalidateToolCaches()
+                    }
+                }
+            }
+        } catch (e: OutOfMemoryError) {
+            toast(com.simplemobiletools.commons.R.string.out_of_memory_error)
+        } catch (e: Exception) {
+            showErrorToast(e)
+        }
+        done()
     }
 }

@@ -128,6 +128,12 @@ class EditorDrawCanvas(context: Context, attrs: AttributeSet) : View(context, at
         invalidate()
     }
 
+    fun clearDrawing() {
+        mPaths.clear()
+        mPath.reset()
+        invalidate()
+    }
+
     fun getBitmap(): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
