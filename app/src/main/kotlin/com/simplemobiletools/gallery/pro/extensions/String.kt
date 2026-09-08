@@ -40,8 +40,9 @@ fun String.shouldFolderBeVisible(
     }
 
     // Keep Android/data, Android/obb, and app-private trees hidden even when the eye icon
-    // temporarily shows hidden folders. Included paths (and their children) stay visible.
-    if (isRestrictedAndroidFolder() && !isThisOrParentIncluded(includedPaths)) {
+    // temporarily shows hidden folders. A broad include like internal storage must not
+    // unhide them; only an include that is itself a restricted path (or its parent) does.
+    if (isRestrictedAndroidFolder() && !isExplicitlyIncludedRestrictedFolder(includedPaths)) {
         return false
     }
 
@@ -102,6 +103,12 @@ fun String.isRestrictedAndroidFolder(): Boolean {
     val normalized = replace('\\', '/').lowercase()
     return listOf("/android/data", "/android/obb", "/data/data", "/data/user").any { marker ->
         normalized == marker.trimStart('/') || normalized.contains("$marker/") || normalized.endsWith(marker)
+    }
+}
+
+fun String.isExplicitlyIncludedRestrictedFolder(includedPaths: MutableSet<String>): Boolean {
+    return includedPaths.any { included ->
+        included.isRestrictedAndroidFolder() && (equals(included, true) || "$this/".startsWith("$included/", true))
     }
 }
 
