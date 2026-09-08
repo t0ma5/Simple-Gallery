@@ -93,7 +93,7 @@ android {
         abortOnError = false
     }
 
-    packagingOptions {
+    packaging {
         resources {
             excludes += "META-INF/library_release.kotlin_module"
         }
