@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/filter"
-        android:padding="@dimen/normal_margin"
+        android:padding="8dp"
         android:src="@drawable/ic_photo_filter_vector"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/bottom_primary_crop_rotate"
@@ -25,7 +25,7 @@
         android:layout_height="wrap_content"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/transform"
-        android:padding="@dimen/normal_margin"
+        android:padding="8dp"
         android:src="@drawable/ic_crop_rotate_vector"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/bottom_primary_draw"
@@ -38,11 +38,37 @@
         android:layout_height="wrap_content"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/draw"
-        android:padding="@dimen/normal_margin"
+        android:padding="8dp"
         android:src="@drawable/ic_draw_vector"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/bottom_primary_adjust"
         app:layout_constraintStart_toEndOf="@+id/bottom_primary_crop_rotate"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/bottom_primary_adjust"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/adjust"
+        android:padding="8dp"
+        android:src="@drawable/ic_adjust_vector"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/bottom_primary_text"
+        app:layout_constraintStart_toEndOf="@+id/bottom_primary_draw"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/bottom_primary_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/text"
+        android:padding="8dp"
+        android:src="@drawable/ic_text_vector"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/bottom_primary_adjust"
         app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

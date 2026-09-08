@@ -10,11 +10,13 @@ APKs are published on [GitHub Releases](https://github.com/t0ma5/Simple-Gallery/
 
 ## Photo editor
 
-This fork ships the **FOSS editor** (crop, rotate, resize, draw, filters). The Play-style IMG.LY PhotoEditor SDK (upstream 10.7.3; latest 10.10.14) is proprietary. Its license files were removed from git and it cannot be built without a paid license tied to `com.simplemobiletools.gallery.pro`.
+This fork ships the **FOSS editor** (crop, rotate, resize, draw, filters, tone sliders, text and emoji stickers). The Play-style IMG.LY PhotoEditor SDK (upstream 10.7.3; latest 10.10.14) is proprietary. Its license files were removed from git and it cannot be built without a paid license tied to `com.simplemobiletools.gallery.pro`.
 
 ## New features ahead of mainstream
 
-- Stack crop, draw, and filters in one edit session (upstream still discards work when you switch tools).
+- Stack crop, draw, filters, adjust, and text in one edit session (upstream still discards work when you switch tools).
+- Adjust brightness, contrast, saturation, and temperature in the FOSS editor.
+- Add draggable text and emoji stickers.
 - Overwrite the original file when saving edits (upstream 6.28.1 is save-as only).
 - Reliable filter save (resource cleanup before applying the filter).
 - No donation prompts; no “fake version” block on save.
