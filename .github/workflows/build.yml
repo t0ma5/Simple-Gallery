@@ -96,8 +96,7 @@ jobs:
           files: app/build/outputs/apk/foss/release/*.apk
           generate_release_notes: true
           body: |
-            Release-signed FOSS APK (assembleFossRelease).
-
-            Release-signed FOSS APK for applicationId tomato.simple.gallery. It can sit next to Play Store Simple Gallery Pro.
+            Release-signed FOSS APK for applicationId tomato.simple.gallery.
+            It can sit next to Play Store Simple Gallery Pro.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
