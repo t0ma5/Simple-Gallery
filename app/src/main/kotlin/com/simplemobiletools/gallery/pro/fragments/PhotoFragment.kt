@@ -77,7 +77,6 @@ class PhotoFragment : ViewPagerFragment() {
     private var mIsFragmentVisible = false
     private var mIsFullscreen = false
     private var mWasInit = false
-    private var mStoredShowExtendedDetails = false
     private var mIsSubsamplingVisible = false    // checking view.visibility is unreliable, use an extra variable for it
     private var mShouldResetImage = false
     private var mCurrentPortraitPhotoPath = ""
