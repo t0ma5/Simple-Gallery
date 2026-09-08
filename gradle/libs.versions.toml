@@ -38,7 +38,7 @@ app-build-minimumSDK = "26"
 app-build-javaVersion = "VERSION_17"
 app-build-kotlinJVMTarget = "17"
 #versioning
-app-version-appId = "com.simplemobiletools.gallery.pro"
+app-version-appId = "tomato.simple.gallery"
 app-version-versionCode = "397"
 app-version-versionName = "6.29.0"
 subsamplingScaleImageView = "80efdaa570"

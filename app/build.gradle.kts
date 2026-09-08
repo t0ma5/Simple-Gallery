@@ -47,7 +47,6 @@ android {
 
     buildTypes {
         debug {
-            // we cannot change the original package name, else PhotoEditorSDK won't work
             //applicationIdSuffix = ".debug"
         }
         release {
@@ -86,7 +85,8 @@ android {
         kotlinOptions.jvmTarget = project.libs.versions.app.build.kotlinJVMTarget.get()
     }
 
-    namespace = libs.versions.app.version.appId.get()
+    // Source package stays here so R/BuildConfig imports do not change.
+    namespace = "com.simplemobiletools.gallery.pro"
 
     lint {
         checkReleaseBuilds = false
