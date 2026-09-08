@@ -2,14 +2,18 @@ name: Build APK
 
 on:
   push:
-    branches: [master]
-    tags: ["v*"]
+    branches:
+      - master
+    tags:
+      - "v*"
   pull_request:
-    branches: [master]
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build:
@@ -29,20 +33,18 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Optional release signing
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "No KEYSTORE_BASE64 secret; building without release signing"
+            exit 0
+          fi
           echo "$KEYSTORE_BASE64" | base64 -d > app/keystore.jks
-          cat > keystore.properties << EOF
-          keyAlias=$KEY_ALIAS
-          keyPassword=$KEY_PASSWORD
-          storeFile=keystore.jks
-          storePassword=$KEYSTORE_PASSWORD
-          EOF
+          printf '%s\n' "keyAlias=$KEY_ALIAS" "keyPassword=$KEY_PASSWORD" "storeFile=keystore.jks" "storePassword=$KEYSTORE_PASSWORD" > keystore.properties
 
       - name: Build FOSS release APK
         run: |
@@ -63,8 +65,8 @@ jobs:
           files: app/build/outputs/apk/foss/release/*.apk
           generate_release_notes: true
           body: |
-            FOSS APK (`assembleFossRelease`).
+            FOSS APK (assembleFossRelease).
 
-            If repository secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` were not set, this APK is unsigned or debug-signed. Android will still install it after the unknown-source prompt.
+            If repository secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD were not set, this APK is unsigned or debug-signed. Android will still install it after the unknown-source prompt.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
