@@ -30,6 +30,11 @@ jobs:
           path: Simple-Commons
           persist-credentials: false
 
+      - name: Align Simple-Commons AGP
+        run: |
+          sed -i 's/gradlePlugins-agp = "8.1.2"/gradlePlugins-agp = "8.6.0"/' Simple-Commons/gradle/libs.versions.toml
+          grep gradlePlugins-agp Simple-Commons/gradle/libs.versions.toml
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
