@@ -1,7 +1,7 @@
 package com.simplemobiletools.gallery.pro.dialogs
 
-import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.AppCompatEditText
 import com.simplemobiletools.commons.activities.BaseSimpleActivity
 import com.simplemobiletools.commons.extensions.getAlertDialogBuilder
 import com.simplemobiletools.commons.extensions.setupDialogStuff
@@ -11,7 +11,7 @@ import com.simplemobiletools.gallery.pro.R
 
 class AddTextDialog(val activity: BaseSimpleActivity, val callback: (text: String) -> Unit) {
     init {
-        val editText = EditText(activity).apply {
+        val editText = AppCompatEditText(activity).apply {
             hint = activity.getString(R.string.add_text)
             setSingleLine(false)
             minLines = 2

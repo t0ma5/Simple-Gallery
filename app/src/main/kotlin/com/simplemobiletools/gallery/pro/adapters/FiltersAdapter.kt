@@ -40,7 +40,7 @@ class FiltersAdapter(val context: Context, val filterItems: ArrayList<FilterItem
     inner class ViewHolder(private val binding: EditorFilterItemBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bindView(filterItem: FilterItem): View {
             binding.apply {
-                editorFilterItemLabel.text = filterItem.filter.name
+                editorFilterItemLabel.text = filterItem.name
                 editorFilterItemThumbnail.setImageBitmap(filterItem.bitmap)
                 editorFilterItemThumbnail.background = if (getCurrentFilter() == filterItem) {
                     strokeBackground

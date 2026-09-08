@@ -47,7 +47,6 @@ import com.simplemobiletools.gallery.pro.extensions.fixDateTaken
 import com.simplemobiletools.gallery.pro.extensions.openEditor
 import com.simplemobiletools.gallery.pro.helpers.*
 import com.simplemobiletools.gallery.pro.models.FilterItem
-import com.zomato.photofilters.FilterPack
 import com.zomato.photofilters.imageprocessors.Filter
 import java.io.*
 import kotlin.math.max
@@ -96,10 +95,6 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private var workingBitmap: Bitmap? = null
     private var adjustSourceBitmap: Bitmap? = null
     private var adjustPreviewBitmap: Bitmap? = null
-    private var overwriteRequested = false
-    private var filterInitialBitmap: Bitmap? = null
-    private var originalUri: Uri? = null
-    private var workingBitmap: Bitmap? = null
     private var overwriteRequested = false
     private val binding by viewBinding(ActivityEditBinding::inflate)
 
@@ -227,7 +222,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                 filterInitialBitmap = stacked
             }
             val currentFilter = getFiltersAdapter()?.getCurrentFilter()
-            if (currentFilter != null && currentFilter.filter.name != getString(com.simplemobiletools.commons.R.string.none)) {
+            if (currentFilter != null && currentFilter.name != getString(com.simplemobiletools.commons.R.string.none)) {
                 applyFilter(currentFilter)
             }
             if (isCropIntent) {
@@ -271,7 +266,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                         bottomCropRotateClicked()
                     }
 
-                    if (filterInitialBitmap != null && currentFilter != null && currentFilter.filter.name != getString(com.simplemobiletools.commons.R.string.none)) {
+                    if (filterInitialBitmap != null && currentFilter != null && currentFilter.name != getString(com.simplemobiletools.commons.R.string.none)) {
                         binding.defaultImageView.onGlobalLayout {
                             applyFilter(currentFilter)
                         }
@@ -960,12 +955,11 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                     val filterThumbnailsManager = FilterThumbnailsManager()
                     filterThumbnailsManager.clearThumbs()
 
-                    val noFilter = Filter(getString(com.simplemobiletools.commons.R.string.none))
-                    filterThumbnailsManager.addThumb(FilterItem(bitmap, noFilter))
+                    val noneLabel = getString(com.simplemobiletools.commons.R.string.none)
+                    filterThumbnailsManager.addThumb(FilterItem(bitmap, Filter(), noneLabel))
 
                     FilterPack.getFilterPack(this).forEach {
-                        val filterItem = FilterItem(bitmap, it)
-                        filterThumbnailsManager.addThumb(filterItem)
+                        filterThumbnailsManager.addThumb(FilterItem(bitmap, it.filter, it.name))
                     }
 
                     val filterItems = filterThumbnailsManager.processThumbs()
@@ -1318,7 +1312,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                         source != null &&
                         !source.isRecycled &&
                         currentFilter != null &&
-                        currentFilter.filter.name != getString(com.simplemobiletools.commons.R.string.none)
+                        currentFilter.name != getString(com.simplemobiletools.commons.R.string.none)
                     ) {
                         val filtered = Bitmap.createBitmap(source)
                         currentFilter.filter.processFilter(filtered)
