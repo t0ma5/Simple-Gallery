@@ -12,7 +12,7 @@ APKs are published on [GitHub Releases](https://github.com/t0ma5/Simple-Gallery/
 
 This fork ships the **FOSS editor** (crop, rotate, resize, draw, filters, tone sliders, text and emoji stickers). The Play-style IMG.LY PhotoEditor SDK (upstream 10.7.3; latest 10.10.14) is proprietary. Its license files were removed from git.
 
-applicationId is `tomato.simple.gallery`, so it can be installed next to Play Store Simple Gallery Pro.
+applicationId and Kotlin packages are `tomato.simple.gallery`, so it can sit next to Play Store Simple Gallery Pro.
 
 ## New features ahead of mainstream
 
