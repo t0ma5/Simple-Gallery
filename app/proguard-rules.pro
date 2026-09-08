@@ -1,6 +1,8 @@
 -keep class com.simplemobiletools.** { *; }
+-keep class tomato.simple.gallery.** { *; }
 -dontwarn android.graphics.Canvas
 -dontwarn com.simplemobiletools.**
+-dontwarn tomato.simple.gallery.**
 -dontwarn org.apache.**
 
 # Picasso

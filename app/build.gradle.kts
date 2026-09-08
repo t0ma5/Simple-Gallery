@@ -85,8 +85,7 @@ android {
         kotlinOptions.jvmTarget = project.libs.versions.app.build.kotlinJVMTarget.get()
     }
 
-    // Source package stays here so R/BuildConfig imports do not change.
-    namespace = "com.simplemobiletools.gallery.pro"
+    namespace = libs.versions.app.version.appId.get()
 
     lint {
         checkReleaseBuilds = false
