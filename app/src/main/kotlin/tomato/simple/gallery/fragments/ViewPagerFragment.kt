@@ -1,11 +1,13 @@
 package tomato.simple.gallery.fragments
 
+import android.graphics.Point
 import android.provider.MediaStore
 import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
 import android.view.MotionEvent
 import androidx.exifinterface.media.ExifInterface
 import androidx.fragment.app.Fragment
+import com.awxkee.jxlcoder.JxlCoder
 import com.simplemobiletools.commons.extensions.*
 import tomato.simple.gallery.extensions.config
 import tomato.simple.gallery.helpers.*
@@ -65,7 +67,7 @@ abstract class ViewPagerFragment : Fragment() {
         }
 
         if (detailsFlag and EXT_RESOLUTION != 0) {
-            context!!.getResolution(file.absolutePath)?.formatAsResolution().let { if (it?.isNotEmpty() == true) details.appendln(it) }
+            getResolution(medium, file)?.let { if (it.isNotEmpty()) details.appendln(it) }
         }
 
         if (detailsFlag and EXT_LAST_MODIFIED != 0) {
@@ -91,6 +93,21 @@ abstract class ViewPagerFragment : Fragment() {
     }
 
     fun getPathToLoad(medium: Medium) = if (context?.isPathOnOTG(medium.path) == true) medium.path.getOTGPublicPath(context!!) else medium.path
+
+    private fun getResolution(medium: Medium, file: File): String? {
+        if (medium.name.isJxl()) {
+            val resolution = try {
+                JxlCoder.getSize(file.readBytes())
+            } catch (_: OutOfMemoryError) {
+                null
+            } catch (_: Exception) {
+                null
+            }
+            return resolution?.let { Point(it.width, it.height).formatAsResolution() }
+        }
+
+        return context?.getResolution(file.absolutePath)?.formatAsResolution()
+    }
 
     private fun getFileLastModified(file: File): String {
         val projection = arrayOf(Images.Media.DATE_MODIFIED)

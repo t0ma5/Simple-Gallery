@@ -62,6 +62,11 @@
         android:title="@string/copy_to"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menu_copy_to_clipboard"
+        android:showAsAction="never"
+        android:title="@string/copy_to_clipboard"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_move_to"
         android:showAsAction="never"
         android:title="@string/move_to"
@@ -113,6 +118,9 @@
             <item
                 android:id="@+id/menu_force_landscape"
                 android:title="@string/force_landscape" />
+            <item
+                android:id="@+id/menu_force_landscape_reverse"
+                android:title="@string/force_landscape_reverse" />
             <item
                 android:id="@+id/menu_default_orientation"
                 android:title="@string/use_default_orientation" />

@@ -200,6 +200,30 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getBoolean(OPEN_VIDEOS_ON_SEPARATE_SCREEN, false)
         set(openVideosOnSeparateScreen) = prefs.edit().putBoolean(OPEN_VIDEOS_ON_SEPARATE_SCREEN, openVideosOnSeparateScreen).apply()
 
+    var muteVideos: Boolean
+        get() = prefs.getBoolean(MUTE_VIDEOS, false)
+        set(muteVideos) = prefs.edit().putBoolean(MUTE_VIDEOS, muteVideos).apply()
+
+    var videoPlayerType: Int
+        get() = prefs.getInt(VIDEO_PLAYER_TYPE, if (appRunCount <= 1) VIDEO_PLAYER_APP else VIDEO_PLAYER_SYSTEM)
+        set(videoPlayerType) = prefs.edit().putInt(VIDEO_PLAYER_TYPE, videoPlayerType).apply()
+
+    var playbackSpeed: Float
+        get() = prefs.getFloat(PLAYBACK_SPEED, 1f)
+        set(playbackSpeed) = prefs.edit().putFloat(PLAYBACK_SPEED, playbackSpeed).apply()
+
+    var playbackSpeedProgress: Int
+        get() = prefs.getInt(PLAYBACK_SPEED_PROGRESS, -1)
+        set(playbackSpeedProgress) = prefs.edit().putInt(PLAYBACK_SPEED_PROGRESS, playbackSpeedProgress).apply()
+
+    var ultraHdrRendering: Boolean
+        get() = prefs.getBoolean(ULTRA_HDR_RENDERING, true)
+        set(ultraHdrRendering) = prefs.edit().putBoolean(ULTRA_HDR_RENDERING, ultraHdrRendering).apply()
+
+    var keepScreenOn: Boolean
+        get() = prefs.getBoolean(KEEP_SCREEN_ON, true)
+        set(keepScreenOn) = prefs.edit().putBoolean(KEEP_SCREEN_ON, keepScreenOn).apply()
+
     var displayFileNames: Boolean
         get() = prefs.getBoolean(DISPLAY_FILE_NAMES, false)
         set(display) = prefs.edit().putBoolean(DISPLAY_FILE_NAMES, display).apply()

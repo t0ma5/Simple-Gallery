@@ -52,6 +52,10 @@ data class Medium(
 
     fun isApng() = name.isApng()
 
+    fun isAvif() = name.isAvif()
+
+    fun isJxl() = name.isJxl()
+
     fun isHidden() = name.startsWith('.')
 
     fun isHeic() = name.toLowerCase().endsWith(".heic") || name.toLowerCase().endsWith(".heif")

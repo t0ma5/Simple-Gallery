@@ -16,6 +16,7 @@ import com.simplemobiletools.commons.helpers.isNougatPlus
 import com.simplemobiletools.commons.models.RadioItem
 import tomato.simple.gallery.R
 import tomato.simple.gallery.databinding.ActivitySetWallpaperBinding
+import tomato.simple.gallery.extensions.setupEdgeToEdge
 
 class SetWallpaperActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener {
     private val RATIO_PORTRAIT = 0
@@ -34,6 +35,7 @@ class SetWallpaperActivity : SimpleActivity(), CropImageView.OnCropImageComplete
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        setupEdgeToEdge(padBottomSystem = listOf(binding.activitySetWallpaperHolder))
         setupBottomActions()
 
         setupOptionsMenu()

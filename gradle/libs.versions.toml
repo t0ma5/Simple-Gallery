@@ -19,15 +19,15 @@ gradlePlugins-agp = "8.6.0"
 #Other
 androidGifDrawable = "1.2.25"
 androidImageCropper = "4.5.0"
-apng = "2.28.0"
-awebp = "2.28.0"
+animationAndroid = "3.0.5"
 glideCompiler = "4.16.0"
 zjupureWebpdecoder = "2.6.4.16.0"
+jxlDecoder = "2.6.0"
 gestureviews = "a8e8fa8d27"
 androidsvgAar = "1.4"
 imagefilters = "1.0.2"
 sanselan = "0.97-incubator"
-media3Exoplayer = "1.4.1"
+media3Exoplayer = "1.8.1"
 okhttp = "4.9.0"
 okio = "3.0.0"
 picasso = "2.71828"
@@ -65,10 +65,14 @@ imagefilters = { module = "com.github.zomato:androidphotofilters", version.ref =
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 sanselan = { module = "org.apache.sanselan:sanselan", version.ref = "sanselan" }
-apng = { module = "com.github.penfeizhou.android.animation:apng", version.ref = "apng" }
-awebp = { module = "com.github.penfeizhou.android.animation:awebp", version.ref = "awebp" }
+apng = { module = "com.github.penfeizhou.android.animation:apng", version.ref = "animationAndroid" }
+awebp = { module = "com.github.penfeizhou.android.animation:awebp", version.ref = "animationAndroid" }
+avif = { module = "com.github.penfeizhou.android.animation:avif", version.ref = "animationAndroid" }
 glide-compiler = { module = "com.github.bumptech.glide:ksp", version.ref = "glideCompiler" }
 zjupure-webpdecoder = { module = "com.github.zjupure:webpdecoder", version.ref = "zjupureWebpdecoder" }
+avif-integration = { group = "com.github.bumptech.glide", name = "avif-integration", version.ref = "glideCompiler" }
+jxl-coder = { group = "io.github.awxkee", name = "jxl-coder", version.ref = "jxlDecoder" }
+jxl-integration = { group = "io.github.awxkee", name = "jxl-coder-glide", version.ref = "jxlDecoder" }
 picasso = { module = "com.squareup.picasso:picasso", version.ref = "picasso" }
 [bundles]
 room = [

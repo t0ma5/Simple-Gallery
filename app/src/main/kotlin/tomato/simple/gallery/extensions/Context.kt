@@ -1017,6 +1017,7 @@ fun Context.getDirectorySortingValue(media: ArrayList<Medium>, path: String, nam
         sorting and SORT_BY_NAME != 0 -> return name
         sorting and SORT_BY_PATH != 0 -> return path
         sorting and SORT_BY_SIZE != 0 -> return size.toString()
+        sorting and SORT_BY_COUNT != 0 -> return media.size.toString()
         sorting and SORT_BY_DATE_MODIFIED != 0 -> media.sortedBy { it.modified }
         sorting and SORT_BY_DATE_TAKEN != 0 -> media.sortedBy { it.taken }
         else -> media

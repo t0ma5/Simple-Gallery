@@ -4,6 +4,9 @@
 -dontwarn com.simplemobiletools.**
 -dontwarn tomato.simple.gallery.**
 -dontwarn org.apache.**
+-keep class com.awxkee.** { *; }
+-dontwarn com.awxkee.**
+-keep class com.github.penfeizhou.** { *; }
 
 # Picasso
 -dontwarn javax.annotation.**

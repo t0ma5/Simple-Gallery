@@ -685,8 +685,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         fileDirItems.filter { it.isDirectory }.forEach {
             val files = File(it.path).listFiles()
             files?.filter {
-                it.absolutePath.isMediaFile() && (showHidden || !it.name.startsWith('.')) &&
-                    ((it.isImageFast() && filter and TYPE_IMAGES != 0) ||
+                it.absolutePath.isGalleryMediaFile() && (showHidden || !it.name.startsWith('.')) &&
+                    ((it.isGalleryImageFast() && filter and TYPE_IMAGES != 0) ||
                         (it.isVideoFast() && filter and TYPE_VIDEOS != 0) ||
                         (it.isGif() && filter and TYPE_GIFS != 0) ||
                         (it.isRawFast() && filter and TYPE_RAWS != 0) ||
@@ -1385,7 +1385,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 }
 
                 val hasMediaFile = children?.any {
-                    it != null && (it.isMediaFile() || (it.startsWith("img_", true) && File(it).isDirectory))
+                    it != null && (it.isGalleryMediaFile() || (it.startsWith("img_", true) && File(it).isDirectory))
                 } ?: false
 
                 if (!hasMediaFile) {
@@ -1530,7 +1530,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 for (file in files) {
                     if (file.isDirectory && !file.startsWith("${config.internalStoragePath}/Android")) {
                         folders.addAll(getFoldersWithMedia(file.absolutePath))
-                    } else if (file.isFile && file.isMediaFile()) {
+                    } else if (file.isFile && file.isGalleryMediaFile()) {
                         folders.add(file.parent ?: "")
                         break
                     }

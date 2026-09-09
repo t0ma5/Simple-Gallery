@@ -40,6 +40,7 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
 
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        setupEdgeToEdge(padBottomSystem = listOf(binding.bottomActions.bottomActionsWrapper))
         setupOptionsMenu()
         refreshMenuItems()
         handlePermission(getPermissionToRequest()) {
@@ -318,7 +319,7 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
 
     private fun isFileTypeVisible(path: String): Boolean {
         val filter = config.filterMedia
-        return !(path.isImageFast() && filter and TYPE_IMAGES == 0 ||
+        return !(path.isGalleryImageFast() && filter and TYPE_IMAGES == 0 ||
             path.isVideoFast() && filter and TYPE_VIDEOS == 0 ||
             path.isGif() && filter and TYPE_GIFS == 0 ||
             path.isRawFast() && filter and TYPE_RAWS == 0 ||
