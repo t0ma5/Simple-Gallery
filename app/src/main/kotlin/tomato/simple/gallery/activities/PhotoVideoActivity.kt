@@ -40,10 +40,6 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
 
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        if (checkAppSideloading()) {
-            return
-        }
-
         setupOptionsMenu()
         refreshMenuItems()
         handlePermission(getPermissionToRequest()) {

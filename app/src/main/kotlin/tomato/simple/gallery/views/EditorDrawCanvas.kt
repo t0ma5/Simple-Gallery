@@ -40,8 +40,9 @@ class EditorDrawCanvas(context: Context, attrs: AttributeSet) : View(context, at
         super.onDraw(canvas)
         canvas.save()
 
-        if (backgroundBitmap != null) {
-            canvas.drawBitmap(backgroundBitmap!!, 0f, 0f, null)
+        val background = backgroundBitmap
+        if (background != null) {
+            canvas.drawBitmap(background, null, fittedDestRect(background), null)
         }
 
         for ((key, value) in mPaths) {
@@ -135,11 +136,31 @@ class EditorDrawCanvas(context: Context, attrs: AttributeSet) : View(context, at
     }
 
     fun getBitmap(): Bitmap {
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val background = backgroundBitmap
+        val outWidth = (background?.width ?: width).coerceAtLeast(1)
+        val outHeight = (background?.height ?: height).coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.WHITE)
+        if (width > 0 && height > 0 && (width != outWidth || height != outHeight)) {
+            val scale = minOf(outWidth.toFloat() / width, outHeight.toFloat() / height)
+            canvas.translate(
+                (outWidth - width * scale) / 2f,
+                (outHeight - height * scale) / 2f
+            )
+            canvas.scale(scale, scale)
+        }
         draw(canvas)
         return bitmap
+    }
+
+    private fun fittedDestRect(bitmap: Bitmap): RectF {
+        val scale = minOf(width.toFloat() / bitmap.width.coerceAtLeast(1), height.toFloat() / bitmap.height.coerceAtLeast(1))
+        val destWidth = bitmap.width * scale
+        val destHeight = bitmap.height * scale
+        val left = (width - destWidth) / 2f
+        val top = (height - destHeight) / 2f
+        return RectF(left, top, left + destWidth, top + destHeight)
     }
 
     fun undo() {
