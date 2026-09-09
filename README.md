@@ -6,7 +6,7 @@
 
 This is an independent fork of Simple Gallery Pro 6.28.1. It is not affiliated with Simple Mobile Tools or Fossify.
 
-APKs are published on [GitHub Releases](https://github.com/t0ma5/Simple-Gallery/releases). Push a tag `vX.Y.Z` to attach a FOSS APK to a release. Every push, pull request, and manual **Build APK** run also uploads the APK as a workflow artifact.
+APKs are published on [GitHub Releases](https://github.com/t0ma5/Simple-Gallery/releases) as `Simple-Gallery_<version>.apk` (for example `Simple-Gallery_6.29.0.apk`). Push a tag `vX.Y.Z` to attach a FOSS APK to a release. Every push, pull request, and manual **Build APK** run also uploads the APK as a workflow artifact.
 
 ## Photo editor
 

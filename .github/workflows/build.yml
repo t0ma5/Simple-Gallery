@@ -83,21 +83,32 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleFossRelease --stacktrace --no-daemon
 
+      - name: Name APK Simple-Gallery_<version>
+        id: apk
+        run: |
+          VERSION=$(grep -oP 'app-version-versionName = "\K[^"]+' gradle/libs.versions.toml)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          mkdir -p dist
+          apk=$(find app/build/outputs/apk/foss/release -name '*.apk' | head -n 1)
+          test -n "$apk"
+          cp "$apk" "dist/Simple-Gallery_${VERSION}.apk"
+          ls -l dist
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: gallery-foss-release
-          path: app/build/outputs/apk/foss/release/*.apk
+          name: Simple-Gallery_${{ steps.apk.outputs.version }}
+          path: dist/Simple-Gallery_*.apk
           if-no-files-found: error
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/foss/release/*.apk
+          files: dist/Simple-Gallery_*.apk
           generate_release_notes: true
           body: |
-            Release-signed FOSS APK for applicationId tomato.simple.gallery.
+            Release-signed FOSS APK (`Simple-Gallery_<version>.apk`) for applicationId tomato.simple.gallery.
             It can sit next to Play Store Simple Gallery Pro.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
