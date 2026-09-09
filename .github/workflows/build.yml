@@ -38,6 +38,15 @@ jobs:
           text = path.read_text()
           replacements = [
               ('gradlePlugins-agp = "8.1.2"', 'gradlePlugins-agp = "8.13.2"'),
+              # Kotlin 1.9.10's Gradle plugin uses HasConvention, removed in Gradle 9.
+              ('kotlin = "1.9.10"', 'kotlin = "2.2.10"'),
+              ('ksp = "1.9.10-1.0.13"', 'ksp = "2.2.10-2.0.2"'),
+              ('kotlinxSerializationJson = "1.5.1"', 'kotlinxSerializationJson = "1.8.1"'),
+              (
+                  'kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }\n',
+                  'kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }\n'
+                  'kotlinCompose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }\n',
+              ),
               # JitPack never built duolingo/rtl-viewpager@940f12724f. Fossify uses this fork.
               ('rtlViewpager = "940f12724f"', 'rtlViewpager = "2.0.2"'),
               (
@@ -52,7 +61,7 @@ jobs:
           path.write_text(text)
           PY
           python3 scripts/patch_commons.py
-          grep -E 'gradlePlugins-agp|rtlViewpager|rtl-viewpager' Simple-Commons/gradle/libs.versions.toml
+          grep -E 'gradlePlugins-agp|^kotlin =|ksp =|kotlinCompose|rtlViewpager|rtl-viewpager' Simple-Commons/gradle/libs.versions.toml
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
