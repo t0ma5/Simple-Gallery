@@ -26,6 +26,108 @@ def patch(rel: str, replacements: list[tuple[str, str]]) -> None:
     print(f"patched {rel}")
 
 
+def patch_gradle_for_gradle9() -> None:
+    """Make the pinned Commons checkout configure under Gradle 9.1 / Kotlin 2.2."""
+    compose_options = (
+        "    composeOptions {\n"
+        "        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()\n"
+        "    }\n\n"
+    )
+    kotlin_options_compose = (
+        "    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {\n"
+        "        kotlinOptions.jvmTarget = project.libs.versions.app.build.kotlinJVMTarget.get()\n"
+        "        kotlinOptions.freeCompilerArgs = listOf(\n"
+        "            \"-opt-in=kotlin.RequiresOptIn\",\n"
+        "            \"-opt-in=androidx.compose.material3.ExperimentalMaterial3Api\",\n"
+        "            \"-opt-in=androidx.compose.material.ExperimentalMaterialApi\",\n"
+        "            \"-opt-in=androidx.compose.foundation.ExperimentalFoundationApi\",\n"
+        "            \"-Xcontext-receivers\"\n"
+        "        )\n"
+        "    }\n"
+    )
+    kotlin_options_samples_short = (
+        "    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {\n"
+        "        kotlinOptions.jvmTarget = project.libs.versions.app.build.kotlinJVMTarget.get()\n"
+        "        kotlinOptions.freeCompilerArgs = listOf(\n"
+        "            \"-opt-in=kotlin.RequiresOptIn\",\n"
+        "            \"-Xcontext-receivers\"\n"
+        "        )\n"
+        "    }\n"
+    )
+    compiler_options_compose = (
+        "    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {\n"
+        "        compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)\n"
+        "        compilerOptions.freeCompilerArgs.addAll(\n"
+        "            \"-opt-in=kotlin.RequiresOptIn\",\n"
+        "            \"-opt-in=androidx.compose.material3.ExperimentalMaterial3Api\",\n"
+        "            \"-opt-in=androidx.compose.material.ExperimentalMaterialApi\",\n"
+        "            \"-opt-in=androidx.compose.foundation.ExperimentalFoundationApi\",\n"
+        "            \"-Xcontext-receivers\"\n"
+        "        )\n"
+        "    }\n"
+    )
+    compiler_options_samples_short = (
+        "    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {\n"
+        "        compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)\n"
+        "        compilerOptions.freeCompilerArgs.addAll(\n"
+        "            \"-opt-in=kotlin.RequiresOptIn\",\n"
+        "            \"-Xcontext-receivers\"\n"
+        "        )\n"
+        "    }\n"
+    )
+    patch(
+        "build.gradle.kts",
+        [
+            (
+                "    alias(libs.plugins.kotlinAndroid).apply(false)\n",
+                "    alias(libs.plugins.kotlinAndroid).apply(false)\n"
+                "    alias(libs.plugins.kotlinCompose).apply(false)\n",
+            ),
+        ],
+    )
+    patch(
+        "commons/build.gradle.kts",
+        [
+            (
+                "    alias(libs.plugins.kotlinAndroid)\n",
+                "    alias(libs.plugins.kotlinAndroid)\n"
+                "    alias(libs.plugins.kotlinCompose)\n",
+            ),
+            (compose_options, ""),
+            (kotlin_options_compose, compiler_options_compose),
+        ],
+    )
+    patch(
+        "samples/build.gradle.kts",
+        [
+            (
+                "    alias(libs.plugins.kotlinAndroid)\n",
+                "    alias(libs.plugins.kotlinAndroid)\n"
+                "    alias(libs.plugins.kotlinCompose)\n",
+            ),
+            (compose_options, ""),
+            (kotlin_options_samples_short, compiler_options_samples_short),
+            (kotlin_options_compose, compiler_options_compose),
+        ],
+    )
+
+
+def rewrite_deprecated_string_apis() -> None:
+    """Kotlin 2.2 treats String.toLowerCase/toUpperCase as errors."""
+    count = 0
+    for path in ROOT.rglob("*.kt"):
+        text = path.read_text(encoding="utf-8")
+        new = text.replace(".toLowerCase(", ".lowercase(").replace(
+            ".toUpperCase(", ".uppercase("
+        )
+        if new == text:
+            continue
+        path.write_text(new, encoding="utf-8")
+        count += 1
+        print(f"rewrote string case APIs in {path.relative_to(ROOT)}")
+    print(f"rewrote string case APIs in {count} files")
+
+
 def scrub_simplemobiletools_com() -> None:
     """Strip leftover website/email mentions from Commons sources and strings."""
     count = 0
@@ -49,6 +151,9 @@ def scrub_simplemobiletools_com() -> None:
 def main() -> None:
     if not ROOT.exists():
         raise SystemExit("Simple-Commons/ is missing")
+
+    patch_gradle_for_gradle9()
+    rewrite_deprecated_string_apis()
 
     fake = (
         "You are using a fake version of the app. For your own safety download the original "
