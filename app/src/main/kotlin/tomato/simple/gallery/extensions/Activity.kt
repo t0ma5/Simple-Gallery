@@ -110,7 +110,8 @@ fun SimpleActivity.launchSettings() {
 
 fun SimpleActivity.launchAbout() {
     val licenses = LICENSE_GLIDE or LICENSE_CROPPER or LICENSE_RTL or LICENSE_SUBSAMPLING or LICENSE_PATTERN or LICENSE_REPRINT or LICENSE_GIF_DRAWABLE or
-        LICENSE_PICASSO or LICENSE_EXOPLAYER or LICENSE_PANORAMA_VIEW or LICENSE_SANSELAN or LICENSE_FILTERS or LICENSE_GESTURE_VIEWS or LICENSE_APNG
+        LICENSE_PICASSO or LICENSE_EXOPLAYER or LICENSE_PANORAMA_VIEW or LICENSE_SANSELAN or LICENSE_FILTERS or LICENSE_GESTURE_VIEWS or LICENSE_APNG or
+        LICENSE_JPEGOPTIM
 
     val faqItems = arrayListOf(
         FAQItem(R.string.faq_3_title, R.string.faq_3_text),
@@ -128,6 +129,7 @@ fun SimpleActivity.launchAbout() {
         FAQItem(R.string.faq_15_title, R.string.faq_15_text),
         FAQItem(R.string.faq_2_title, R.string.faq_2_text),
         FAQItem(R.string.faq_18_title, R.string.faq_18_text),
+        FAQItem(R.string.faq_19_title, R.string.faq_19_text),
         FAQItem(com.simplemobiletools.commons.R.string.faq_9_title_commons, com.simplemobiletools.commons.R.string.faq_9_text_commons),
     )
 
@@ -146,7 +148,7 @@ fun SimpleActivity.launchAbout() {
         faqItems.removeIf { it.text == R.string.faq_8_text }
     }
 
-    startAboutActivity(R.string.app_name, licenses, BuildConfig.VERSION_NAME, faqItems, true)
+    startAboutActivity(R.string.app_name, licenses, "${BuildConfig.VERSION_NAME} (Sept 2026)", faqItems, true)
 }
 
 fun BaseSimpleActivity.handleMediaManagementPrompt(callback: () -> Unit) {

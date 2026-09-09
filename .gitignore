@@ -6,6 +6,9 @@
 .DS_Store
 /build
 /captures
+.cxx
+/dist/
+replay_pid*.log
 *.jks
 keystore.properties
 /Simple-Commons/

@@ -8,7 +8,8 @@
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/editor_app_bar_layout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@color/color_primary">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/editor_toolbar"
@@ -25,7 +26,7 @@
         android:id="@+id/activity_edit_holder"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginTop="?attr/actionBarSize">
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <ImageView
             android:id="@+id/default_image_view"

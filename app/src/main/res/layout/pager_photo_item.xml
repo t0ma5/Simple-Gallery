@@ -32,14 +32,30 @@
         android:layout_height="match_parent"
         android:visibility="gone" />
 
+    <TextureView
+        android:id="@+id/motion_photo_surface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
     <ImageView
         android:id="@+id/panorama_outline"
         android:layout_width="@dimen/play_outline_size_big"
         android:layout_height="@dimen/play_outline_size_big"
         android:layout_centerInParent="true"
-        android:contentDescription="@null"
+        android:contentDescription="@string/open_panorama"
         android:padding="20dp"
         android:src="@drawable/ic_panorama_outline"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/motion_photo_play"
+        android:layout_width="@dimen/play_outline_size_big"
+        android:layout_height="@dimen/play_outline_size_big"
+        android:layout_centerInParent="true"
+        android:contentDescription="@string/play_motion_photo"
+        android:padding="20dp"
+        android:src="@drawable/ic_play_outline_vector"
         android:visibility="gone" />
 
     <TextView

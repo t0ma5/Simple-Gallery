@@ -1,6 +1,22 @@
 Changelog
 ==========
 
+Version 6.29 *(2026-09-09)*
+----------------------------
+
+ * JPEG optimize with jpegoptim: lossless Huffman or lossy max quality (default 85)
+ * Play Google / Samsung motion photos in the viewer and save the embedded clip as an MP4
+ * Open 360° panoramas and photospheres in an OpenGL viewer (touch, pinch, gyroscope)
+ * Stack RAW+JPEG pairs, bursts, and edited copies in the grid
+ * Remove GPS or all EXIF metadata from photos
+ * Unchecking folder tree view restores the previous grid/list instead of leaving the tree indent
+ * Tap 4:3 or 16:9 again in the editor to switch to 3:4 or 9:16
+ * Font picker when adding text in the editor
+ * Larger adjust slider labels in the editor
+ * Editor toolbar sits below the status bar so Save and other actions are not clipped
+ * About shows Version 6.29 (Sept 2026); Social heading renamed to Website
+ * Added some translation, stability, UX and UI improvements
+
 Version 6.28.1 *(2023-10-09)*
 ----------------------------
 

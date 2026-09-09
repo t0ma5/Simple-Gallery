@@ -30,7 +30,7 @@ interface MediumDao {
     fun insertAll(media: List<Medium>)
 
     @Delete
-    fun deleteMedia(vararg medium: Medium)
+    fun deleteMedia(medium: Array<Medium>)
 
     @Query("DELETE FROM media WHERE full_path = :path COLLATE NOCASE")
     fun deleteMediumPath(path: String)

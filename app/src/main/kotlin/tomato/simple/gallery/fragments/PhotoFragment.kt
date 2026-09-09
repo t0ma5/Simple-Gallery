@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.SurfaceTexture
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
@@ -17,12 +18,18 @@ import android.os.Handler
 import android.util.DisplayMetrics
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.Surface
+import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.RelativeLayout
 import androidx.core.graphics.drawable.toBitmapOrNull
 import androidx.exifinterface.media.ExifInterface.*
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import com.alexvasilkov.gestures.GestureController
 import com.alexvasilkov.gestures.State
 import com.bumptech.glide.Glide
@@ -47,6 +54,7 @@ import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.ensureBackgroundThread
 import com.simplemobiletools.commons.helpers.isRPlus
 import tomato.simple.gallery.R
+import tomato.simple.gallery.activities.PanoramaActivity
 import tomato.simple.gallery.activities.PhotoActivity
 import tomato.simple.gallery.activities.PhotoVideoActivity
 import tomato.simple.gallery.activities.ViewPagerActivity
@@ -60,12 +68,16 @@ import tomato.simple.gallery.svg.SvgSoftwareLayerSetter
 import com.squareup.picasso.Callback
 import com.squareup.picasso.Picasso
 import it.sephiroth.android.library.exif2.ExifInterface
+import org.apache.sanselan.common.byteSources.ByteSourceInputStream
+import org.apache.sanselan.formats.jpeg.JpegImageParser
 import pl.droidsonroids.gif.InputSource
 import java.io.File
 import java.io.FileOutputStream
+import java.util.HashMap
 import kotlin.math.abs
 import kotlin.math.ceil
 
+@UnstableApi
 class PhotoFragment : ViewPagerFragment() {
     private val DEFAULT_DOUBLE_TAP_ZOOM = 2f
     private val ZOOMABLE_VIEW_LOAD_DELAY = 100L
@@ -81,6 +93,9 @@ class PhotoFragment : ViewPagerFragment() {
     private var mIsFragmentVisible = false
     private var mIsFullscreen = false
     private var mWasInit = false
+    private var mIsPanorama = false
+    private var mMotionPhotoInfo: MotionPhotoInfo? = null
+    private var mMotionPlayer: ExoPlayer? = null
     private var mIsSubsamplingVisible = false    // checking view.visibility is unreliable, use an extra variable for it
     private var mShouldResetImage = false
     private var mCurrentPortraitPhotoPath = ""
@@ -121,6 +136,9 @@ class PhotoFragment : ViewPagerFragment() {
             subsamplingView.setOnClickListener { photoClicked() }
             gesturesView.setOnClickListener { photoClicked() }
             gifView.setOnClickListener { photoClicked() }
+            panoramaOutline.setOnClickListener { openPanorama() }
+            motionPhotoPlay.setOnClickListener { toggleMotionPhoto() }
+            motionPhotoSurface.setOnClickListener { toggleMotionPhoto() }
             instantPrevItem.setOnClickListener { listener?.goToPrevItem() }
             instantNextItem.setOnClickListener { listener?.goToNextItem() }
 
@@ -206,12 +224,17 @@ class PhotoFragment : ViewPagerFragment() {
         initExtendedDetails()
         mWasInit = true
         updateInstantSwitchWidths()
+        ensureBackgroundThread {
+            checkIfPanorama()
+            checkIfMotionPhoto()
+        }
 
         return mView
     }
 
     override fun onPause() {
         super.onPause()
+        pauseMotionPhoto()
         activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         ColorModeHelper.resetColorMode(activity)
         storeStateVariables()
@@ -259,6 +282,7 @@ class PhotoFragment : ViewPagerFragment() {
         super.onDestroyView()
         if (activity?.isDestroyed == false) {
             binding.subsamplingView.recycle()
+            releaseMotionPlayer()
 
             try {
                 if (context != null) {
@@ -338,6 +362,7 @@ class PhotoFragment : ViewPagerFragment() {
             scheduleZoomableView()
         } else {
             hideZoomableView()
+            pauseMotionPhoto()
             ColorModeHelper.resetColorMode(activity)
         }
     }
@@ -366,6 +391,8 @@ class PhotoFragment : ViewPagerFragment() {
 
         if (mMedium.isPortrait() && context != null) {
             showPortraitStripe()
+        } else if (mMedium.stackMembers.size > 1) {
+            showStackStripe()
         }
 
         ensureBackgroundThread {
@@ -679,7 +706,182 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
-    private fun getFilePathToShow() = if (mMedium.isPortrait()) mCurrentPortraitPhotoPath else getPathToLoad(mMedium)
+    private fun getFilePathToShow() = mCurrentPortraitPhotoPath.ifEmpty { getPathToLoad(mMedium) }
+
+    private fun openPanorama() {
+        Intent(context, PanoramaActivity::class.java).apply {
+            putExtra(PATH, mMedium.path)
+            startActivity(this)
+        }
+    }
+
+    private fun checkIfPanorama() {
+        mIsPanorama = try {
+            val input = if (mMedium.path.startsWith("content:/")) {
+                requireContext().contentResolver.openInputStream(Uri.parse(mMedium.path))
+            } else {
+                File(mMedium.path).inputStream()
+            }
+            input.use {
+                val imageParser = JpegImageParser().getXmpXml(ByteSourceInputStream(it, mMedium.name), HashMap<String, Any>()) ?: ""
+                imageParser.contains("GPano:UsePanoramaViewer=\"True\"", true) ||
+                    imageParser.contains("<GPano:UsePanoramaViewer>True</GPano:UsePanoramaViewer>", true) ||
+                    imageParser.contains("GPano:FullPanoWidthPixels=") ||
+                    imageParser.contains("GPano:ProjectionType>Equirectangular")
+            }
+        } catch (_: Exception) {
+            false
+        } catch (_: OutOfMemoryError) {
+            false
+        }
+
+        activity?.runOnUiThread {
+            binding.panoramaOutline.beVisibleIf(mIsPanorama && mMotionPhotoInfo == null)
+            if (mIsFullscreen) {
+                binding.panoramaOutline.alpha = 0f
+            }
+        }
+    }
+
+    private fun checkIfMotionPhoto() {
+        val info = try {
+            MotionPhotoHelper.parseInfo(requireContext(), mMedium.path)
+        } catch (_: Exception) {
+            null
+        }
+        mMotionPhotoInfo = info
+        activity?.runOnUiThread {
+            binding.motionPhotoPlay.beVisibleIf(info != null)
+            if (mIsFullscreen) {
+                binding.motionPhotoPlay.alpha = 0f
+            }
+            (activity as? ViewPagerActivity)?.refreshMenuItems()
+        }
+    }
+
+    private fun toggleMotionPhoto() {
+        val info = mMotionPhotoInfo ?: return
+        if (mMotionPlayer?.isPlaying == true) {
+            pauseMotionPhoto()
+            return
+        }
+
+        val existing = mMotionPlayer
+        if (existing != null) {
+            existing.play()
+            binding.motionPhotoSurface.beVisible()
+            binding.motionPhotoPlay.beGone()
+            return
+        }
+
+        ensureBackgroundThread {
+            val file = MotionPhotoHelper.extractVideo(requireContext(), MotionPhotoHelper.pathToUri(mMedium.path), info)
+            activity?.runOnUiThread {
+                if (file == null) {
+                    activity?.toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    return@runOnUiThread
+                }
+                startMotionPlayer(file)
+            }
+        }
+    }
+
+    private fun startMotionPlayer(file: File) {
+        if (!isAdded) {
+            return
+        }
+
+        val player = ExoPlayer.Builder(requireContext()).build().apply {
+            setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+            repeatMode = Player.REPEAT_MODE_ONE
+            prepare()
+            play()
+        }
+        mMotionPlayer = player
+        val texture = binding.motionPhotoSurface
+        texture.beVisible()
+        binding.motionPhotoPlay.beGone()
+        if (texture.isAvailable) {
+            player.setVideoSurface(Surface(texture.surfaceTexture))
+        } else {
+            texture.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+                    player.setVideoSurface(Surface(surface))
+                }
+
+                override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
+                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean = true
+                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+            }
+        }
+    }
+
+    private fun pauseMotionPhoto() {
+        mMotionPlayer?.pause()
+        if (mMotionPhotoInfo != null) {
+            binding.motionPhotoPlay.beVisible()
+        }
+    }
+
+    private fun releaseMotionPlayer() {
+        mMotionPlayer?.release()
+        mMotionPlayer = null
+        if (::binding.isInitialized) {
+            binding.motionPhotoSurface.beGone()
+        }
+    }
+
+    fun hasMotionPhoto() = mMotionPhotoInfo != null
+
+    private fun showStackStripe() {
+        val files = mMedium.stackMembers.map { File(it) }.filter { it.exists() }
+        if (files.size < 2) {
+            return
+        }
+        showPathStripe(ArrayList(files))
+    }
+
+    private fun showPathStripe(files: ArrayList<File>) {
+        val screenWidth = requireContext().realScreenSize.x
+        val itemWidth =
+            resources.getDimension(R.dimen.portrait_photos_stripe_height).toInt() + resources.getDimension(com.simplemobiletools.commons.R.dimen.one_dp)
+                .toInt()
+        val sideWidth = screenWidth / 2 - itemWidth / 2
+        val fakeItemsCnt = ceil(sideWidth / itemWidth.toDouble()).toInt()
+        val paths = fillPhotoPaths(files, fakeItemsCnt)
+        var curWidth = itemWidth
+        while (curWidth < screenWidth) {
+            curWidth += itemWidth
+        }
+        val sideElementWidth = curWidth - screenWidth
+        val adapter = PortraitPhotosAdapter(requireContext(), paths, sideElementWidth) { position, x ->
+            if (mIsFullscreen) {
+                return@PortraitPhotosAdapter
+            }
+            binding.photoPortraitStripe.smoothScrollBy((x + itemWidth / 2) - screenWidth / 2, 0)
+            if (paths[position].isNotEmpty() && paths[position] != mCurrentPortraitPhotoPath) {
+                mCurrentPortraitPhotoPath = paths[position]
+                hideZoomableView()
+                loadBitmap()
+            }
+        }
+
+        binding.photoPortraitStripe.adapter = adapter
+        setupStripeBottomMargin()
+        val coverIndex = paths.indexOfFirst { it == mMedium.path }.takeIf { it >= 0 } ?: getCoverImageIndex(paths)
+        if (coverIndex != -1) {
+            mCurrentPortraitPhotoPath = paths[coverIndex]
+            setupStripeUpListener(adapter, screenWidth, itemWidth)
+            binding.photoPortraitStripe.onGlobalLayout {
+                binding.photoPortraitStripe.scrollBy((coverIndex - fakeItemsCnt) * itemWidth, 0)
+                adapter.setCurrentPhoto(coverIndex)
+                binding.photoPortraitStripeWrapper.beVisible()
+                if (mIsFullscreen) {
+                    binding.photoPortraitStripeWrapper.alpha = 0f
+                }
+            }
+        }
+    }
 
     private fun scheduleZoomableView() {
         mLoadZoomableViewHandler.removeCallbacksAndMessages(null)
@@ -768,7 +970,7 @@ class PhotoFragment : ViewPagerFragment() {
     private fun getMinTileDpi(): Int {
         val metrics = resources.displayMetrics
         val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
-        val device = "${Build.BRAND} ${Build.MODEL}".toLowerCase()
+        val device = "${Build.BRAND} ${Build.MODEL}".lowercase()
         return when {
             WEIRD_DEVICES.contains(device) -> WEIRD_TILE_DPI
             averageDpi > 400 -> HIGH_TILE_DPI
@@ -889,7 +1091,16 @@ class PhotoFragment : ViewPagerFragment() {
                 }
             }
 
-            if (mWasInit && mMedium.isPortrait()) {
+            if (mIsPanorama) {
+                panoramaOutline.animate().alpha(if (isFullscreen) 0f else 1f).start()
+                panoramaOutline.isClickable = !isFullscreen
+            }
+            if (mMotionPhotoInfo != null) {
+                motionPhotoPlay.animate().alpha(if (isFullscreen) 0f else 1f).start()
+                motionPhotoPlay.isClickable = !isFullscreen
+            }
+
+            if (mWasInit && (mMedium.isPortrait() || mMedium.stackMembers.size > 1)) {
                 photoPortraitStripeWrapper.animate().alpha(if (isFullscreen) 0f else 1f).start()
             }
         }

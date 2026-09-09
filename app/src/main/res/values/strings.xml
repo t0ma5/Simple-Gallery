@@ -4,6 +4,7 @@
     <string name="app_launcher_name">Gallery</string>
     <string name="about_footer"></string>
     <string name="edit">Edit</string>
+    <string name="save">Save</string>
     <string name="overwrite_original">Overwrite original</string>
     <string name="open_camera">Open camera</string>
     <string name="hidden">(hidden)</string>
@@ -87,6 +88,15 @@
         <item quantity="other">Failed to resize %d images</item>
     </plurals>
     <string name="images_resized_successfully">Images resized successfully</string>
+    <string name="optimize_jpeg">Optimize JPEG</string>
+    <string name="optimize_jpegs">Optimize JPEGs</string>
+    <string name="optimize_jpegs_confirmation">Optimize JPEGs with jpegoptim? Files are replaced only if they get smaller. Metadata and motion-photo data stay. Lower quality saves more space.</string>
+    <string name="optimize_jpegs_lossless">Lossless Huffman only (tiny savings)</string>
+    <string name="optimize_jpegs_lossless_hint">Pixels stay the same. Huffman tables only.</string>
+    <string name="optimize_jpegs_quality">Max quality: %d (lossy)</string>
+    <string name="jpegs_optimized">Optimized %1$d JPEG(s), saved %2$s</string>
+    <string name="jpegs_already_optimized">JPEGs are already optimized</string>
+    <string name="jpeg_optimize_failed">Could not optimize JPEG</string>
 
     <!-- Editor -->
     <string name="editor">Editor</string>
@@ -123,6 +133,17 @@
     <string name="sticker">Sticker</string>
     <string name="add_text">Add text</string>
     <string name="add_sticker">Add sticker</string>
+    <string name="font">Font</string>
+    <string name="font_sans">Sans</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_monospace">Monospace</string>
+    <string name="font_bold">Bold</string>
+    <string name="font_medium">Medium</string>
+    <string name="font_light">Light</string>
+    <string name="font_condensed">Condensed</string>
+    <string name="font_black">Black</string>
+    <string name="font_cursive">Cursive</string>
+    <string name="font_casual">Casual</string>
     <string name="flip">Flip</string>
     <string name="flip_horizontally">Flip horizontally</string>
     <string name="flip_vertically">Flip vertically</string>
@@ -415,6 +436,8 @@
     <string name="faq_17_text">That stopped working due to the system changes that came with Android 11 too, the app cannot browse real folders anymore, it relies on the so called MediaStore at fetching data.</string>
     <string name="faq_18_title">Why do I see ads during video playback?</string>
     <string name="faq_18_text">Our apps have no ads whatsoever. If you see them during video playback, you must be using some other apps video player. Try finding your default video player in the device settings, then do a \"Clear defaults\" on it. The next time you invoke some video intent you will see an app picker prompt, where you can select what app you want to use.</string>
+    <string name="faq_19_title">What does Optimize JPEGs do?</string>
+    <string name="faq_19_text">It runs jpegoptim. Lossless Huffman mode keeps pixels identical and usually saves little. Lossy mode re-encodes at a max quality you choose (50–100); files are overwritten only when the new copy is smaller. Metadata and trailing data such as a motion-photo clip are kept. PNG, WebP, AVIF, JPEG XL, and RAW are skipped.</string>
 
     <string name="number_of_items">Number of items</string>
     <string name="failed_to_load_media">Failed to load media.</string>
@@ -423,4 +446,17 @@
     <string name="unsupported_format">Unsupported format.</string>
     <string name="video_no_sound">This video has no sound</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
+    <string name="open_panorama">Open panorama</string>
+    <string name="play_motion_photo">Play motion photo</string>
+    <string name="save_motion_photo_video">Save motion photo as video</string>
+    <string name="motion_photo_saved">Motion photo saved as a video</string>
+    <string name="motion_photo_save_failed">Could not save the motion photo video</string>
+    <string name="remove_location">Remove location</string>
+    <string name="remove_all_metadata">Remove all metadata</string>
+    <string name="remove_location_confirmation">Remove GPS location from the selected file(s)?</string>
+    <string name="remove_metadata_confirmation">Remove all metadata from the selected file(s)? This cannot be undone.</string>
+    <string name="metadata_removed">Metadata removed</string>
+    <string name="metadata_remove_failed">Could not remove metadata</string>
+    <string name="toggle_gyro">Look around with the gyroscope</string>
+    <string name="gyro_unavailable">This device has no gyroscope</string>
 </resources>

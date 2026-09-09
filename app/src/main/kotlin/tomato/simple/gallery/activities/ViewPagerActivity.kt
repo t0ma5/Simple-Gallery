@@ -34,6 +34,7 @@ import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.Target
+import com.simplemobiletools.commons.dialogs.ConfirmationDialog
 import com.simplemobiletools.commons.dialogs.PropertiesDialog
 import com.simplemobiletools.commons.dialogs.RenameItemDialog
 import com.simplemobiletools.commons.extensions.*
@@ -45,6 +46,7 @@ import tomato.simple.gallery.adapters.MyPagerAdapter
 import tomato.simple.gallery.asynctasks.GetMediaAsynctask
 import tomato.simple.gallery.databinding.ActivityMediumBinding
 import tomato.simple.gallery.dialogs.DeleteWithRememberDialog
+import tomato.simple.gallery.dialogs.OptimizeJpegsDialog
 import tomato.simple.gallery.dialogs.SaveAsDialog
 import tomato.simple.gallery.dialogs.SlideshowDialog
 import tomato.simple.gallery.extensions.*
@@ -180,6 +182,10 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 findItem(R.id.menu_save_as).isVisible = rotationDegrees != 0
                 findItem(R.id.menu_print).isVisible = currentMedium.isImage() || currentMedium.isRaw()
                 findItem(R.id.menu_resize).isVisible = visibleBottomActions and BOTTOM_ACTION_RESIZE == 0 && currentMedium.isImage()
+                findItem(R.id.menu_optimize_jpeg).isVisible = currentMedium.path.isJpg()
+                findItem(R.id.menu_save_motion_video).isVisible = currentMedium.isImage() && (getCurrentPhotoFragment()?.hasMotionPhoto() == true)
+                findItem(R.id.menu_remove_location).isVisible = currentMedium.isImage() || currentMedium.isRaw()
+                findItem(R.id.menu_remove_metadata).isVisible = currentMedium.isImage() || currentMedium.isRaw()
                 findItem(R.id.menu_hide).isVisible =
                     (!isRPlus() || isExternalStorageManager()) && !currentMedium.isHidden() && visibleBottomActions and BOTTOM_ACTION_TOGGLE_VISIBILITY == 0 && !currentMedium.getIsInRecycleBin()
 
@@ -254,6 +260,10 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 R.id.menu_save_as -> saveImageAs()
                 R.id.menu_create_shortcut -> createShortcut()
                 R.id.menu_resize -> resizeImage()
+                R.id.menu_optimize_jpeg -> optimizeJpeg()
+                R.id.menu_save_motion_video -> saveMotionPhotoVideo()
+                R.id.menu_remove_location -> stripMetadata(gpsOnly = true)
+                R.id.menu_remove_metadata -> stripMetadata(gpsOnly = false)
                 R.id.menu_settings -> launchSettings()
                 else -> return@setOnMenuItemClickListener false
             }
@@ -1060,6 +1070,51 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     private fun resizeImage() {
         val oldPath = getCurrentPath()
         launchResizeImageDialog(oldPath)
+    }
+
+    private fun optimizeJpeg() {
+        val path = getCurrentPath()
+        if (path.isEmpty() || !JpegOptim.isSupported(path)) {
+            return
+        }
+        handleMediaManagementPrompt {
+            OptimizeJpegsDialog(this, listOf(path)) {}
+        }
+    }
+
+    private fun saveMotionPhotoVideo() {
+        val path = getCurrentPath()
+        if (path.isEmpty()) {
+            return
+        }
+        ensureBackgroundThread {
+            val uri = MotionPhotoHelper.saveVideoToGallery(this, MotionPhotoHelper.pathToUri(path), path.getFilenameFromPath())
+            runOnUiThread {
+                if (uri != null) {
+                    toast(R.string.motion_photo_saved)
+                } else {
+                    toast(R.string.motion_photo_save_failed)
+                }
+            }
+        }
+    }
+
+    private fun stripMetadata(gpsOnly: Boolean) {
+        val path = getCurrentPath()
+        if (path.isEmpty()) {
+            return
+        }
+        val message = if (gpsOnly) R.string.remove_location_confirmation else R.string.remove_metadata_confirmation
+        ConfirmationDialog(this, "", message, com.simplemobiletools.commons.R.string.yes, com.simplemobiletools.commons.R.string.no) {
+            handleMediaManagementPrompt {
+                ensureBackgroundThread {
+                    val ok = if (gpsOnly) MetadataStripper.stripGps(this, path) else MetadataStripper.stripAll(this, path)
+                    runOnUiThread {
+                        toast(if (ok) R.string.metadata_removed else R.string.metadata_remove_failed)
+                    }
+                }
+            }
+        }
     }
 
     private fun checkDeleteConfirmation() {

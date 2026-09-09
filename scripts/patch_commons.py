@@ -163,6 +163,10 @@ def main() -> None:
                 "",
             ),
             (
+                "        SettingsTitleTextComponent(text = stringResource(id = R.string.social), modifier = startingTitlePadding)",
+                "        SettingsTitleTextComponent(text = stringResource(id = R.string.website), modifier = startingTitlePadding)",
+            ),
+            (
                 "        SocialText(\n"
                 "            click = onFacebookClick,\n"
                 "            text = stringResource(id = R.string.facebook),\n"
@@ -190,6 +194,47 @@ def main() -> None:
                 "            icon = R.drawable.ic_github_vector,\n"
                 "            tint = SimpleTheme.colorScheme.onSurface\n"
                 "        )\n",
+            ),
+        ],
+    )
+
+    patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/helpers/Constants.kt",
+        [
+            (
+                "const val LICENSE_ZIP4J = 8589934592L\n",
+                "const val LICENSE_ZIP4J = 8589934592L\nconst val LICENSE_JPEGOPTIM = 17179869184L\n",
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/activities/LicenseActivity.kt",
+        [
+            (
+                "        License(LICENSE_ZIP4J, R.string.zip4j_title, R.string.zip4j_text, R.string.zip4j_url)\n",
+                "        License(LICENSE_ZIP4J, R.string.zip4j_title, R.string.zip4j_text, R.string.zip4j_url),\n"
+                "        License(LICENSE_JPEGOPTIM, R.string.jpegoptim_title, R.string.jpegoptim_text, R.string.jpegoptim_url),\n",
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/res/values/strings.xml",
+        [
+            (
+                '    <string name="zip4j_title">Zip4j (ZIP compression and decompression)</string>\n',
+                '    <string name="zip4j_title">Zip4j (ZIP compression and decompression)</string>\n'
+                '    <string name="jpegoptim_title">jpegoptim (lossless JPEG optimization)</string>\n',
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/res/values/donottranslate.xml",
+        [
+            (
+                '    <string name="zip4j_url">https://github.com/srikanth-lingala/zip4j</string>\n',
+                '    <string name="zip4j_url">https://github.com/srikanth-lingala/zip4j</string>\n'
+                '    <string name="jpegoptim_text">jpegoptim 1.5.6 by Timo Kokkonen, linked with MozJPEG.\\n\\nCopyright (C) 1996-2025 Timo Kokkonen\\n\\nThis is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.\\n\\nThis software is based in part on the work of the Independent JPEG Group and MozJPEG (libjpeg-turbo).</string>\n'
+                '    <string name="jpegoptim_url">https://github.com/tjko/jpegoptim</string>\n',
             ),
         ],
     )

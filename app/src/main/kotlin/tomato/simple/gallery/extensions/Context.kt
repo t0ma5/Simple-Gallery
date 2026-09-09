@@ -130,37 +130,37 @@ fun Context.getSortedDirectories(source: ArrayList<Directory>): ArrayList<Direct
         var result = when {
             sorting and SORT_BY_NAME != 0 -> {
                 if (o1.sortValue.isEmpty()) {
-                    o1.sortValue = o1.name.toLowerCase()
+                    o1.sortValue = o1.name.lowercase()
                 }
 
                 if (o2.sortValue.isEmpty()) {
-                    o2.sortValue = o2.name.toLowerCase()
+                    o2.sortValue = o2.name.lowercase()
                 }
 
                 if (sorting and SORT_USE_NUMERIC_VALUE != 0) {
-                    AlphanumericComparator().compare(o1.sortValue.normalizeString().toLowerCase(), o2.sortValue.normalizeString().toLowerCase())
+                    AlphanumericComparator().compare(o1.sortValue.normalizeString().lowercase(), o2.sortValue.normalizeString().lowercase())
                 } else {
-                    o1.sortValue.normalizeString().toLowerCase().compareTo(o2.sortValue.normalizeString().toLowerCase())
+                    o1.sortValue.normalizeString().lowercase().compareTo(o2.sortValue.normalizeString().lowercase())
                 }
             }
 
             sorting and SORT_BY_PATH != 0 -> {
                 if (o1.sortValue.isEmpty()) {
-                    o1.sortValue = o1.path.toLowerCase()
+                    o1.sortValue = o1.path.lowercase()
                 }
 
                 if (o2.sortValue.isEmpty()) {
-                    o2.sortValue = o2.path.toLowerCase()
+                    o2.sortValue = o2.path.lowercase()
                 }
 
                 if (sorting and SORT_USE_NUMERIC_VALUE != 0) {
-                    AlphanumericComparator().compare(o1.sortValue.toLowerCase(), o2.sortValue.toLowerCase())
+                    AlphanumericComparator().compare(o1.sortValue.lowercase(), o2.sortValue.lowercase())
                 } else {
-                    o1.sortValue.toLowerCase().compareTo(o2.sortValue.toLowerCase())
+                    o1.sortValue.lowercase().compareTo(o2.sortValue.lowercase())
                 }
             }
 
-            sorting and SORT_BY_PATH != 0 -> AlphanumericComparator().compare(o1.sortValue.toLowerCase(), o2.sortValue.toLowerCase())
+            sorting and SORT_BY_PATH != 0 -> AlphanumericComparator().compare(o1.sortValue.lowercase(), o2.sortValue.lowercase())
             sorting and SORT_BY_SIZE != 0 -> (o1.sortValue.toLongOrNull() ?: 0).compareTo(o2.sortValue.toLongOrNull() ?: 0)
             sorting and SORT_BY_DATE_MODIFIED != 0 -> (o1.sortValue.toLongOrNull() ?: 0).compareTo(o2.sortValue.toLongOrNull() ?: 0)
             else -> (o1.sortValue.toLongOrNull() ?: 0).compareTo(o2.sortValue.toLongOrNull() ?: 0)
@@ -775,7 +775,7 @@ fun Context.getCachedMedia(path: String, getVideosOnly: Boolean = false, getImag
 
                 if (mediaToDelete.isNotEmpty()) {
                     try {
-                        mediaDB.deleteMedia(*mediaToDelete.toTypedArray())
+                        mediaDB.deleteMedia(mediaToDelete.toTypedArray())
 
                         mediaToDelete.filter { it.isFavorite }.forEach {
                             favoritesDB.deleteFavoritePath(it.path)
@@ -929,7 +929,7 @@ fun Context.parseFileChannel(path: String, fc: FileChannel, level: Int, start: L
                     }
                 }
 
-                val xmlString = sb.toString().toLowerCase()
+                val xmlString = sb.toString().lowercase()
                 if (xmlString.contains("gspherical:projectiontype>equirectangular") || xmlString.contains("gspherical:projectiontype=\"equirectangular\"")) {
                     callback.invoke()
                 }
