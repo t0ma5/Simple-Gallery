@@ -813,8 +813,19 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private fun toggleTreeMode() {
         val enabling = !config.treeModeEnabled
         config.treeModeEnabled = enabling
-        if (enabling && config.viewTypeFolders != VIEW_TYPE_LIST) {
-            config.viewTypeFolders = VIEW_TYPE_LIST
+        if (enabling) {
+            config.viewTypeFoldersBeforeTree = config.viewTypeFolders
+            if (config.viewTypeFolders != VIEW_TYPE_LIST) {
+                config.viewTypeFolders = VIEW_TYPE_LIST
+            }
+        } else {
+            mDirs.forEach { it.treeDepth = 0 }
+            mDirsIgnoringSearch.forEach { it.treeDepth = 0 }
+            val previous = config.viewTypeFoldersBeforeTree
+            if (previous != 0) {
+                config.viewTypeFolders = previous
+                config.viewTypeFoldersBeforeTree = 0
+            }
         }
         setupLayoutManager()
         refreshMenuItems()
@@ -1402,11 +1413,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             if (config.treeModeEnabled) {
                 getTreeDirectories(distinctDirs)
             } else {
+                distinctDirs.forEach { it.treeDepth = 0 }
                 val sortedDirs = getSortedDirectories(distinctDirs)
                 getDirsToShow(sortedDirs, mDirs, mCurrentPathPrefix).clone() as ArrayList<Directory>
             }
         } catch (_: Throwable) {
             config.treeModeEnabled = false
+            distinctDirs.forEach { it.treeDepth = 0 }
             val sortedDirs = getSortedDirectories(distinctDirs)
             getDirsToShow(sortedDirs, mDirs, mCurrentPathPrefix).clone() as ArrayList<Directory>
         }
