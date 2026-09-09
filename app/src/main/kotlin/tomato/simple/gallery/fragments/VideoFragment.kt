@@ -30,18 +30,21 @@ import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.ensureBackgroundThread
 import androidx.appcompat.content.res.AppCompatResources
 import tomato.simple.gallery.R
+import tomato.simple.gallery.activities.PanoramaActivity
 import tomato.simple.gallery.activities.VideoActivity
 import tomato.simple.gallery.databinding.PagerVideoItemBinding
 import tomato.simple.gallery.extensions.config
 import tomato.simple.gallery.extensions.getFriendlyMessage
 import tomato.simple.gallery.extensions.hasNavBar
 import tomato.simple.gallery.extensions.mute
+import tomato.simple.gallery.extensions.parseFileChannel
 import tomato.simple.gallery.extensions.unmute
 import tomato.simple.gallery.helpers.*
 import tomato.simple.gallery.interfaces.PlaybackSpeedListener
 import tomato.simple.gallery.models.Medium
 import tomato.simple.gallery.views.MediaSideScroll
 import java.io.File
+import java.io.FileInputStream
 import java.text.DecimalFormat
 import kotlin.math.abs
 
@@ -112,6 +115,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
         mConfig = context.config
         mTouchSlop = ViewConfiguration.get(context).scaledTouchSlop / 3
         binding = PagerVideoItemBinding.inflate(inflater, container, false).apply {
+            panoramaOutline.setOnClickListener { openPanorama() }
             bottomVideoTimeHolder.videoCurrTime.setOnClickListener { skip(false) }
             bottomVideoTimeHolder.videoDuration.setOnClickListener { skip(true) }
             videoHolder.setOnClickListener { toggleFullscreen() }
@@ -207,6 +211,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
 
         mIsFullscreen = activity.window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN == View.SYSTEM_UI_FLAG_FULLSCREEN
         initTimeHolder()
+        checkIfPanorama()
 
         ensureBackgroundThread {
             activity.getVideoResolution(mMedium.path)?.apply {
@@ -543,6 +548,26 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
         mTimeHolder.beInvisibleIf(mIsFullscreen)
     }
 
+    private fun checkIfPanorama() {
+        try {
+            val fis = FileInputStream(File(mMedium.path))
+            fis.use {
+                requireContext().parseFileChannel(mMedium.path, it.channel, 0, 0, 0) {
+                    mIsPanorama = true
+                }
+            }
+        } catch (_: Exception) {
+        } catch (_: OutOfMemoryError) {
+        }
+    }
+
+    private fun openPanorama() {
+        Intent(context, PanoramaActivity::class.java).apply {
+            putExtra(PATH, mMedium.path)
+            startActivity(this)
+        }
+    }
+
     override fun fullscreenToggled(isFullscreen: Boolean) {
         mIsFullscreen = isFullscreen
         val newAlpha = if (isFullscreen) 0f else 1f
@@ -568,6 +593,10 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
                     animate().alpha(newAlpha).start()
                 }
             }
+        }
+        if (mIsPanorama) {
+            binding.panoramaOutline.animate().alpha(newAlpha).start()
+            binding.panoramaOutline.isClickable = !isFullscreen
         }
     }
 
@@ -637,6 +666,11 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
     }
 
     override fun onStopTrackingTouch(seekBar: SeekBar) {
+        if (mIsPanorama) {
+            openPanorama()
+            return
+        }
+
         if (mExoPlayer == null) {
             return
         }

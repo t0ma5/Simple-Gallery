@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:installLocation="auto">
 
-    <!-- override the android:maxSdkVersion="28" from PhotoEditorSDK with some higher number -->
+    <!-- scoped storage: keep WRITE_EXTERNAL_STORAGE on older APIs -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="40"
@@ -35,6 +35,10 @@
         <package android:name="com.simplemobiletools.gallery.debug" />
         <package android:name="com.simplemobiletools.gallery" />
     </queries>
+
+    <uses-feature
+        android:glEsVersion="0x00020000"
+        android:required="false" />
 
     <uses-feature
         android:name="android.hardware.faketouch"
@@ -132,6 +136,12 @@
             android:exported="false"
             android:label="@string/customize_colors"
             android:parentActivityName=".activities.SettingsActivity" />
+
+        <activity
+            android:name=".activities.PanoramaActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:exported="false"
+            android:theme="@style/TranslucentTheme" />
 
         <activity
             android:name=".activities.SettingsActivity"

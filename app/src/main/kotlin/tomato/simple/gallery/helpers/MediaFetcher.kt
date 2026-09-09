@@ -44,12 +44,12 @@ class MediaFetcher(val context: Context) {
             }
         } else {
             if (curPath != FAVORITES && curPath != RECYCLE_BIN && isRPlus() && !isExternalStorageManager()) {
-                if (android11Files?.containsKey(curPath.toLowerCase()) == true) {
-                    curMedia.addAll(android11Files[curPath.toLowerCase()]!!)
+                if (android11Files?.containsKey(curPath.lowercase()) == true) {
+                    curMedia.addAll(android11Files[curPath.lowercase()]!!)
                 } else if (android11Files == null) {
                     val files = getAndroid11FolderMedia(isPickImage, isPickVideo, favoritePaths, false, getProperDateTaken, dateTakens)
-                    if (files.containsKey(curPath.toLowerCase())) {
-                        curMedia.addAll(files[curPath.toLowerCase()]!!)
+                    if (files.containsKey(curPath.lowercase())) {
+                        curMedia.addAll(files[curPath.lowercase()]!!)
                     }
                 }
             }
@@ -773,17 +773,17 @@ class MediaFetcher(val context: Context) {
             var result = when {
                 sorting and SORT_BY_NAME != 0 -> {
                     if (sorting and SORT_USE_NUMERIC_VALUE != 0) {
-                        AlphanumericComparator().compare(o1.name.normalizeString().toLowerCase(), o2.name.normalizeString().toLowerCase())
+                        AlphanumericComparator().compare(o1.name.normalizeString().lowercase(), o2.name.normalizeString().lowercase())
                     } else {
-                        o1.name.normalizeString().toLowerCase().compareTo(o2.name.normalizeString().toLowerCase())
+                        o1.name.normalizeString().lowercase().compareTo(o2.name.normalizeString().lowercase())
                     }
                 }
 
                 sorting and SORT_BY_PATH != 0 -> {
                     if (sorting and SORT_USE_NUMERIC_VALUE != 0) {
-                        AlphanumericComparator().compare(o1.path.toLowerCase(), o2.path.toLowerCase())
+                        AlphanumericComparator().compare(o1.path.lowercase(), o2.path.lowercase())
                     } else {
-                        o1.path.toLowerCase().compareTo(o2.path.toLowerCase())
+                        o1.path.lowercase().compareTo(o2.path.lowercase())
                     }
                 }
 
@@ -802,18 +802,19 @@ class MediaFetcher(val context: Context) {
     fun groupMedia(media: ArrayList<Medium>, path: String): ArrayList<ThumbnailItem> {
         val pathToCheck = if (path.isEmpty()) SHOW_ALL else path
         val currentGrouping = context.config.getFolderGrouping(pathToCheck)
+        val stacked = MediaStackHelper.stack(media)
         if (currentGrouping and GROUP_BY_NONE != 0) {
-            return media as ArrayList<ThumbnailItem>
+            return stacked as ArrayList<ThumbnailItem>
         }
 
         val thumbnailItems = ArrayList<ThumbnailItem>()
         if (context.config.scrollHorizontally) {
-            media.mapTo(thumbnailItems) { it }
+            stacked.mapTo(thumbnailItems) { it }
             return thumbnailItems
         }
 
         val mediumGroups = LinkedHashMap<String, ArrayList<Medium>>()
-        media.forEach {
+        stacked.forEach {
             val key = it.getGroupingKey(currentGrouping)
             if (!mediumGroups.containsKey(key)) {
                 mediumGroups[key] = ArrayList()
@@ -866,7 +867,7 @@ class MediaFetcher(val context: Context) {
 
             grouping and GROUP_BY_LAST_MODIFIED_MONTHLY != 0 || grouping and GROUP_BY_DATE_TAKEN_MONTHLY != 0 -> formatDate(key, false)
             grouping and GROUP_BY_FILE_TYPE != 0 -> getFileTypeString(key)
-            grouping and GROUP_BY_EXTENSION != 0 -> key.toUpperCase()
+            grouping and GROUP_BY_EXTENSION != 0 -> key.uppercase()
             grouping and GROUP_BY_FOLDER != 0 -> context.humanizePath(key)
             else -> key
         }

@@ -27,8 +27,21 @@
         android:padding="@dimen/medium_margin"
         android:src="@drawable/ic_portrait_photo_vector"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/bottom_text_width"
+        app:layout_constraintEnd_toStartOf="@+id/bottom_text_font"
         app:layout_constraintStart_toEndOf="@+id/bottom_text_add"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/bottom_text_font"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/font"
+        android:padding="@dimen/medium_margin"
+        android:src="@drawable/ic_font_vector"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/bottom_text_width"
+        app:layout_constraintStart_toEndOf="@+id/bottom_text_sticker"
         app:layout_constraintTop_toTopOf="parent" />
 
     <com.simplemobiletools.commons.views.MySeekBar
@@ -41,7 +54,7 @@
         android:progress="40"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/bottom_text_color"
-        app:layout_constraintStart_toEndOf="@+id/bottom_text_sticker"
+        app:layout_constraintStart_toEndOf="@+id/bottom_text_font"
         app:layout_constraintTop_toTopOf="parent" />
 
     <ImageView

@@ -1,0 +1,10 @@
+ * JPEG optimize: lossless or lossy max quality (default 85)
+ * Play motion photos and save the embedded clip as a video
+ * Open 360° panoramas in an OpenGL viewer
+ * Stack RAW+JPEG, bursts, and edited copies in the grid
+ * Remove GPS or all EXIF metadata
+ * Unchecking folder tree view restores the previous layout
+ * Tap 4:3 or 16:9 again to switch to 3:4 or 9:16
+ * Font picker when adding text
+ * Larger adjust slider labels
+ * Editor toolbar no longer clipped by the status bar

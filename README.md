@@ -10,47 +10,39 @@ APKs are published on [GitHub Releases](https://github.com/t0ma5/Simple-Gallery/
 
 ## Photo editor
 
-This fork ships the **FOSS editor** (crop, rotate, resize, draw, filters, tone sliders, text and emoji stickers). The Play-style IMG.LY PhotoEditor SDK (upstream 10.7.3; latest 10.10.14) is proprietary. Its license files were removed from git.
+This fork ships the **FOSS editor**: crop, rotate, resize, draw, filters, tone sliders, text and emoji stickers. There is no proprietary photo-editor SDK.
 
 applicationId and Kotlin packages are `tomato.simple.gallery`, so it can sit next to Play Store Simple Gallery Pro.
 
 ## New features ahead of mainstream
 
-- Stack crop, draw, filters, adjust, and text in one edit session (upstream still discards work when you switch tools).
-- Adjust brightness, contrast, saturation, and temperature in the FOSS editor.
-- Add draggable text and emoji stickers.
-- Overwrite the original file when saving edits (upstream 6.28.1 is save-as only).
-- Reliable filter save (resource cleanup before applying the filter).
-- No donation prompts; no “fake version” block on save.
-- Folder tree view (indent nested albums instead of a flat list).
-- Temporarily showing hidden folders no longer leaks `Android/data`, `Android/obb`, or app-private trees unless you explicitly include them.
+- JPEG optimize with native jpegoptim: optional lossless Huffman, or lossy max-quality (default 85). Metadata kept; files replaced only if smaller. Batch from the grid or one file from the viewer.
+- Motion photos: play Google Motion Photos, Samsung Live Photos, and Micro Videos in the viewer; save the embedded clip as an MP4.
+- OpenGL 360° panorama / photosphere viewer (touch, pinch, optional gyroscope) in place of the removed Google VR Cardboard widgets.
+- In-app video player: speed, mute, long-press 2×, exact seek/loop. Settings: tap a video to open the in-app player or the system player (new installs default to in-app).
+- Stacked FOSS editor: crop, draw, filters, adjust, and text in one session (upstream still discards work when you switch tools). Tone sliders, draggable text and emoji stickers, overwrite original, keep EXIF on edit/resize (including SAF URIs), reliable filter save. Crop 4:3 / 16:9 flip to 3:4 / 9:16 on a second tap; text overlays have a font picker.
 - AVIF and JPEG XL (.jxl) in the grid, viewer, and “open with”.
 - Ultra HDR (Android 14+ gain maps) and wide-color display, with a settings toggle.
-- In-app video player: speed, mute, long-press 2×, exact seek/loop. Settings: tap a video to open the in-app player or the system player (new installs default to in-app).
-- EXIF kept on edit and resize, including SAF/content URIs.
+- RAW+JPEG, burst, and edited-copy stacks in the grid, with a strip in the viewer.
+- Remove GPS or all EXIF metadata from photos.
+- Folder tree view (indent nested albums instead of a flat list; unchecking restores the previous grid/list).
+- Temporarily showing hidden folders no longer leaks `Android/data`, `Android/obb`, or app-private trees unless you explicitly include them.
 - Edge-to-edge padding on Android 15/16 (viewer, editor, wallpaper, standalone player).
 - Copy image to clipboard; sort folders by item count; confirm restore from the recycle bin; keep the screen on for fullscreen photos; reverse landscape; no silent auto-save of gesture rotation.
+- No donation prompts; no “fake version” block on save.
 - minSdk 26, targetSdk 34, compileSdk 35.
-- 360° Cardboard VR viewer removed (Google VR widgets; panoramas open as normal photos/videos).
 
 ## About
 
-Simple Gallery brings you all the photo viewing and editing features you have been missing on your Android in one stylish easy-to-use app. Browse, manage, crop and edit photos or videos faster than ever, recover accidentally deleted files or create hidden galleries for your most precious images and videos. And with advanced file-support and full customization, finally, your gallery works just the way you want.
+Simple Gallery is a FOSS Android gallery for browsing, organizing, and editing photos and videos. This fork keeps the original album browser, recycle bin, hidden folders, and PIN / pattern / fingerprint locks, and adds formats and tools the Play Store app does not ship.
 
-ADVANCED PHOTO EDITOR  
-Turn photo editing into child's play with Simple Gallery's improved file organizer and photo album. Intuitive gestures make it super easy to edit your images on the fly. Crop, flip, rotate and resize pictures or apply stylish filters to make them pop in an instant.
+**Media.** JPEG, PNG, GIF, WebP, AVIF, JPEG XL, RAW, SVG, MP4, MKV, motion photos, and 360° panoramas. Open with, wallpaper, print, and share still work as in upstream.
 
-ALL THE FILES YOU NEED  
-Simple Gallery supports a huge variety of different file types including JPEG, PNG, AVIF, JPEG XL, MP4, MKV, RAW, SVG, GIF, Panoramic photos, videos and many more, so you enjoy full flexibility in your choice of format. Ever wonder "Can I use this format on my Android"? Now the answer is yes.
+**Editor.** Built-in FOSS crop, rotate, resize, draw, filters, tone sliders, and text/emoji stickers. Stacked tools in one session; EXIF is kept on save when possible.
 
-MAKE IT YOURS  
-Simple Gallery's highly customizable design allows you make the photo app look, feel and work just the way you want it to. From the UI to the function buttons on the bottom toolbar, Simple Gallery gives you the creative freedom you need in a gallery app.
+**Organize.** Recycle bin with restore, favorites, folder tree, include/exclude, hide, copy/move, batch rename, and JPEG lossless optimize.
 
-RECOVER DELETED PHOTOS & VIDEOS  
-Never worry about accidentally deleting that one precious photo or video you just can't replace. Simple Gallery allows you to quickly recover any deleted photo and videos, meaning on top of being the best media gallery for Android, Simple Gallery doubles as an amazing photo vault app.
-
-PROTECT YOUR PRIVATE PHOTOS, VIDEOS & FILES  
-Rest assured your photo album is safe. With Simple Gallery's superior security features you can use a pin, pattern or your device’s fingerprint scanner to limit who can view or edit selected photos and videos or access important files. You can even protect the app itself or place locks on specific functions of the file organizer.
+**Libraries.** jpegoptim 1.5.6 with MozJPEG (lossless Huffman or lossy max-quality JPEG); Glide (thumbnails, AVIF/WebP/GIF); AndroidX Media3 ExoPlayer (in-app player); Room (media database); Subsampling Scale Image View and GestureViews (zoom); AndroidSVG; APNG/aWebP/AVIF animation; JXL coder; Android GIF Drawable; Apache Sanselan; Android Photo Filters; Android Image Cropper; Simple Commons.
 
 <div style="display:flex;">
 <img alt="App image" src="fastlane/metadata/android/en-US/images/phoneScreenshots/1_en-US.jpeg" width="30%">

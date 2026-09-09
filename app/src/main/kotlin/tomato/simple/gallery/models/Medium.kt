@@ -27,7 +27,8 @@ data class Medium(
     @ColumnInfo(name = "deleted_ts") var deletedTS: Long,
     @ColumnInfo(name = "media_store_id") var mediaStoreId: Long,
 
-    @Ignore var gridPosition: Int = 0   // used at grid view decoration at Grouping enabled
+    @Ignore var gridPosition: Int = 0,   // used at grid view decoration at Grouping enabled
+    @Ignore var stackMembers: ArrayList<String> = ArrayList()
 ) : Serializable, ThumbnailItem() {
 
     constructor() : this(null, "", "", "", 0L, 0L, 0L, 0, 0, false, 0L, 0L, 0)
@@ -58,7 +59,7 @@ data class Medium(
 
     fun isHidden() = name.startsWith('.')
 
-    fun isHeic() = name.toLowerCase().endsWith(".heic") || name.toLowerCase().endsWith(".heif")
+    fun isHeic() = name.lowercase().endsWith(".heic") || name.lowercase().endsWith(".heif")
 
     fun getBubbleText(sorting: Int, context: Context, dateFormat: String, timeFormat: String) = when {
         sorting and SORT_BY_NAME != 0 -> name
@@ -76,7 +77,7 @@ data class Medium(
             groupBy and GROUP_BY_DATE_TAKEN_DAILY != 0 -> getDayStartTS(taken, false)
             groupBy and GROUP_BY_DATE_TAKEN_MONTHLY != 0 -> getDayStartTS(taken, true)
             groupBy and GROUP_BY_FILE_TYPE != 0 -> type.toString()
-            groupBy and GROUP_BY_EXTENSION != 0 -> name.getFilenameExtension().toLowerCase()
+            groupBy and GROUP_BY_EXTENSION != 0 -> name.getFilenameExtension().lowercase()
             groupBy and GROUP_BY_FOLDER != 0 -> parentPath
             else -> ""
         }

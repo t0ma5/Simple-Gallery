@@ -39,6 +39,7 @@ import tomato.simple.gallery.adapters.FiltersAdapter
 import tomato.simple.gallery.databinding.ActivityEditBinding
 import tomato.simple.gallery.dialogs.AddStickerDialog
 import tomato.simple.gallery.dialogs.AddTextDialog
+import tomato.simple.gallery.dialogs.FontPickerDialog
 import tomato.simple.gallery.dialogs.OtherAspectRatioDialog
 import tomato.simple.gallery.dialogs.ResizeDialog
 import tomato.simple.gallery.dialogs.SaveAsDialog
@@ -103,7 +104,10 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        setupEdgeToEdge(padBottomSystem = listOf(binding.activityEditHolder))
+        setupEdgeToEdge(
+            padTopSystem = listOf(binding.editorAppBarLayout),
+            padBottomSystem = listOf(binding.activityEditHolder)
+        )
 
         setupOptionsMenu()
         handlePermission(getPermissionToRequest()) {
@@ -125,6 +129,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.bottomEditorAdjustActions.adjustTemperature.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
         binding.bottomEditorTextActions.bottomTextWidth.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
         setupToolbar(binding.editorToolbar, NavigationIcon.Arrow)
+        styleEditorToolbar()
     }
 
     override fun onStop() {
@@ -135,6 +140,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     }
 
     private fun setupOptionsMenu() {
+        styleEditorToolbar()
         binding.editorToolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.save_as -> startSaveFlow(overwrite = false)
@@ -145,6 +151,15 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             }
             return@setOnMenuItemClickListener true
         }
+    }
+
+    private fun styleEditorToolbar() {
+        binding.editorToolbar.apply {
+            setTitleTextColor(Color.WHITE)
+            overflowIcon = resources.getColoredDrawableWithColor(com.simplemobiletools.commons.R.drawable.ic_three_dots_vector, Color.WHITE)
+            navigationIcon = resources.getColoredDrawableWithColor(com.simplemobiletools.commons.R.drawable.ic_arrow_left_vector, Color.WHITE)
+        }
+        updateMenuItemColors(binding.editorToolbar.menu, forceWhiteIcons = true)
     }
 
     private fun initEditActivity() {
@@ -731,11 +746,21 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         }
 
         binding.bottomAspectRatios.bottomAspectRatioFourThree.setOnClickListener {
-            updateAspectRatio(ASPECT_RATIO_FOUR_THREE)
+            val next = if (currAspectRatio == ASPECT_RATIO_FOUR_THREE) {
+                ASPECT_RATIO_THREE_FOUR
+            } else {
+                ASPECT_RATIO_FOUR_THREE
+            }
+            updateAspectRatio(next)
         }
 
         binding.bottomAspectRatios.bottomAspectRatioSixteenNine.setOnClickListener {
-            updateAspectRatio(ASPECT_RATIO_SIXTEEN_NINE)
+            val next = if (currAspectRatio == ASPECT_RATIO_SIXTEEN_NINE) {
+                ASPECT_RATIO_NINE_SIXTEEN
+            } else {
+                ASPECT_RATIO_SIXTEEN_NINE
+            }
+            updateAspectRatio(next)
         }
 
         binding.bottomAspectRatios.bottomAspectRatioOther.setOnClickListener {
@@ -828,6 +853,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
     private fun setupTextButtons() {
         updateTextColor(config.lastEditorDrawColor)
+        updateTextFont(config.lastEditorTextFont)
         binding.bottomEditorTextActions.bottomTextWidth.progress = 40
         binding.editorOverlayView.applySizeToSelected(40)
 
@@ -840,6 +866,12 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.bottomEditorTextActions.bottomTextSticker.setOnClickListener {
             AddStickerDialog(this) { emoji ->
                 binding.editorOverlayView.addLabel(emoji)
+            }
+        }
+
+        binding.bottomEditorTextActions.bottomTextFont.setOnClickListener {
+            FontPickerDialog(this, binding.editorOverlayView.overlayFontId) { fontId ->
+                updateTextFont(fontId)
             }
         }
 
@@ -863,6 +895,11 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private fun updateTextColor(color: Int) {
         binding.editorOverlayView.applyColorToSelected(color)
         binding.bottomEditorTextActions.bottomTextColor.applyColorFilter(color)
+    }
+
+    private fun updateTextFont(fontId: Int) {
+        config.lastEditorTextFont = fontId
+        binding.editorOverlayView.applyFontToSelected(fontId)
     }
 
     private fun updateBrushSize(percent: Int) {
@@ -998,7 +1035,9 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                 val newAspectRatio = when (aspectRatio) {
                     ASPECT_RATIO_ONE_ONE -> Pair(1f, 1f)
                     ASPECT_RATIO_FOUR_THREE -> Pair(4f, 3f)
+                    ASPECT_RATIO_THREE_FOUR -> Pair(3f, 4f)
                     ASPECT_RATIO_SIXTEEN_NINE -> Pair(16f, 9f)
+                    ASPECT_RATIO_NINE_SIXTEEN -> Pair(9f, 16f)
                     else -> Pair(lastOtherAspectRatio!!.first, lastOtherAspectRatio!!.second)
                 }
 
@@ -1018,11 +1057,16 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             it.setTextColor(Color.WHITE)
         }
 
+        binding.bottomAspectRatios.bottomAspectRatioFourThree.text =
+            if (currAspectRatio == ASPECT_RATIO_THREE_FOUR) "3:4" else "4:3"
+        binding.bottomAspectRatios.bottomAspectRatioSixteenNine.text =
+            if (currAspectRatio == ASPECT_RATIO_NINE_SIXTEEN) "9:16" else "16:9"
+
         val currentAspectRatioButton = when (currAspectRatio) {
             ASPECT_RATIO_FREE -> binding.bottomAspectRatios.bottomAspectRatioFree
             ASPECT_RATIO_ONE_ONE -> binding.bottomAspectRatios.bottomAspectRatioOneOne
-            ASPECT_RATIO_FOUR_THREE -> binding.bottomAspectRatios.bottomAspectRatioFourThree
-            ASPECT_RATIO_SIXTEEN_NINE -> binding.bottomAspectRatios.bottomAspectRatioSixteenNine
+            ASPECT_RATIO_FOUR_THREE, ASPECT_RATIO_THREE_FOUR -> binding.bottomAspectRatios.bottomAspectRatioFourThree
+            ASPECT_RATIO_SIXTEEN_NINE, ASPECT_RATIO_NINE_SIXTEEN -> binding.bottomAspectRatios.bottomAspectRatioSixteenNine
             else -> binding.bottomAspectRatios.bottomAspectRatioOther
         }
 

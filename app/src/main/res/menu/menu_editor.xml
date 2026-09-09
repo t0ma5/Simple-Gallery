@@ -4,8 +4,8 @@
     <item
         android:id="@+id/save_as"
         android:icon="@drawable/ic_check_vector"
-        android:title="@string/save_as"
-        app:showAsAction="always" />
+        android:title="@string/save"
+        app:showAsAction="always|withText" />
     <item
         android:id="@+id/overwrite_original"
         android:title="@string/overwrite_original"

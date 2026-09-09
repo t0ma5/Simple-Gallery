@@ -88,10 +88,14 @@ const val LAST_EDITOR_CROP_OTHER_ASPECT_RATIO_X = "last_editor_crop_other_aspect
 const val LAST_EDITOR_CROP_OTHER_ASPECT_RATIO_Y = "last_editor_crop_other_aspect_ratio_y_2"
 const val GROUP_DIRECT_SUBFOLDERS = "group_direct_subfolders"
 const val TREE_MODE_ENABLED = "tree_mode_enabled"
+const val VIEW_TYPE_FOLDERS_BEFORE_TREE = "view_type_folders_before_tree"
 const val SHOW_WIDGET_FOLDER_NAME = "show_widget_folder_name"
 const val ALLOW_ONE_TO_ONE_ZOOM = "allow_one_to_one_zoom"
 const val ALLOW_ROTATING_WITH_GESTURES = "allow_rotating_with_gestures"
 const val LAST_EDITOR_DRAW_COLOR = "last_editor_draw_color"
+const val LAST_EDITOR_TEXT_FONT = "last_editor_text_font"
+const val JPEG_OPTIM_LOSSLESS = "jpeg_optim_lossless"
+const val JPEG_OPTIM_QUALITY = "jpeg_optim_quality"
 const val LAST_EDITOR_BRUSH_SIZE = "last_editor_brush_size"
 const val SHOW_NOTCH = "show_notch"
 const val FILE_LOADING_PRIORITY = "file_loading_priority"
@@ -252,6 +256,8 @@ const val ASPECT_RATIO_ONE_ONE = 1
 const val ASPECT_RATIO_FOUR_THREE = 2
 const val ASPECT_RATIO_SIXTEEN_NINE = 3
 const val ASPECT_RATIO_OTHER = 4
+const val ASPECT_RATIO_THREE_FOUR = 5
+const val ASPECT_RATIO_NINE_SIXTEEN = 6
 
 // constants related to image quality
 const val LOW_TILE_DPI = 160

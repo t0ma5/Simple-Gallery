@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jetbrains.kotlin.konan.properties.Properties
 import java.io.FileInputStream
@@ -26,7 +27,23 @@ android {
         targetSdk = project.libs.versions.app.build.targetSDK.get().toInt()
         versionName = project.libs.versions.app.version.versionName.get()
         versionCode = project.libs.versions.app.version.versionCode.get().toInt()
-        setProperty("archivesBaseName", "gallery-$versionCode")
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+        }
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DANDROID_STL=none")
+            }
+        }
+    }
+
+    ndkVersion = "27.2.12479018"
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     signingConfigs {
@@ -81,10 +98,6 @@ android {
         targetCompatibility = currentJavaVersionFromLibs
     }
 
-    tasks.withType<KotlinCompile> {
-        kotlinOptions.jvmTarget = project.libs.versions.app.build.kotlinJVMTarget.get()
-    }
-
     namespace = libs.versions.app.version.appId.get()
 
     lint {
@@ -97,6 +110,14 @@ android {
             excludes += "META-INF/library_release.kotlin_module"
         }
     }
+}
+
+base {
+    archivesName.set("gallery-${libs.versions.app.version.versionCode.get()}")
+}
+
+tasks.withType<KotlinCompile>().configureEach {
+    compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
 }
 
 dependencies {

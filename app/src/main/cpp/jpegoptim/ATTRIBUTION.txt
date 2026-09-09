@@ -1,0 +1,5 @@
+﻿jpegoptim 1.5.6
+https://github.com/tjko/jpegoptim
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (C) 1996-2025 Timo Kokkonen
+Vendored sources; fatal() is patched to longjmp instead of exit() for Android JNI.

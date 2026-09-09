@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Typeface
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.MotionEvent
@@ -12,6 +13,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import com.simplemobiletools.commons.extensions.getProperPrimaryColor
+import tomato.simple.gallery.helpers.EditorFonts
 
 class EditorOverlayView(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
     private val backgroundView = ImageView(context).apply {
@@ -23,6 +25,8 @@ class EditorOverlayView(context: Context, attrs: AttributeSet) : FrameLayout(con
     private var backgroundBitmap: Bitmap? = null
     var overlayColor: Int = context.getProperPrimaryColor()
     var overlayTextSizeSp = 28f
+    var overlayFontId = 0
+    private var overlayTypeface: Typeface = EditorFonts.typeface(0)
 
     init {
         addView(backgroundView)
@@ -38,6 +42,7 @@ class EditorOverlayView(context: Context, attrs: AttributeSet) : FrameLayout(con
     fun addLabel(text: String) {
         val tv = TextView(context).apply {
             this.text = text
+            typeface = overlayTypeface
             setTextColor(overlayColor)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, overlayTextSizeSp)
             setShadowLayer(6f, 1f, 1f, Color.BLACK)
@@ -79,6 +84,13 @@ class EditorOverlayView(context: Context, attrs: AttributeSet) : FrameLayout(con
         overlayColor = color
         val tv = selectedOverlay ?: overlays.lastOrNull() ?: return
         tv.setTextColor(color)
+    }
+
+    fun applyFontToSelected(fontId: Int) {
+        overlayFontId = fontId
+        overlayTypeface = EditorFonts.typeface(fontId)
+        val tv = selectedOverlay ?: overlays.lastOrNull() ?: return
+        tv.typeface = overlayTypeface
     }
 
     fun getBitmap(): Bitmap {

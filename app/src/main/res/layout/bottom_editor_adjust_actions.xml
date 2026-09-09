@@ -6,21 +6,23 @@
     android:orientation="vertical"
     android:paddingStart="@dimen/activity_margin"
     android:paddingEnd="@dimen/activity_margin"
-    android:paddingBottom="@dimen/small_margin">
+    android:paddingBottom="@dimen/medium_margin">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
         <TextView
             android:id="@+id/adjust_brightness_label"
-            android:layout_width="88dp"
+            android:layout_width="108dp"
             android:layout_height="wrap_content"
             android:text="@string/brightness"
             android:textColor="@android:color/white"
-            android:textSize="12sp" />
+            android:textSize="15sp" />
 
         <com.simplemobiletools.commons.views.MySeekBar
             android:id="@+id/adjust_brightness"
@@ -35,15 +37,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
         <TextView
             android:id="@+id/adjust_contrast_label"
-            android:layout_width="88dp"
+            android:layout_width="108dp"
             android:layout_height="wrap_content"
             android:text="@string/contrast"
             android:textColor="@android:color/white"
-            android:textSize="12sp" />
+            android:textSize="15sp" />
 
         <com.simplemobiletools.commons.views.MySeekBar
             android:id="@+id/adjust_contrast"
@@ -58,15 +62,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
         <TextView
             android:id="@+id/adjust_saturation_label"
-            android:layout_width="88dp"
+            android:layout_width="108dp"
             android:layout_height="wrap_content"
             android:text="@string/saturation"
             android:textColor="@android:color/white"
-            android:textSize="12sp" />
+            android:textSize="15sp" />
 
         <com.simplemobiletools.commons.views.MySeekBar
             android:id="@+id/adjust_saturation"
@@ -81,15 +87,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
         <TextView
             android:id="@+id/adjust_temperature_label"
-            android:layout_width="88dp"
+            android:layout_width="108dp"
             android:layout_height="wrap_content"
             android:text="@string/temperature"
             android:textColor="@android:color/white"
-            android:textSize="12sp" />
+            android:textSize="15sp" />
 
         <com.simplemobiletools.commons.views.MySeekBar
             android:id="@+id/adjust_temperature"

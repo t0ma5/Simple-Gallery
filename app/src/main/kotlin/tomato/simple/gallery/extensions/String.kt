@@ -91,9 +91,9 @@ fun String.shouldFolderBeVisible(
 // recognize /sdcard/DCIM as the same folder as /storage/emulated/0/DCIM
 fun String.getDistinctPath(): String {
     return try {
-        File(this).canonicalPath.toLowerCase()
+        File(this).canonicalPath.lowercase()
     } catch (e: IOException) {
-        toLowerCase()
+        lowercase()
     }
 }
 

@@ -37,7 +37,7 @@ jobs:
           path = Path("Simple-Commons/gradle/libs.versions.toml")
           text = path.read_text()
           replacements = [
-              ('gradlePlugins-agp = "8.1.2"', 'gradlePlugins-agp = "8.6.0"'),
+              ('gradlePlugins-agp = "8.1.2"', 'gradlePlugins-agp = "8.13.2"'),
               # JitPack never built duolingo/rtl-viewpager@940f12724f. Fossify uses this fork.
               ('rtlViewpager = "940f12724f"', 'rtlViewpager = "2.0.2"'),
               (
@@ -63,6 +63,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+
+      - name: Install NDK and CMake
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Release signing
         env:
@@ -109,6 +114,19 @@ jobs:
           generate_release_notes: true
           body: |
             Release-signed FOSS APK (`Simple-Gallery_<version>.apk`) for applicationId tomato.simple.gallery.
-            It can sit next to Play Store Simple Gallery Pro.
+            It can sit next to Play Store Simple Gallery Pro. Launcher name is Gallery.
+
+            ## New in 6.29
+
+            1. **JPEG optimize** — Native jpegoptim from the grid (batch) or the viewer. Lossless Huffman, or lossy max quality (50–100, default 85). Metadata and motion-photo tails stay; files are replaced only if they get smaller.
+            2. **Motion photos** — Play Google Motion Photos, Samsung Live Photos, and Micro Videos in the viewer. Save the embedded clip as an MP4.
+            3. **OpenGL panorama viewer** — Open 360° panoramas and photospheres with touch, pinch, and optional gyroscope (replaces the removed Google VR Cardboard widgets).
+            4. **Strip metadata** — Remove GPS, or all EXIF, from photos in the viewer and from a multi-select in the grid.
+            5. **Stacks** — RAW+JPEG pairs, bursts, and edited copies collapse to one grid cover, with a strip in the viewer.
+            6. **Editor** — Stack crop, draw, filters, adjust, and text in one session. Tone sliders, font picker, draggable text and emoji stickers, overwrite original. Tap 4:3 or 16:9 again for 3:4 or 9:16. Save is the top-bar checkmark (toolbar sits below the status bar).
+            7. **Folder tree view** — Nested albums indent in a list. Unchecking restores the previous grid/list.
+            8. **Formats** — AVIF and JPEG XL in the grid, viewer, and “open with”. Ultra HDR (Android 14+ gain maps) with a settings toggle.
+            9. **In-app video player** — Speed, mute, long-press 2×, exact seek/loop. New installs default to the in-app player.
+            10. **Other** — Hidden-folder include no longer leaks Android/data / Android/obb; edge-to-edge on Android 15/16; copy image to clipboard; sort folders by item count; confirm recycle-bin restore; keep screen on for fullscreen photos; reverse landscape; no silent auto-save of gesture rotation; no donation prompts; no “fake version” block on save.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -15,6 +15,7 @@ import com.bumptech.glide.Glide
 import com.qtalk.recyclerviewfastscroller.RecyclerViewFastScroller
 import com.simplemobiletools.commons.activities.BaseSimpleActivity
 import com.simplemobiletools.commons.adapters.MyRecyclerViewAdapter
+import com.simplemobiletools.commons.dialogs.ConfirmationDialog
 import com.simplemobiletools.commons.dialogs.PropertiesDialog
 import com.simplemobiletools.commons.dialogs.RenameDialog
 import com.simplemobiletools.commons.dialogs.RenameItemDialog
@@ -26,6 +27,7 @@ import tomato.simple.gallery.R
 import tomato.simple.gallery.activities.ViewPagerActivity
 import tomato.simple.gallery.databinding.*
 import tomato.simple.gallery.dialogs.DeleteWithRememberDialog
+import tomato.simple.gallery.dialogs.OptimizeJpegsDialog
 import tomato.simple.gallery.extensions.*
 import tomato.simple.gallery.helpers.*
 import tomato.simple.gallery.interfaces.MediaOperationsListener
@@ -134,11 +136,14 @@ class MediaAdapter(
             findItem(R.id.cab_rename).isVisible = !isInRecycleBin
             findItem(R.id.cab_add_to_favorites).isVisible = !isInRecycleBin
             findItem(R.id.cab_fix_date_taken).isVisible = !isInRecycleBin
+            findItem(R.id.cab_remove_location).isVisible = !isInRecycleBin && selectedItems.any { it.isImage() || it.isRaw() }
+            findItem(R.id.cab_remove_metadata).isVisible = !isInRecycleBin && selectedItems.any { it.isImage() || it.isRaw() }
             findItem(R.id.cab_move_to).isVisible = !isInRecycleBin
             findItem(R.id.cab_open_with).isVisible = isOneItemSelected
             findItem(R.id.cab_edit).isVisible = isOneItemSelected
             findItem(R.id.cab_set_as).isVisible = isOneItemSelected
             findItem(R.id.cab_resize).isVisible = canResize(selectedItems)
+            findItem(R.id.cab_optimize_jpegs).isVisible = !isInRecycleBin && selectedItems.any { it.path.isJpg() }
             findItem(R.id.cab_confirm_selection).isVisible = isAGetIntent && allowMultiplePicks && selectedKeys.isNotEmpty()
             findItem(R.id.cab_restore_recycle_bin_files).isVisible = selectedPaths.all { it.startsWith(activity.recycleBinPath) }
             findItem(R.id.cab_create_shortcut).isVisible = isOreoPlus() && isOneItemSelected
@@ -173,8 +178,11 @@ class MediaAdapter(
             R.id.cab_select_all -> selectAll()
             R.id.cab_open_with -> openPath()
             R.id.cab_fix_date_taken -> fixDateTaken()
+            R.id.cab_remove_location -> stripSelectedMetadata(gpsOnly = true)
+            R.id.cab_remove_metadata -> stripSelectedMetadata(gpsOnly = false)
             R.id.cab_set_as -> setAs()
             R.id.cab_resize -> resize()
+            R.id.cab_optimize_jpegs -> optimizeJpegs()
             R.id.cab_delete -> checkDeleteConfirmation()
         }
     }
@@ -292,6 +300,19 @@ class MediaAdapter(
             }
         } else {
             activity.launchResizeMultipleImagesDialog(paths) {
+                finishActMode()
+                listener?.refreshItems()
+            }
+        }
+    }
+
+    private fun optimizeJpegs() {
+        val paths = getSelectedItems().map { it.path }.filter { JpegOptim.isSupported(it) }
+        if (paths.isEmpty()) {
+            return
+        }
+        activity.handleMediaManagementPrompt {
+            OptimizeJpegsDialog(activity, paths) {
                 finishActMode()
                 listener?.refreshItems()
             }
@@ -472,6 +493,29 @@ class MediaAdapter(
         }
     }
 
+    private fun stripSelectedMetadata(gpsOnly: Boolean) {
+        val paths = getSelectedItems().filter { it.isImage() || it.isRaw() }.map { it.path }
+        if (paths.isEmpty()) {
+            return
+        }
+        val message = if (gpsOnly) R.string.remove_location_confirmation else R.string.remove_metadata_confirmation
+        ConfirmationDialog(activity, "", message, com.simplemobiletools.commons.R.string.yes, com.simplemobiletools.commons.R.string.no) {
+            activity.handleMediaManagementPrompt {
+                ensureBackgroundThread {
+                    var ok = 0
+                    paths.forEach { path ->
+                        val success = if (gpsOnly) MetadataStripper.stripGps(activity, path) else MetadataStripper.stripAll(activity, path)
+                        if (success) ok++
+                    }
+                    activity.runOnUiThread {
+                        activity.toast(if (ok > 0) R.string.metadata_removed else R.string.metadata_remove_failed)
+                        finishActMode()
+                    }
+                }
+            }
+        }
+    }
+
     private fun checkDeleteConfirmation() {
         activity.handleMediaManagementPrompt {
             if (config.isDeletePasswordProtectionOn) {
@@ -640,6 +684,14 @@ class MediaAdapter(
                 fileType?.beVisible()
             } else {
                 fileType?.beGone()
+            }
+
+            val stackSize = medium.stackMembers.size
+            if (stackSize > 1) {
+                stackCount?.text = stackSize.toString()
+                stackCount?.beVisible()
+            } else {
+                stackCount?.beGone()
             }
 
             mediumName.beVisibleIf(displayFilenames || isListViewType)

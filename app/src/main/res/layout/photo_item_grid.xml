@@ -13,6 +13,24 @@
         android:layout_height="match_parent" />
 
     <TextView
+        android:id="@+id/stack_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_margin="@dimen/small_margin"
+        android:background="@drawable/circle_black_background"
+        android:fontFamily="sans-serif-medium"
+        android:paddingStart="8dp"
+        android:paddingTop="2dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="2dp"
+        android:textColor="@android:color/white"
+        android:textSize="@dimen/smaller_text_size"
+        android:visibility="gone"
+        tools:text="3" />
+
+    <TextView
         android:id="@+id/file_type"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

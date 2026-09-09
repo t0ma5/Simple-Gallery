@@ -1074,7 +1074,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                                 }
                             }
                         }
-                        mediaDB.deleteMedia(*mediaToDelete.toTypedArray())
+                        mediaDB.deleteMedia(mediaToDelete.toTypedArray())
                     }
                 }
             }
@@ -1259,57 +1259,127 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     }
 
     private fun toggleTreeMode() {
-        config.treeModeEnabled = !config.treeModeEnabled
+        val enabling = !config.treeModeEnabled
+        config.treeModeEnabled = enabling
+        if (enabling) {
+            config.viewTypeFoldersBeforeTree = config.viewTypeFolders
+            if (config.viewTypeFolders != VIEW_TYPE_LIST) {
+                config.viewTypeFolders = VIEW_TYPE_LIST
+            }
+        } else {
+            mDirs.forEach { it.treeDepth = 0 }
+            mDirsIgnoringSearch.forEach { it.treeDepth = 0 }
+            val previous = config.viewTypeFoldersBeforeTree
+            if (previous != 0) {
+                config.viewTypeFolders = previous
+                config.viewTypeFoldersBeforeTree = 0
+            }
+        }
+        setupLayoutManager()
         refreshMenuItems()
-        setupAdapter(mDirsIgnoringSearch.ifEmpty { mDirs }, forceRecreate = true)
+        setupAdapter(mDirs.ifEmpty { mDirsIgnoringSearch }, forceRecreate = true)
     }
 
     /**
-     * Nested folder list for tree view. Roots are albums whose parent is not in the current
-     * directory set, so `/storage/emulated/0/...` paths indent correctly. Favorites and
-     * Recycle Bin stay at depth 0. Empty branches with no descendants are omitted.
+     * Nested folder list for tree view. Albums nest under the closest ancestor that is also
+     * in the list. Sibling albums at different path depths still indent relative to the
+     * shallowest root so Camera/Screenshots are not a flat grid. Favorites and Recycle Bin
+     * stay at depth 0. A visited set stops path cycles from overflowing the stack.
      */
     private fun getTreeDirectories(dirs: ArrayList<Directory>): ArrayList<Directory> {
-        val source = dirs.filter { it.path.isNotEmpty() }
-        val pathSet = source.map { it.path }.toHashSet()
-        val byParent = HashMap<String, ArrayList<Directory>>()
-        source.forEach { directory ->
-            val parent = directory.path.getParentPath()
-            byParent.getOrPut(parent) { ArrayList() }.add(directory)
+        val byPath = LinkedHashMap<String, Directory>()
+        dirs.filter { it.path.isNotEmpty() }.forEach { dir ->
+            byPath.putIfAbsent(dir.path, dir)
+        }
+        if (byPath.isEmpty()) {
+            return ArrayList()
         }
 
-        val result = ArrayList<Directory>()
-        fun walk(children: List<Directory>, depth: Int) {
-            for (child in children.sortedBy { it.name.lowercase() }) {
-                val nested = byParent[child.path]
-                val hasMedia = child.mediaCnt > 0
-                val hasDescendants = nested?.isNotEmpty() == true
-                child.treeDepth = depth
-                child.containsMediaFilesDirectly = hasMedia
-                if (hasMedia || hasDescendants) {
-                    result.add(child)
-                    if (nested != null) {
-                        walk(nested, depth + 1)
-                    }
-                } else if (nested != null) {
-                    walk(nested, depth + 1)
+        val pathSet = byPath.keys
+
+        fun parentOf(path: String): String {
+            val parent = path.getParentPath()
+            return if (parent.isEmpty() || parent == path) "" else parent
+        }
+
+        fun closestAncestor(path: String): String? {
+            var current = parentOf(path)
+            val seen = HashSet<String>()
+            while (current.isNotEmpty() && seen.add(current)) {
+                if (current in pathSet) {
+                    return current
                 }
+                current = parentOf(current)
+            }
+            return null
+        }
+
+        val children = HashMap<String, ArrayList<Directory>>()
+        val roots = ArrayList<Directory>()
+        for (dir in byPath.values) {
+            if (dir.areFavorites() || dir.isRecycleBin()) {
+                roots.add(dir)
+                continue
+            }
+            val ancestor = closestAncestor(dir.path)
+            if (ancestor == null) {
+                roots.add(dir)
+            } else {
+                children.getOrPut(ancestor) { ArrayList() }.add(dir)
             }
         }
 
-        val roots = source.filter { directory ->
-            directory.areFavorites() || directory.isRecycleBin() || directory.path.getParentPath() !in pathSet
+        val result = ArrayList<Directory>(byPath.size)
+        val visiting = HashSet<String>()
+        val visited = HashSet<String>()
+
+        fun walk(dir: Directory, depth: Int) {
+            if (depth > 24 || dir.path in visiting) {
+                return
+            }
+            if (!visited.add(dir.path)) {
+                return
+            }
+            visiting.add(dir.path)
+            dir.treeDepth = depth
+            dir.containsMediaFilesDirectly = dir.mediaCnt > 0
+            result.add(dir)
+            children[dir.path]?.sortedBy { it.name.lowercase() }?.forEach { child ->
+                walk(child, depth + 1)
+            }
+            visiting.remove(dir.path)
         }
-        walk(roots, 0)
+
+        val special = roots.filter { it.areFavorites() || it.isRecycleBin() }.sortedBy { it.name.lowercase() }
+        val otherRoots = roots.filter { !it.areFavorites() && !it.isRecycleBin() }
+        val minSlashes = otherRoots.minOfOrNull { root -> root.path.count { it == '/' } } ?: 0
+        special.forEach { walk(it, 0) }
+        otherRoots.sortedBy { it.path.lowercase() }.forEach { root ->
+            val extra = (root.path.count { it == '/' } - minSlashes).coerceIn(0, 8)
+            walk(root, extra)
+        }
+        byPath.values.forEach { dir ->
+            if (dir.path !in visited) {
+                walk(dir, 0)
+            }
+        }
         return result
     }
 
     private fun setupAdapter(dirs: ArrayList<Directory>, textToSearch: String = binding.mainMenu.getCurrentQuery(), forceRecreate: Boolean = false) {
         val currAdapter = binding.directoriesGrid.adapter
         val distinctDirs = dirs.distinctBy { it.path.getDistinctPath() }.toMutableList() as ArrayList<Directory>
-        var dirsToShow = if (config.treeModeEnabled) {
-            getTreeDirectories(distinctDirs)
-        } else {
+        var dirsToShow = try {
+            if (config.treeModeEnabled) {
+                getTreeDirectories(distinctDirs)
+            } else {
+                distinctDirs.forEach { it.treeDepth = 0 }
+                val sortedDirs = getSortedDirectories(distinctDirs)
+                getDirsToShow(sortedDirs, mDirs, mCurrentPathPrefix).clone() as ArrayList<Directory>
+            }
+        } catch (_: Throwable) {
+            config.treeModeEnabled = false
+            distinctDirs.forEach { it.treeDepth = 0 }
             val sortedDirs = getSortedDirectories(distinctDirs)
             getDirsToShow(sortedDirs, mDirs, mCurrentPathPrefix).clone() as ArrayList<Directory>
         }
