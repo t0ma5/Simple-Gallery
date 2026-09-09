@@ -24,6 +24,12 @@ applicationId and Kotlin packages are `tomato.simple.gallery`, so it can sit nex
 - No donation prompts; no “fake version” block on save.
 - Folder tree view (indent nested albums instead of a flat list).
 - Temporarily showing hidden folders no longer leaks `Android/data`, `Android/obb`, or app-private trees unless you explicitly include them.
+- AVIF and JPEG XL (.jxl) in the grid, viewer, and “open with”.
+- Ultra HDR (Android 14+ gain maps) and wide-color display, with a settings toggle.
+- In-app video player: speed, mute, long-press 2×, exact seek/loop. Settings: tap a video to open the in-app player or the system player (new installs default to in-app).
+- EXIF kept on edit and resize, including SAF/content URIs.
+- Edge-to-edge padding on Android 15/16 (viewer, editor, wallpaper, standalone player).
+- Copy image to clipboard; sort folders by item count; confirm restore from the recycle bin; keep the screen on for fullscreen photos; reverse landscape; no silent auto-save of gesture rotation.
 - minSdk 26, targetSdk 34, compileSdk 35.
 - 360° Cardboard VR viewer removed (Google VR widgets; panoramas open as normal photos/videos).
 
@@ -35,7 +41,7 @@ ADVANCED PHOTO EDITOR
 Turn photo editing into child's play with Simple Gallery's improved file organizer and photo album. Intuitive gestures make it super easy to edit your images on the fly. Crop, flip, rotate and resize pictures or apply stylish filters to make them pop in an instant.
 
 ALL THE FILES YOU NEED  
-Simple Gallery supports a huge variety of different file types including JPEG, PNG, MP4, MKV, RAW, SVG, GIF, Panoramic photos, videos and many more, so you enjoy full flexibility in your choice of format. Ever wonder "Can I use this format on my Android"? Now the answer is yes.
+Simple Gallery supports a huge variety of different file types including JPEG, PNG, AVIF, JPEG XL, MP4, MKV, RAW, SVG, GIF, Panoramic photos, videos and many more, so you enjoy full flexibility in your choice of format. Ever wonder "Can I use this format on my Android"? Now the answer is yes.
 
 MAKE IT YOURS  
 Simple Gallery's highly customizable design allows you make the photo app look, feel and work just the way you want it to. From the UI to the function buttons on the bottom toolbar, Simple Gallery gives you the creative freedom you need in a gallery app.
