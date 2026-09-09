@@ -1,6 +1,12 @@
 package tomato.simple.gallery.helpers
 
 import com.simplemobiletools.commons.helpers.*
+import com.simplemobiletools.commons.extensions.isGif
+import com.simplemobiletools.commons.extensions.isPortrait
+import com.simplemobiletools.commons.extensions.isRawFast
+import com.simplemobiletools.commons.extensions.isSvg
+import com.simplemobiletools.commons.extensions.isVideoFast
+import java.io.File
 
 // shared preferences
 const val DIRECTORY_SORT_ORDER = "directory_sort_order"
@@ -17,6 +23,12 @@ const val AUTOPLAY_VIDEOS = "autoplay_videos"
 const val REMEMBER_LAST_VIDEO_POSITION = "remember_last_video_position"
 const val LOOP_VIDEOS = "loop_videos"
 const val OPEN_VIDEOS_ON_SEPARATE_SCREEN = "open_videos_on_separate_screen"
+const val MUTE_VIDEOS = "mute_videos"
+const val VIDEO_PLAYER_TYPE = "video_player_type"
+const val ULTRA_HDR_RENDERING = "ultra_hdr_rendering"
+const val PLAYBACK_SPEED = "playback_speed"
+const val PLAYBACK_SPEED_PROGRESS = "playback_speed_progress"
+const val KEEP_SCREEN_ON = "keep_screen_on"
 const val ANIMATE_GIFS = "animate_gifs"
 const val MAX_BRIGHTNESS = "max_brightness"
 const val CROP_THUMBNAILS = "crop_thumbnails"
@@ -137,6 +149,21 @@ const val MIN_SKIP_LENGTH = 2000
 const val HIDE_SYSTEM_UI_DELAY = 500L
 const val MAX_PRINT_SIDE_SIZE = 4096
 const val FAST_FORWARD_VIDEO_MS = 10000
+const val EXOPLAYER_MIN_BUFFER_MS = 2000
+const val EXOPLAYER_MAX_BUFFER_MS = 8000
+const val MAX_ZOOM_EQUALITY_TOLERANCE = 0.01
+const val SORT_BY_COUNT = 524288
+const val VIDEO_PLAYER_APP = 0
+const val VIDEO_PLAYER_SYSTEM = 1
+
+val extraPhotoExtensions = arrayOf(".avif", ".jxl")
+fun galleryPhotoExtensions() = (photoExtensions + extraPhotoExtensions).distinct().toTypedArray()
+fun String.isGalleryImageFast() = galleryPhotoExtensions().any { endsWith(it, true) }
+fun String.isAvif() = endsWith(".avif", true)
+fun String.isJxl() = endsWith(".jxl", true)
+fun String.isGalleryMediaFile() = isGalleryImageFast() || isVideoFast() || isGif() || isRawFast() || isSvg() || isPortrait()
+fun File.isGalleryImageFast() = absolutePath.isGalleryImageFast()
+fun File.isGalleryMediaFile() = absolutePath.isGalleryMediaFile()
 
 const val DIRECTORY = "directory"
 const val MEDIUM = "medium"

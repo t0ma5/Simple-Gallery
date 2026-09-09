@@ -336,9 +336,12 @@ class MediaAdapter(
     }
 
     private fun restoreFiles() {
-        activity.restoreRecycleBinPaths(getSelectedPaths()) {
-            listener?.refreshItems()
-            finishActMode()
+        val paths = getSelectedPaths()
+        activity.showRestoreConfirmationDialog(paths.size) {
+            activity.restoreRecycleBinPaths(paths) {
+                listener?.refreshItems()
+                finishActMode()
+            }
         }
     }
 
@@ -371,7 +374,7 @@ class MediaAdapter(
     }
 
     private fun rotateSelection(degrees: Int) {
-        val paths = getSelectedPaths().filter { it.isImageFast() }
+        val paths = getSelectedPaths().filter { it.isGalleryImageFast() }
 
         if (paths.any { activity.needsStupidWritePermissions(it) }) {
             activity.handleSAFDialog(paths.first { activity.needsStupidWritePermissions(it) }) {

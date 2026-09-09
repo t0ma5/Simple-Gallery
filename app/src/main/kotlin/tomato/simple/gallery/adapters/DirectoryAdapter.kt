@@ -523,8 +523,8 @@ class DirectoryAdapter(
             val filter = config.filterMedia
             File(it).listFiles()?.filter {
                 !File(it.absolutePath).isDirectory &&
-                    it.absolutePath.isMediaFile() && (showHidden || !it.name.startsWith('.')) &&
-                    ((it.isImageFast() && filter and TYPE_IMAGES != 0) ||
+                    it.absolutePath.isGalleryMediaFile() && (showHidden || !it.name.startsWith('.')) &&
+                    ((it.isGalleryImageFast() && filter and TYPE_IMAGES != 0) ||
                         (it.isVideoFast() && filter and TYPE_VIDEOS != 0) ||
                         (it.isGif() && filter and TYPE_GIFS != 0) ||
                         (it.isRawFast() && filter and TYPE_RAWS != 0) ||

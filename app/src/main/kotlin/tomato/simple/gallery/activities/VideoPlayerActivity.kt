@@ -20,6 +20,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.ContentDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -29,10 +30,14 @@ import com.simplemobiletools.commons.extensions.*
 import tomato.simple.gallery.R
 import tomato.simple.gallery.databinding.ActivityVideoPlayerBinding
 import tomato.simple.gallery.extensions.*
+import tomato.simple.gallery.fragments.PlaybackSpeedFragment
 import tomato.simple.gallery.helpers.*
+import tomato.simple.gallery.interfaces.PlaybackSpeedListener
+import java.text.DecimalFormat
+import androidx.appcompat.content.res.AppCompatResources
 
 @UnstableApi
-open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListener, TextureView.SurfaceTextureListener {
+open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListener, TextureView.SurfaceTextureListener, PlaybackSpeedListener {
     private val PLAY_WHEN_READY_DRAG_DELAY = 100L
 
     private var mIsFullscreen = false
@@ -64,6 +69,7 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
         showTransparentTop = true
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        setupEdgeToEdge(padBottomSystem = listOf(binding.bottomVideoTimeHolder.root))
         setupOptionsMenu()
         setupOrientation()
         checkNotchSupport()
@@ -126,7 +132,22 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
         updateMenuItemColors(binding.videoToolbar.menu, forceWhiteIcons = true)
         binding.videoToolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
-                R.id.menu_change_orientation -> changeOrientation()
+                R.id.menu_force_portrait -> {
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    mIsOrientationLocked = true
+                }
+                R.id.menu_force_landscape -> {
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    mIsOrientationLocked = true
+                }
+                R.id.menu_force_landscape_reverse -> {
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                    mIsOrientationLocked = true
+                }
+                R.id.menu_default_orientation -> {
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    mIsOrientationLocked = false
+                }
                 R.id.menu_open_with -> openPath(mUri!!.toString(), true)
                 R.id.menu_share -> shareMediumPath(mUri!!.toString())
                 else -> return@setOnMenuItemClickListener false
@@ -180,6 +201,11 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
         binding.bottomVideoTimeHolder.videoCurrTime.setOnClickListener { doSkip(false) }
         binding.bottomVideoTimeHolder.videoDuration.setOnClickListener { doSkip(true) }
         binding.bottomVideoTimeHolder.videoTogglePlayPause.setOnClickListener { togglePlayPause() }
+        binding.bottomVideoTimeHolder.videoPlaybackSpeed.setOnClickListener { showPlaybackSpeedPicker() }
+        binding.bottomVideoTimeHolder.videoToggleMute.setOnClickListener {
+            config.muteVideos = !config.muteVideos
+            updatePlayerMuteState()
+        }
         binding.videoSurfaceFrame.setOnClickListener { toggleFullscreen() }
         binding.videoSurfaceFrame.controller.settings.swallowDoubleTaps = true
 
@@ -244,12 +270,24 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
         val mediaSource: MediaSource = ProgressiveMediaSource.Factory(factory)
             .createMediaSource(MediaItem.fromUri(fileDataSource.uri!!))
 
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                EXOPLAYER_MIN_BUFFER_MS,
+                EXOPLAYER_MAX_BUFFER_MS,
+                EXOPLAYER_MIN_BUFFER_MS,
+                EXOPLAYER_MIN_BUFFER_MS
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
         mExoPlayer = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(applicationContext))
-            .setSeekParameters(SeekParameters.CLOSEST_SYNC)
+            .setSeekParameters(SeekParameters.EXACT)
+            .setLoadControl(loadControl)
             .build()
             .apply {
                 setMediaSource(mediaSource)
+                setPlaybackSpeed(config.playbackSpeed)
                 setAudioAttributes(
                     AudioAttributes
                         .Builder()
@@ -262,6 +300,11 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
                 prepare()
                 initListeners()
             }
+
+        updatePlayerMuteState()
+        binding.bottomVideoTimeHolder.videoToggleMute.beVisible()
+        binding.bottomVideoTimeHolder.videoPlaybackSpeed.beVisible()
+        binding.bottomVideoTimeHolder.videoPlaybackSpeed.text = "${DecimalFormat("#.##").format(config.playbackSpeed)}x"
     }
 
     private fun ExoPlayer.initListeners() {
@@ -435,13 +478,28 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
         }
     }
 
-    private fun changeOrientation() {
-        mIsOrientationLocked = true
-        requestedOrientation = if (resources.configuration.orientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) {
-            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
+    private fun showPlaybackSpeedPicker() {
+        val fragment = PlaybackSpeedFragment()
+        supportFragmentManager.beginTransaction().add(fragment, fragment::class.java.simpleName).commit()
+        fragment.setListener(this)
+    }
+
+    override fun updatePlaybackSpeed(speed: Float) {
+        val isSlow = speed < 1f
+        val drawableId = if (isSlow) R.drawable.ic_playback_speed_slow_vector else R.drawable.ic_playback_speed_vector
+        binding.bottomVideoTimeHolder.videoPlaybackSpeed.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            AppCompatResources.getDrawable(this, drawableId), null, null, null
+        )
+        binding.bottomVideoTimeHolder.videoPlaybackSpeed.text = "${DecimalFormat("#.##").format(speed)}x"
+        mExoPlayer?.setPlaybackSpeed(speed)
+    }
+
+    private fun updatePlayerMuteState() {
+        val isMuted = config.muteVideos
+        if (isMuted) mExoPlayer?.mute() else mExoPlayer?.unmute()
+        binding.bottomVideoTimeHolder.videoToggleMute.setImageResource(
+            if (isMuted) R.drawable.ic_vector_speaker_off else R.drawable.ic_vector_speaker_on
+        )
     }
 
     private fun toggleFullscreen() {
@@ -464,6 +522,8 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
             binding.bottomVideoTimeHolder.videoCurrTime,
             binding.bottomVideoTimeHolder.videoSeekbar,
             binding.bottomVideoTimeHolder.videoDuration,
+            binding.bottomVideoTimeHolder.videoPlaybackSpeed,
+            binding.bottomVideoTimeHolder.videoToggleMute,
             binding.topShadow,
             binding.videoBottomGradient
         ).forEach {

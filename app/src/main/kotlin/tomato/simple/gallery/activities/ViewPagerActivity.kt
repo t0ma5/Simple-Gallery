@@ -88,6 +88,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
         showTransparentTop = true
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        setupEdgeToEdge(padBottomSystem = listOf(binding.bottomActions.bottomActionsWrapper))
         setupOptionsMenu()
         refreshMenuItems()
 
@@ -174,6 +175,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 findItem(R.id.menu_rotate).isVisible = currentMedium.isImage() && visibleBottomActions and BOTTOM_ACTION_ROTATE == 0
                 findItem(R.id.menu_set_as).isVisible = visibleBottomActions and BOTTOM_ACTION_SET_AS == 0
                 findItem(R.id.menu_copy_to).isVisible = visibleBottomActions and BOTTOM_ACTION_COPY == 0
+                findItem(R.id.menu_copy_to_clipboard).isVisible = currentMedium.isImage()
                 findItem(R.id.menu_move_to).isVisible = visibleBottomActions and BOTTOM_ACTION_MOVE == 0
                 findItem(R.id.menu_save_as).isVisible = rotationDegrees != 0
                 findItem(R.id.menu_print).isVisible = currentMedium.isImage() || currentMedium.isRaw()
@@ -227,6 +229,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 R.id.menu_set_as -> setAs(getCurrentPath())
                 R.id.menu_slideshow -> initSlideshow()
                 R.id.menu_copy_to -> checkMediaManagementAndCopy(true)
+                R.id.menu_copy_to_clipboard -> copyImageToClipboard()
                 R.id.menu_move_to -> moveFileTo()
                 R.id.menu_open_with -> openPath(getCurrentPath(), true)
                 R.id.menu_hide -> toggleFileVisibility(true)
@@ -246,6 +249,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 R.id.menu_restore_file -> restoreFile()
                 R.id.menu_force_portrait -> toggleOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
                 R.id.menu_force_landscape -> toggleOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+                R.id.menu_force_landscape_reverse -> toggleOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE)
                 R.id.menu_default_orientation -> toggleOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
                 R.id.menu_save_as -> saveImageAs()
                 R.id.menu_create_shortcut -> createShortcut()
@@ -1037,9 +1041,20 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     }
 
     private fun restoreFile() {
-        restoreRecycleBinPath(getCurrentPath()) {
-            refreshViewPager()
+        showRestoreConfirmationDialog(1) {
+            restoreRecycleBinPath(getCurrentPath()) {
+                refreshViewPager()
+            }
         }
+    }
+
+    private fun copyImageToClipboard() {
+        val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+        val imagePath = getCurrentMedium()?.path ?: return
+        val uri = getFinalUriFromPath(imagePath, BuildConfig.APPLICATION_ID) ?: return
+        val clip = android.content.ClipData.newUri(contentResolver, "Image", uri)
+        clipboard.setPrimaryClip(clip)
+        toast(R.string.copied_to_clipboard)
     }
 
     private fun resizeImage() {
@@ -1095,7 +1110,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     private fun deleteConfirmed(skipRecycleBin: Boolean) {
         val currentMedium = getCurrentMedium()
         val path = currentMedium?.path ?: return
-        if (getIsPathDirectory(path) || !path.isMediaFile()) {
+        if (getIsPathDirectory(path) || !path.isGalleryMediaFile()) {
             return
         }
 

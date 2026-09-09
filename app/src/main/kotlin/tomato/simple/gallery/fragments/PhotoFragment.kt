@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.PictureDrawable
@@ -18,7 +19,9 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.RelativeLayout
+import androidx.core.graphics.drawable.toBitmapOrNull
 import androidx.exifinterface.media.ExifInterface.*
 import com.alexvasilkov.gestures.GestureController
 import com.alexvasilkov.gestures.State
@@ -36,9 +39,10 @@ import com.davemorrissey.labs.subscaleview.DecoderFactory
 import com.davemorrissey.labs.subscaleview.ImageDecoder
 import com.davemorrissey.labs.subscaleview.ImageRegionDecoder
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+import com.awxkee.jxlcoder.JxlCoder
 import com.github.penfeizhou.animation.apng.APNGDrawable
+import com.github.penfeizhou.animation.avif.AVIFDrawable
 import com.github.penfeizhou.animation.webp.WebPDrawable
-import com.simplemobiletools.commons.activities.BaseSimpleActivity
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.ensureBackgroundThread
 import com.simplemobiletools.commons.helpers.isRPlus
@@ -49,7 +53,6 @@ import tomato.simple.gallery.activities.ViewPagerActivity
 import tomato.simple.gallery.adapters.PortraitPhotosAdapter
 import tomato.simple.gallery.databinding.PagerPhotoItemBinding
 import tomato.simple.gallery.extensions.config
-import tomato.simple.gallery.extensions.saveRotatedImageToFile
 import tomato.simple.gallery.extensions.sendFakeClick
 import tomato.simple.gallery.helpers.*
 import tomato.simple.gallery.models.Medium
@@ -60,6 +63,7 @@ import it.sephiroth.android.library.exif2.ExifInterface
 import pl.droidsonroids.gif.InputSource
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.abs
 import kotlin.math.ceil
 
 class PhotoFragment : ViewPagerFragment() {
@@ -86,6 +90,8 @@ class PhotoFragment : ViewPagerFragment() {
     private var mScreenWidth = 0
     private var mScreenHeight = 0
     private var mCurrentGestureViewZoom = 1f
+    private var mInitialZoom = 1f
+    private var mHasInitialZoom = false
 
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
@@ -133,20 +139,15 @@ class PhotoFragment : ViewPagerFragment() {
 
             if (context.config.allowDownGesture) {
                 gifView.setOnTouchListener { v, event ->
-                    if (gifViewFrame.controller.state.zoom == 1f) {
+                    if (abs(gifViewFrame.controller.state.zoom - 1f) < MAX_ZOOM_EQUALITY_TOLERANCE) {
                         handleEvent(event)
                     }
                     false
                 }
 
-                gesturesView.controller.addOnStateChangeListener(object : GestureController.OnStateChangeListener {
-                    override fun onStateChanged(state: State) {
-                        mCurrentGestureViewZoom = state.zoom
-                    }
-                })
-
+                setupGesturesViewStateListener()
                 gesturesView.setOnTouchListener { v, event ->
-                    if (mCurrentGestureViewZoom == 1f) {
+                    if (abs(mCurrentGestureViewZoom - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) {
                         handleEvent(event)
                     }
                     false
@@ -211,6 +212,8 @@ class PhotoFragment : ViewPagerFragment() {
 
     override fun onPause() {
         super.onPause()
+        activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        ColorModeHelper.resetColorMode(activity)
         storeStateVariables()
     }
 
@@ -234,6 +237,10 @@ class PhotoFragment : ViewPagerFragment() {
                 }
             }
             mShouldResetImage = false
+        }
+
+        if (config.keepScreenOn) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
 
         val allowPhotoGestures = config.allowPhotoGestures
@@ -262,12 +269,6 @@ class PhotoFragment : ViewPagerFragment() {
         }
 
         mLoadZoomableViewHandler.removeCallbacksAndMessages(null)
-        if (mCurrentRotationDegrees != 0) {
-            ensureBackgroundThread {
-                val path = mMedium.path
-                (activity as? BaseSimpleActivity)?.saveRotatedImageToFile(path, path, mCurrentRotationDegrees, false) {}
-            }
-        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -302,7 +303,7 @@ class PhotoFragment : ViewPagerFragment() {
         super.setMenuVisibility(menuVisible)
         mIsFragmentVisible = menuVisible
         if (mWasInit) {
-            if (!mMedium.isGIF() && !mMedium.isWebP() && !mMedium.isApng()) {
+            if (!mMedium.isGIF() && !mMedium.isWebP() && !mMedium.isApng() && !mMedium.isAvif() && !mMedium.isJxl()) {
                 photoFragmentVisibilityChanged(menuVisible)
             }
         }
@@ -333,9 +334,11 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun photoFragmentVisibilityChanged(isVisible: Boolean) {
         if (isVisible) {
+            applyProperColorMode(binding.gesturesView.drawable)
             scheduleZoomableView()
         } else {
             hideZoomableView()
+            ColorModeHelper.resetColorMode(activity)
         }
     }
 
@@ -358,6 +361,7 @@ class PhotoFragment : ViewPagerFragment() {
     }
 
     private fun loadImage() {
+        mHasInitialZoom = false
         checkScreenDimensions()
 
         if (mMedium.isPortrait() && context != null) {
@@ -371,6 +375,8 @@ class PhotoFragment : ViewPagerFragment() {
                     mMedium.isGIF() -> loadGif()
                     mMedium.isSVG() -> loadSVG()
                     mMedium.isApng() -> loadAPNG()
+                    mMedium.isAvif() -> loadAVIF()
+                    mMedium.isJxl() -> loadJXL()
                     else -> loadBitmap()
                 }
             }
@@ -417,7 +423,50 @@ class PhotoFragment : ViewPagerFragment() {
         }
     }
 
+    private fun loadAVIF() {
+        if (context != null) {
+            val drawable = AVIFDrawable.fromFile(mMedium.path)
+            if (drawable.intrinsicWidth == 0 || drawable.intrinsicHeight == 0) {
+                loadBitmap()
+                return
+            }
+
+            binding.gesturesView.setImageDrawable(drawable)
+        }
+    }
+
+    private fun loadJXL() {
+        if (context == null) {
+            return
+        }
+
+        ensureBackgroundThread {
+            try {
+                val pathToLoad = getPathToLoad(mMedium)
+                val bytes = if (pathToLoad.startsWith("content://") || pathToLoad.startsWith("file://")) {
+                    requireContext().contentResolver.openInputStream(Uri.parse(pathToLoad))?.use { it.readBytes() }
+                } else {
+                    File(pathToLoad).readBytes()
+                } ?: return@ensureBackgroundThread
+
+                val bitmap = JxlCoder.decode(bytes)
+                activity?.runOnUiThread {
+                    if (!isAdded) {
+                        return@runOnUiThread
+                    }
+                    binding.gesturesView.setImageBitmap(bitmap)
+                    applyProperColorMode(BitmapDrawable(resources, bitmap))
+                }
+            } catch (_: OutOfMemoryError) {
+                activity?.runOnUiThread { loadBitmap() }
+            } catch (_: Exception) {
+                activity?.runOnUiThread { loadBitmap() }
+            }
+        }
+    }
+
     private fun loadBitmap(addZoomableView: Boolean = true) {
+        mHasInitialZoom = false
         if (context == null) {
             return
         }
@@ -467,6 +516,7 @@ class PhotoFragment : ViewPagerFragment() {
                     dataSource: DataSource,
                     isFirstResource: Boolean
                 ): Boolean {
+                    applyProperColorMode(resource)
                     val allowZoomingImages = context?.config?.allowZoomingImages ?: true
                     binding.gesturesView.controller.settings.isZoomEnabled = mMedium.isRaw() || mCurrentRotationDegrees != 0 || allowZoomingImages == false
                     if (mIsFragmentVisible && addZoomableView) {
@@ -496,6 +546,7 @@ class PhotoFragment : ViewPagerFragment() {
 
             picasso.into(binding.gesturesView, object : Callback {
                 override fun onSuccess() {
+                    applyProperColorMode(binding.gesturesView.drawable)
                     binding.gesturesView.controller.settings.isZoomEnabled =
                         mMedium.isRaw() || mCurrentRotationDegrees != 0 || context?.config?.allowZoomingImages == false
                     if (mIsFragmentVisible && addZoomableView) {
@@ -849,5 +900,27 @@ class PhotoFragment : ViewPagerFragment() {
         val fullscreenOffset = smallMargin + if (mIsFullscreen) 0 else requireContext().navigationBarHeight
         val actionsHeight = if (requireContext().config.bottomActions && !mIsFullscreen) resources.getDimension(R.dimen.bottom_actions_height) else 0f
         return requireContext().realScreenSize.y - height - actionsHeight - fullscreenOffset
+    }
+
+    private fun setupGesturesViewStateListener() {
+        binding.gesturesView.controller.addOnStateChangeListener(object : GestureController.OnStateChangeListener {
+            override fun onStateChanged(state: State) {
+                if (!mHasInitialZoom) {
+                    mInitialZoom = state.zoom
+                    mHasInitialZoom = true
+                }
+                mCurrentGestureViewZoom = state.zoom
+            }
+        })
+    }
+
+    private fun applyProperColorMode(resource: Drawable?) {
+        if (mIsFragmentVisible && activity != null) {
+            ColorModeHelper.setColorModeForImage(
+                activity = requireActivity(),
+                bitmap = (resource as? BitmapDrawable)?.bitmap ?: resource?.toBitmapOrNull(),
+                ultraHdr = context?.config?.ultraHdrRendering ?: true
+            )
+        }
     }
 }

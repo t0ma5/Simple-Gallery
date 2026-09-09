@@ -6,6 +6,25 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <TextView
+        android:id="@+id/playback_speed_pill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="@dimen/default_status_action_height"
+        android:background="@drawable/playback_pill_background"
+        android:elevation="10dp"
+        android:paddingStart="@dimen/activity_margin"
+        android:paddingTop="@dimen/medium_margin"
+        android:paddingEnd="@dimen/activity_margin"
+        android:paddingBottom="@dimen/medium_margin"
+        android:text="@string/playback_speed_display_text"
+        android:textColor="@android:color/white"
+        android:textStyle="bold"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
     <com.alexvasilkov.gestures.GestureFrameLayout
         android:id="@+id/video_surface_frame"
         android:layout_width="match_parent"

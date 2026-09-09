@@ -114,6 +114,12 @@ dependencies {
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.awebp)
     implementation(libs.apng)
+    implementation(libs.avif)
+    implementation(libs.avif.integration)
+    implementation(libs.jxl.coder)
+    implementation(libs.jxl.integration) {
+        exclude(group = "com.github.bumptech.glide")
+    }
     implementation(libs.okio)
     implementation(libs.picasso) {
         exclude(group = "com.squareup.okhttp3", module = "okhttp")

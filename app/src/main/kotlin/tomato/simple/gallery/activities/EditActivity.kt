@@ -43,9 +43,10 @@ import tomato.simple.gallery.dialogs.OtherAspectRatioDialog
 import tomato.simple.gallery.dialogs.ResizeDialog
 import tomato.simple.gallery.dialogs.SaveAsDialog
 import tomato.simple.gallery.extensions.config
-import tomato.simple.gallery.extensions.copyNonDimensionAttributesTo
 import tomato.simple.gallery.extensions.fixDateTaken
 import tomato.simple.gallery.extensions.openEditor
+import tomato.simple.gallery.extensions.setupEdgeToEdge
+import tomato.simple.gallery.extensions.writeExif
 import tomato.simple.gallery.helpers.*
 import tomato.simple.gallery.models.FilterItem
 import com.zomato.photofilters.imageprocessors.Filter
@@ -102,6 +103,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        setupEdgeToEdge(padBottomSystem = listOf(binding.activityEditHolder))
 
         setupOptionsMenu()
         handlePermission(getPermissionToRequest()) {
@@ -1111,6 +1113,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                         outputStream?.close()
                     }
 
+                    writeExif(oldExif, saveUri)
+
                     Intent().apply {
                         data = saveUri
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -1182,24 +1186,19 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             toast(com.simplemobiletools.commons.R.string.saving)
         }
 
-        if (resizeWidth > 0 && resizeHeight > 0) {
-            val resized = Bitmap.createScaledBitmap(bitmap, resizeWidth, resizeHeight, false)
-            resized.compress(file.absolutePath.getCompressionFormat(), 90, out)
-        } else {
-            bitmap.compress(file.absolutePath.getCompressionFormat(), 90, out)
+        out.use {
+            if (resizeWidth > 0 && resizeHeight > 0) {
+                val resized = Bitmap.createScaledBitmap(bitmap, resizeWidth, resizeHeight, false)
+                resized.compress(file.absolutePath.getCompressionFormat(), 90, it)
+            } else {
+                bitmap.compress(file.absolutePath.getCompressionFormat(), 90, it)
+            }
         }
 
-        try {
-            if (isNougatPlus()) {
-                val newExif = ExifInterface(file.absolutePath)
-                oldExif?.copyNonDimensionAttributesTo(newExif)
-            }
-        } catch (e: Exception) {
-        }
+        writeExif(oldExif, Uri.fromFile(file))
 
         setResult(Activity.RESULT_OK, intent)
         scanFinalPath(file.absolutePath)
-        out.close()
     }
 
     private fun editWith() {

@@ -516,11 +516,13 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
     private fun restoreAllFiles() {
         val paths = mMedia.filter { it is Medium }.map { (it as Medium).path } as ArrayList<String>
-        restoreRecycleBinPaths(paths) {
-            ensureBackgroundThread {
-                directoryDB.deleteDirPath(RECYCLE_BIN)
+        showRestoreConfirmationDialog(paths.size) {
+            restoreRecycleBinPaths(paths) {
+                ensureBackgroundThread {
+                    directoryDB.deleteDirPath(RECYCLE_BIN)
+                }
+                finish()
             }
-            finish()
         }
     }
 
@@ -842,16 +844,45 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             mWasFullscreenViewOpen = true
             val isVideo = path.isVideoFast()
             if (isVideo) {
-                val extras = HashMap<String, Boolean>()
-                extras[SHOW_FAVORITES] = mPath == FAVORITES
-                if (path.startsWith(recycleBinPath)) {
-                    extras[IS_IN_RECYCLE_BIN] = true
+                when (config.videoPlayerType) {
+                    VIDEO_PLAYER_SYSTEM -> {
+                        val extras = HashMap<String, Boolean>()
+                        extras[SHOW_FAVORITES] = mPath == FAVORITES
+                        if (path.startsWith(recycleBinPath)) {
+                            extras[IS_IN_RECYCLE_BIN] = true
+                        }
+                        if (shouldSkipAuthentication()) {
+                            extras[SKIP_AUTHENTICATION] = true
+                        }
+                        openPath(path, false, extras)
+                    }
+                    VIDEO_PLAYER_APP -> {
+                        if (config.openVideosOnSeparateScreen) {
+                            launchGesturePlayer(path)
+                        } else {
+                            Intent(this, ViewPagerActivity::class.java).apply {
+                                putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
+                                putExtra(PATH, path)
+                                putExtra(SHOW_ALL, mShowAll)
+                                putExtra(SHOW_FAVORITES, mPath == FAVORITES)
+                                putExtra(SHOW_RECYCLE_BIN, mPath == RECYCLE_BIN)
+                                putExtra(IS_FROM_GALLERY, true)
+                                startActivity(this)
+                            }
+                        }
+                    }
+                    else -> {
+                        Intent(this, ViewPagerActivity::class.java).apply {
+                            putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
+                            putExtra(PATH, path)
+                            putExtra(SHOW_ALL, mShowAll)
+                            putExtra(SHOW_FAVORITES, mPath == FAVORITES)
+                            putExtra(SHOW_RECYCLE_BIN, mPath == RECYCLE_BIN)
+                            putExtra(IS_FROM_GALLERY, true)
+                            startActivity(this)
+                        }
+                    }
                 }
-
-                if (shouldSkipAuthentication()) {
-                    extras[SKIP_AUTHENTICATION] = true
-                }
-                openPath(path, false, extras)
             } else {
                 Intent(this, ViewPagerActivity::class.java).apply {
                     putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
@@ -897,7 +928,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     override fun tryDeleteFiles(fileDirItems: ArrayList<FileDirItem>, skipRecycleBin: Boolean) {
-        val filtered = fileDirItems.filter { !getIsPathDirectory(it.path) && it.path.isMediaFile() } as ArrayList
+        val filtered = fileDirItems.filter { !getIsPathDirectory(it.path) && it.path.isGalleryMediaFile() } as ArrayList
         if (filtered.isEmpty()) {
             return
         }

@@ -179,7 +179,7 @@ class MediaFetcher(val context: Context) {
     private fun getSelectionQuery(filterMedia: Int): String {
         val query = StringBuilder()
         if (filterMedia and TYPE_IMAGES != 0) {
-            photoExtensions.forEach {
+            galleryPhotoExtensions().forEach {
                 query.append("${Images.Media.DATA} LIKE ? OR ")
             }
         }
@@ -215,7 +215,7 @@ class MediaFetcher(val context: Context) {
     private fun getSelectionArgsQuery(filterMedia: Int): ArrayList<String> {
         val args = ArrayList<String>()
         if (filterMedia and TYPE_IMAGES != 0) {
-            photoExtensions.forEach {
+            galleryPhotoExtensions().forEach {
                 args.add("%$it")
             }
         }
@@ -318,7 +318,7 @@ class MediaFetcher(val context: Context) {
 
             var path = file.absolutePath
             var isPortrait = false
-            val isImage = path.isImageFast()
+            val isImage = path.isGalleryImageFast()
             val isVideo = if (isImage) false else path.isVideoFast()
             val isGif = if (isImage || isVideo) false else path.isGif()
             val isRaw = if (isImage || isVideo || isGif) false else path.isRawFast()
@@ -467,7 +467,7 @@ class MediaFetcher(val context: Context) {
                 }
 
                 val isPortrait = false
-                val isImage = path.isImageFast()
+                val isImage = path.isGalleryImageFast()
                 val isVideo = if (isImage) false else path.isVideoFast()
                 val isGif = if (isImage || isVideo) false else path.isGif()
                 val isRaw = if (isImage || isVideo || isGif) false else path.isRawFast()
@@ -554,7 +554,7 @@ class MediaFetcher(val context: Context) {
             }
 
             val filename = file.name ?: continue
-            val isImage = filename.isImageFast()
+            val isImage = filename.isGalleryImageFast()
             val isVideo = if (isImage) false else filename.isVideoFast()
             val isGif = if (isImage || isVideo) false else filename.isGif()
             val isRaw = if (isImage || isVideo || isGif) false else filename.isRawFast()

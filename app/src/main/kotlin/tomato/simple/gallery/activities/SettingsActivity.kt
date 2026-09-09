@@ -64,7 +64,9 @@ class SettingsActivity : SimpleActivity() {
         setupRememberLastVideo()
         setupLoopVideos()
         setupOpenVideosOnSeparateScreen()
+        setupOnVideoTap()
         setupMaxBrightness()
+        setupUltraHdrRendering()
         setupCropThumbnails()
         setupAnimateGifs()
         setupDarkBackground()
@@ -76,6 +78,7 @@ class SettingsActivity : SimpleActivity() {
         setupAppPasswordProtection()
         setupFileDeletionPasswordProtection()
         setupDeleteEmptyFolders()
+        setupKeepScreenOn()
         setupAllowPhotoGestures()
         setupAllowVideoGestures()
         setupAllowDownGesture()
@@ -295,11 +298,42 @@ class SettingsActivity : SimpleActivity() {
         }
     }
 
+    private fun setupOnVideoTap() {
+        binding.settingsOnVideoTap.text = getVideoPlayerTypeText()
+        binding.settingsOnVideoTapHolder.setOnClickListener {
+            val items = arrayListOf(
+                RadioItem(VIDEO_PLAYER_APP, getString(R.string.open_in_app_player)),
+                RadioItem(VIDEO_PLAYER_SYSTEM, getString(R.string.open_system_default_player))
+            )
+
+            RadioGroupDialog(this, items, config.videoPlayerType) {
+                config.videoPlayerType = it as Int
+                binding.settingsOnVideoTap.text = getVideoPlayerTypeText()
+            }
+        }
+    }
+
+    private fun getVideoPlayerTypeText() = getString(
+        when (config.videoPlayerType) {
+            VIDEO_PLAYER_APP -> R.string.open_in_app_player
+            else -> R.string.open_system_default_player
+        }
+    )
+
     private fun setupMaxBrightness() {
         binding.settingsMaxBrightness.isChecked = config.maxBrightness
         binding.settingsMaxBrightnessHolder.setOnClickListener {
             binding.settingsMaxBrightness.toggle()
             config.maxBrightness = binding.settingsMaxBrightness.isChecked
+        }
+    }
+
+    private fun setupUltraHdrRendering() {
+        binding.settingsUltraHdrRenderingHolder.beVisibleIf(ColorModeHelper.isGainmapSupported())
+        binding.settingsUltraHdrRendering.isChecked = config.ultraHdrRendering
+        binding.settingsUltraHdrRenderingHolder.setOnClickListener {
+            binding.settingsUltraHdrRendering.toggle()
+            config.ultraHdrRendering = binding.settingsUltraHdrRendering.isChecked
         }
     }
 
@@ -443,6 +477,14 @@ class SettingsActivity : SimpleActivity() {
         binding.settingsDeleteEmptyFoldersHolder.setOnClickListener {
             binding.settingsDeleteEmptyFolders.toggle()
             config.deleteEmptyFolders = binding.settingsDeleteEmptyFolders.isChecked
+        }
+    }
+
+    private fun setupKeepScreenOn() {
+        binding.settingsKeepScreenOnFullscreenPhotos.isChecked = config.keepScreenOn
+        binding.settingsKeepScreenOnFullscreenPhotosHolder.setOnClickListener {
+            binding.settingsKeepScreenOnFullscreenPhotos.toggle()
+            config.keepScreenOn = binding.settingsKeepScreenOnFullscreenPhotos.isChecked
         }
     }
 
@@ -873,6 +915,7 @@ class SettingsActivity : SimpleActivity() {
                 put(REMEMBER_LAST_VIDEO_POSITION, config.rememberLastVideoPosition)
                 put(LOOP_VIDEOS, config.loopVideos)
                 put(OPEN_VIDEOS_ON_SEPARATE_SCREEN, config.openVideosOnSeparateScreen)
+                put(VIDEO_PLAYER_TYPE, config.videoPlayerType)
                 put(ALLOW_VIDEO_GESTURES, config.allowVideoGestures)
                 put(ANIMATE_GIFS, config.animateGifs)
                 put(CROP_THUMBNAILS, config.cropThumbnails)
@@ -882,9 +925,11 @@ class SettingsActivity : SimpleActivity() {
                 put(SCROLL_HORIZONTALLY, config.scrollHorizontally)
                 put(ENABLE_PULL_TO_REFRESH, config.enablePullToRefresh)
                 put(MAX_BRIGHTNESS, config.maxBrightness)
+                put(ULTRA_HDR_RENDERING, config.ultraHdrRendering)
                 put(BLACK_BACKGROUND, config.blackBackground)
                 put(HIDE_SYSTEM_UI, config.hideSystemUI)
                 put(ALLOW_INSTANT_CHANGE, config.allowInstantChange)
+                put(KEEP_SCREEN_ON, config.keepScreenOn)
                 put(ALLOW_PHOTO_GESTURES, config.allowPhotoGestures)
                 put(ALLOW_DOWN_GESTURE, config.allowDownGesture)
                 put(ALLOW_ROTATING_WITH_GESTURES, config.allowRotatingWithGestures)
@@ -1017,6 +1062,7 @@ class SettingsActivity : SimpleActivity() {
                 REMEMBER_LAST_VIDEO_POSITION -> config.rememberLastVideoPosition = value.toBoolean()
                 LOOP_VIDEOS -> config.loopVideos = value.toBoolean()
                 OPEN_VIDEOS_ON_SEPARATE_SCREEN -> config.openVideosOnSeparateScreen = value.toBoolean()
+                VIDEO_PLAYER_TYPE -> config.videoPlayerType = value.toInt()
                 ALLOW_VIDEO_GESTURES -> config.allowVideoGestures = value.toBoolean()
                 ANIMATE_GIFS -> config.animateGifs = value.toBoolean()
                 CROP_THUMBNAILS -> config.cropThumbnails = value.toBoolean()
@@ -1026,9 +1072,11 @@ class SettingsActivity : SimpleActivity() {
                 SCROLL_HORIZONTALLY -> config.scrollHorizontally = value.toBoolean()
                 ENABLE_PULL_TO_REFRESH -> config.enablePullToRefresh = value.toBoolean()
                 MAX_BRIGHTNESS -> config.maxBrightness = value.toBoolean()
+                ULTRA_HDR_RENDERING -> config.ultraHdrRendering = value.toBoolean()
                 BLACK_BACKGROUND -> config.blackBackground = value.toBoolean()
                 HIDE_SYSTEM_UI -> config.hideSystemUI = value.toBoolean()
                 ALLOW_INSTANT_CHANGE -> config.allowInstantChange = value.toBoolean()
+                KEEP_SCREEN_ON -> config.keepScreenOn = value.toBoolean()
                 ALLOW_PHOTO_GESTURES -> config.allowPhotoGestures = value.toBoolean()
                 ALLOW_DOWN_GESTURE -> config.allowDownGesture = value.toBoolean()
                 ALLOW_ROTATING_WITH_GESTURES -> config.allowRotatingWithGestures = value.toBoolean()

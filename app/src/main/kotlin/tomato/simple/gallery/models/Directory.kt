@@ -7,6 +7,7 @@ import com.simplemobiletools.commons.extensions.formatDate
 import com.simplemobiletools.commons.extensions.formatSize
 import com.simplemobiletools.commons.helpers.*
 import tomato.simple.gallery.helpers.RECYCLE_BIN
+import tomato.simple.gallery.helpers.SORT_BY_COUNT
 
 @Entity(tableName = "directories", indices = [Index(value = ["path"], unique = true)])
 data class Directory(
@@ -35,6 +36,7 @@ data class Directory(
         sorting and SORT_BY_NAME != 0 -> name
         sorting and SORT_BY_PATH != 0 -> path
         sorting and SORT_BY_SIZE != 0 -> size.formatSize()
+        sorting and SORT_BY_COUNT != 0 -> mediaCnt.toString()
         sorting and SORT_BY_DATE_MODIFIED != 0 -> modified.formatDate(context, dateFormat, timeFormat)
         sorting and SORT_BY_RANDOM != 0 -> name
         else -> taken.formatDate(context)

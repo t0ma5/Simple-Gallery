@@ -25,6 +25,7 @@
     <string name="change_orientation">Change orientation</string>
     <string name="force_portrait">Force portrait</string>
     <string name="force_landscape">Force landscape</string>
+    <string name="force_landscape_reverse">Force landscape (reverse)</string>
     <string name="use_default_orientation">Use default orientation</string>
     <string name="fix_date_taken">Fix Date Taken value</string>
     <string name="fixing">Fixing…</string>
@@ -37,6 +38,10 @@
     <string name="reorder_by_dragging">Reorder folders by dragging</string>
     <string name="reorder_by_dragging_pro">Reorder folders by dragging (Pro)</string>
     <string name="restore_to_path">Restoring to \'%s\'</string>
+    <plurals name="restore_confirmation">
+        <item quantity="one">Are you sure you want to restore %d file?</item>
+        <item quantity="other">Are you sure you want to restore %d files?</item>
+    </plurals>
 
     <!-- Filter -->
     <string name="filter_media">Filter media</string>
@@ -182,6 +187,7 @@
     <string name="loop_videos">Loop videos</string>
     <string name="animate_gifs">Animate GIFs at thumbnails</string>
     <string name="max_brightness">Max brightness when viewing fullscreen media</string>
+    <string name="render_ultra_hdr_photos">Show Ultra HDR photos in HDR</string>
     <string name="crop_thumbnails">Crop thumbnails into squares</string>
     <string name="show_thumbnail_video_duration">Show video durations</string>
     <string name="screen_rotation_by">Rotate fullscreen media by</string>
@@ -192,8 +198,10 @@
     <string name="scroll_thumbnails_horizontally">Scroll thumbnails horizontally</string>
     <string name="hide_system_ui_at_fullscreen">Automatically hide system UI at fullscreen media</string>
     <string name="delete_empty_folders">Delete empty folders after deleting their content</string>
+    <string name="keep_screen_on_fullscreen_photos">Keep the screen on while viewing fullscreen photos</string>
     <string name="allow_photo_gestures">Allow controlling photo brightness with vertical gestures</string>
     <string name="allow_video_gestures">Allow controlling video volume and brightness with vertical gestures</string>
+    <string name="playback_speed">Playback speed</string>
     <string name="show_media_count">Show folder media count on the main view</string>
     <string name="show_extended_details">Show extended details over fullscreen media</string>
     <string name="manage_extended_details">Manage extended details</string>
@@ -209,6 +217,9 @@
     <string name="allow_down_gesture">Allow closing the fullscreen view with a down gesture</string>
     <string name="allow_one_to_one_zoom">Allow 1:1 zooming in with two double taps</string>
     <string name="open_videos_on_separate_screen">Always open videos on a separate screen with new horizontal gestures</string>
+    <string name="on_video_tap">On video tap</string>
+    <string name="open_in_app_player">Open in-app player</string>
+    <string name="open_system_default_player">Open default player app</string>
     <string name="show_notch">Show a notch if available</string>
     <string name="allow_rotating_gestures">Allow rotating images with gestures</string>
     <string name="file_loading_priority">File loading priority</string>
@@ -404,4 +415,12 @@
     <string name="faq_17_text">That stopped working due to the system changes that came with Android 11 too, the app cannot browse real folders anymore, it relies on the so called MediaStore at fetching data.</string>
     <string name="faq_18_title">Why do I see ads during video playback?</string>
     <string name="faq_18_text">Our apps have no ads whatsoever. If you see them during video playback, you must be using some other apps video player. Try finding your default video player in the device settings, then do a \"Clear defaults\" on it. The next time you invoke some video intent you will see an app picker prompt, where you can select what app you want to use.</string>
+
+    <string name="number_of_items">Number of items</string>
+    <string name="failed_to_load_media">Failed to load media.</string>
+    <string name="file_is_malformed_or_corrupted">File is malformed or corrupted.</string>
+    <string name="media_exceeds_device_capabilities">Media exceeds device capabilities.</string>
+    <string name="unsupported_format">Unsupported format.</string>
+    <string name="video_no_sound">This video has no sound</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
 </resources>

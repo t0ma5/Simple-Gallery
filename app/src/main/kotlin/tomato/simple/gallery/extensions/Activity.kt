@@ -74,6 +74,25 @@ fun Activity.openPath(path: String, forceChooser: Boolean, extras: HashMap<Strin
     openPathIntent(path, forceChooser, BuildConfig.APPLICATION_ID, extras = extras)
 }
 
+fun Activity.launchGesturePlayer(path: String, extras: HashMap<String, Boolean> = HashMap()) {
+    ensureBackgroundThread {
+        val newUri = getFinalUriFromPath(path, BuildConfig.APPLICATION_ID)
+        if (newUri == null) {
+            toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+            return@ensureBackgroundThread
+        }
+
+        val mimeType = getUriMimeType(path, newUri)
+        runOnUiThread {
+            Intent(applicationContext, tomato.simple.gallery.activities.VideoPlayerActivity::class.java).apply {
+                setDataAndType(newUri, mimeType)
+                for ((key, value) in extras) putExtra(key, value)
+                startActivity(this)
+            }
+        }
+    }
+}
+
 fun Activity.openEditor(path: String, forceChooser: Boolean = false) {
     val newPath = path.removePrefix("file://")
     openEditorIntent(newPath, forceChooser, BuildConfig.APPLICATION_ID)
@@ -505,6 +524,17 @@ fun BaseSimpleActivity.showRecycleBinEmptyingDialog(callback: () -> Unit) {
     }
 }
 
+fun BaseSimpleActivity.showRestoreConfirmationDialog(count: Int, callback: () -> Unit) {
+    ConfirmationDialog(
+        this,
+        resources.getQuantityString(R.plurals.restore_confirmation, count, count),
+        positive = com.simplemobiletools.commons.R.string.yes,
+        negative = com.simplemobiletools.commons.R.string.no
+    ) {
+        callback()
+    }
+}
+
 fun BaseSimpleActivity.updateFavoritePaths(fileDirItems: ArrayList<FileDirItem>, destination: String) {
     ensureBackgroundThread {
         fileDirItems.forEach {
@@ -842,17 +872,12 @@ fun BaseSimpleActivity.resizeImage(oldPath: String, newPath: String, size: Point
         if (out != null) {
             out.use {
                 try {
-                    newBitmap.compress(newFile.absolutePath.getCompressionFormat(), 90, out)
-
-                    if (isNougatPlus()) {
-                        val newExif = ExifInterface(newFile.absolutePath)
-                        oldExif?.copyNonDimensionAttributesTo(newExif)
-                    }
+                    newBitmap.compress(newFile.absolutePath.getCompressionFormat(), 90, it)
                 } catch (ignored: Exception) {
                 }
-
-                callback(true)
             }
+            writeExif(oldExif, Uri.fromFile(newFile))
+            callback(true)
         } else {
             callback(false)
         }

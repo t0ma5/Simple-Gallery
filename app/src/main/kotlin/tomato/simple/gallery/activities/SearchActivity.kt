@@ -20,6 +20,9 @@ import tomato.simple.gallery.helpers.GridSpacingItemDecoration
 import tomato.simple.gallery.helpers.MediaFetcher
 import tomato.simple.gallery.helpers.PATH
 import tomato.simple.gallery.helpers.SHOW_ALL
+import tomato.simple.gallery.helpers.VIDEO_PLAYER_APP
+import tomato.simple.gallery.helpers.VIDEO_PLAYER_SYSTEM
+import tomato.simple.gallery.helpers.isGalleryMediaFile
 import tomato.simple.gallery.interfaces.MediaOperationsListener
 import tomato.simple.gallery.models.Medium
 import tomato.simple.gallery.models.ThumbnailItem
@@ -157,7 +160,17 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
     private fun itemClicked(path: String) {
         val isVideo = path.isVideoFast()
         if (isVideo) {
-            openPath(path, false)
+            when (config.videoPlayerType) {
+                VIDEO_PLAYER_SYSTEM -> openPath(path, false)
+                VIDEO_PLAYER_APP -> if (config.openVideosOnSeparateScreen) launchGesturePlayer(path) else {
+                    Intent(this, ViewPagerActivity::class.java).apply {
+                        putExtra(PATH, path)
+                        putExtra(SHOW_ALL, false)
+                        startActivity(this)
+                    }
+                }
+                else -> openPath(path, false)
+            }
         } else {
             Intent(this, ViewPagerActivity::class.java).apply {
                 putExtra(PATH, path)
@@ -240,7 +253,7 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
     }
 
     override fun tryDeleteFiles(fileDirItems: ArrayList<FileDirItem>, skipRecycleBin: Boolean) {
-        val filtered = fileDirItems.filter { File(it.path).isFile && it.path.isMediaFile() } as ArrayList
+        val filtered = fileDirItems.filter { File(it.path).isFile && it.path.isGalleryMediaFile() } as ArrayList
         if (filtered.isEmpty()) {
             return
         }
