@@ -116,9 +116,16 @@ dependencies {
     implementation(libs.apng)
     implementation(libs.avif)
     implementation(libs.avif.integration)
-    implementation(libs.jxl.coder)
+    implementation(libs.jxl.coder) {
+        exclude(group = "androidx.core")
+        exclude(group = "androidx.appcompat")
+        exclude(group = "com.google.android.material")
+    }
     implementation(libs.jxl.integration) {
         exclude(group = "com.github.bumptech.glide")
+        exclude(group = "androidx.core")
+        exclude(group = "androidx.appcompat")
+        exclude(group = "com.google.android.material")
     }
     implementation(libs.okio)
     implementation(libs.picasso) {
