@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.provider.MediaStore
+import android.view.View
 import android.widget.ImageView
 import android.widget.RelativeLayout
 import androidx.exifinterface.media.ExifInterface
@@ -101,10 +102,6 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-
-        if (checkAppSideloading()) {
-            return
-        }
 
         setupOptionsMenu()
         handlePermission(getPermissionToRequest()) {
@@ -210,6 +207,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     }
 
     private fun loadDefaultImageView() {
+        binding.defaultImageView.scaleType = ImageView.ScaleType.FIT_CENTER
         binding.defaultImageView.beVisible()
         binding.cropImageView.beGone()
         binding.editorDrawCanvas.beGone()
@@ -292,6 +290,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.editorOverlayView.beGone()
         binding.cropImageView.apply {
             beVisible()
+            scaleType = CropImageView.ScaleType.FIT_CENTER
             setOnCropImageCompleteListener(this@EditActivity)
             val stacked = usableWorkingBitmap()
             if (stacked != null) {
@@ -317,6 +316,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
         if (!wasDrawCanvasPositioned) {
             wasDrawCanvasPositioned = true
+            resetEditorLayerSize(binding.editorDrawCanvas)
             binding.editorDrawCanvas.onGlobalLayout {
                 ensureBackgroundThread {
                     fillCanvasBackground()
@@ -326,8 +326,6 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     }
 
     private fun fillCanvasBackground() {
-        val size = Point()
-        windowManager.defaultDisplay.getSize(size)
         val options = RequestOptions()
             .format(DecodeFormat.PREFER_ARGB_8888)
             .skipMemoryCache(true)
@@ -336,25 +334,21 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
         try {
             val stacked = usableWorkingBitmap()
+            val maxWidth = binding.editorDrawCanvas.width.coerceAtLeast(1)
+            val maxHeight = binding.editorDrawCanvas.height.coerceAtLeast(1)
             val bitmap = if (stacked != null) {
-                val width = binding.editorDrawCanvas.width.coerceAtLeast(1)
-                val height = binding.editorDrawCanvas.height.coerceAtLeast(1)
-                Bitmap.createScaledBitmap(stacked, width, height, true)
+                scaleBitmapToFit(stacked, maxWidth, maxHeight)
             } else {
                 val builder = Glide.with(applicationContext)
                     .asBitmap()
                     .load(uri)
                     .apply(options)
-                    .into(binding.editorDrawCanvas.width, binding.editorDrawCanvas.height)
+                    .into(maxWidth, maxHeight)
                 builder.get()
             }
             runOnUiThread {
-                binding.editorDrawCanvas.apply {
+                applyFittedBitmapToLayer(binding.editorDrawCanvas, bitmap) {
                     updateBackgroundBitmap(bitmap)
-                    layoutParams.width = bitmap.width
-                    layoutParams.height = bitmap.height
-                    y = (height - bitmap.height) / 2f
-                    requestLayout()
                 }
             }
         } catch (e: Exception) {
@@ -366,6 +360,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.cropImageView.beGone()
         binding.editorDrawCanvas.beGone()
         binding.editorOverlayView.beGone()
+        binding.defaultImageView.scaleType = ImageView.ScaleType.FIT_CENTER
         binding.defaultImageView.beVisible()
         resetAdjustSliders()
         val source = usableWorkingBitmap() ?: filterInitialBitmap
@@ -385,6 +380,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
         if (!wasOverlayPositioned) {
             wasOverlayPositioned = true
+            resetEditorLayerSize(binding.editorOverlayView)
             binding.editorOverlayView.onGlobalLayout {
                 ensureBackgroundThread {
                     fillOverlayBackground()
@@ -402,25 +398,21 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
         try {
             val stacked = usableWorkingBitmap()
+            val maxWidth = binding.editorOverlayView.width.coerceAtLeast(1)
+            val maxHeight = binding.editorOverlayView.height.coerceAtLeast(1)
             val bitmap = if (stacked != null) {
-                val width = binding.editorOverlayView.width.coerceAtLeast(1)
-                val height = binding.editorOverlayView.height.coerceAtLeast(1)
-                Bitmap.createScaledBitmap(stacked, width, height, true)
+                scaleBitmapToFit(stacked, maxWidth, maxHeight)
             } else {
                 Glide.with(applicationContext)
                     .asBitmap()
                     .load(uri)
                     .apply(options)
-                    .into(binding.editorOverlayView.width, binding.editorOverlayView.height)
+                    .into(maxWidth, maxHeight)
                     .get()
             }
             runOnUiThread {
-                binding.editorOverlayView.apply {
+                applyFittedBitmapToLayer(binding.editorOverlayView, bitmap) {
                     updateBackgroundBitmap(bitmap)
-                    layoutParams.width = bitmap.width
-                    layoutParams.height = bitmap.height
-                    y = (height - bitmap.height) / 2f
-                    requestLayout()
                 }
             }
         } catch (e: Exception) {
@@ -1253,6 +1245,41 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             .get()
     }
 
+    private fun scaleBitmapToFit(source: Bitmap, maxWidth: Int, maxHeight: Int): Bitmap {
+        val width = maxWidth.coerceAtLeast(1)
+        val height = maxHeight.coerceAtLeast(1)
+        val scale = minOf(
+            width.toFloat() / source.width.coerceAtLeast(1),
+            height.toFloat() / source.height.coerceAtLeast(1)
+        )
+        val targetWidth = (source.width * scale).toInt().coerceAtLeast(1)
+        val targetHeight = (source.height * scale).toInt().coerceAtLeast(1)
+        if (targetWidth == source.width && targetHeight == source.height) {
+            return source
+        }
+        return Bitmap.createScaledBitmap(source, targetWidth, targetHeight, true)
+    }
+
+    private fun resetEditorLayerSize(view: View) {
+        val params = view.layoutParams as RelativeLayout.LayoutParams
+        params.width = RelativeLayout.LayoutParams.MATCH_PARENT
+        params.height = RelativeLayout.LayoutParams.MATCH_PARENT
+        view.layoutParams = params
+        view.y = 0f
+    }
+
+    private fun <T : View> applyFittedBitmapToLayer(view: T, bitmap: Bitmap, bind: T.() -> Unit) {
+        view.bind()
+        val params = view.layoutParams as RelativeLayout.LayoutParams
+        params.width = bitmap.width
+        params.height = bitmap.height
+        params.addRule(RelativeLayout.CENTER_HORIZONTAL)
+        view.layoutParams = params
+        val parentHeight = (view.parent as? View)?.height ?: view.height
+        view.y = ((parentHeight - bitmap.height) / 2f).coerceAtLeast(0f)
+        view.requestLayout()
+    }
+
     private fun replaceWorkingBitmap(bitmap: Bitmap) {
         val previous = workingBitmap
         workingBitmap = bitmap
@@ -1268,6 +1295,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         wasOverlayPositioned = false
         binding.editorDrawCanvas.clearDrawing()
         binding.editorOverlayView.clearOverlays()
+        resetEditorLayerSize(binding.editorDrawCanvas)
+        resetEditorLayerSize(binding.editorOverlayView)
         recycleAdjustPreview()
         adjustSourceBitmap = null
     }

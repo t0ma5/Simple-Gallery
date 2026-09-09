@@ -15,11 +15,12 @@ import com.simplemobiletools.commons.extensions.getProperPrimaryColor
 
 class EditorOverlayView(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
     private val backgroundView = ImageView(context).apply {
-        scaleType = ImageView.ScaleType.FIT_XY
+        scaleType = ImageView.ScaleType.FIT_CENTER
         layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
     }
     private val overlays = mutableListOf<TextView>()
     private var selectedOverlay: TextView? = null
+    private var backgroundBitmap: Bitmap? = null
     var overlayColor: Int = context.getProperPrimaryColor()
     var overlayTextSizeSp = 28f
 
@@ -30,6 +31,7 @@ class EditorOverlayView(context: Context, attrs: AttributeSet) : FrameLayout(con
     }
 
     fun updateBackgroundBitmap(bitmap: Bitmap) {
+        backgroundBitmap = bitmap
         backgroundView.setImageBitmap(bitmap)
     }
 
@@ -80,8 +82,19 @@ class EditorOverlayView(context: Context, attrs: AttributeSet) : FrameLayout(con
     }
 
     fun getBitmap(): Bitmap {
-        val bitmap = Bitmap.createBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+        val src = backgroundBitmap
+        val outWidth = (src?.width ?: width).coerceAtLeast(1)
+        val outHeight = (src?.height ?: height).coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        if (width > 0 && height > 0 && (width != outWidth || height != outHeight)) {
+            val scale = minOf(outWidth.toFloat() / width, outHeight.toFloat() / height)
+            canvas.translate(
+                (outWidth - width * scale) / 2f,
+                (outHeight - height * scale) / 2f
+            )
+            canvas.scale(scale, scale)
+        }
         draw(canvas)
         return bitmap
     }

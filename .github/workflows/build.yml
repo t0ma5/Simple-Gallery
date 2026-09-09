@@ -51,6 +51,7 @@ jobs:
               text = text.replace(old, new, 1)
           path.write_text(text)
           PY
+          python3 scripts/patch_commons.py
           grep -E 'gradlePlugins-agp|rtlViewpager|rtl-viewpager' Simple-Commons/gradle/libs.versions.toml
 
       - name: Set up JDK 17

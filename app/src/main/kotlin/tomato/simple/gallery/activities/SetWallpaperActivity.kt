@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Bundle
 import com.canhub.cropper.CropImageView
 import com.simplemobiletools.commons.dialogs.RadioGroupDialog
-import com.simplemobiletools.commons.extensions.checkAppSideloading
 import com.simplemobiletools.commons.extensions.toast
 import com.simplemobiletools.commons.extensions.viewBinding
 import com.simplemobiletools.commons.helpers.NavigationIcon
@@ -36,10 +35,6 @@ class SetWallpaperActivity : SimpleActivity(), CropImageView.OnCropImageComplete
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
         setupBottomActions()
-
-        if (checkAppSideloading()) {
-            return
-        }
 
         setupOptionsMenu()
         if (intent.data == null) {

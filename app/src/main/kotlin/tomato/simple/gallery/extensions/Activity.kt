@@ -99,7 +99,6 @@ fun SimpleActivity.launchAbout() {
         FAQItem(R.string.faq_7_title, R.string.faq_7_text),
         FAQItem(R.string.faq_14_title, R.string.faq_14_text),
         FAQItem(R.string.faq_1_title, R.string.faq_1_text),
-        FAQItem(com.simplemobiletools.commons.R.string.faq_5_title_commons, com.simplemobiletools.commons.R.string.faq_5_text_commons),
         FAQItem(R.string.faq_5_title, R.string.faq_5_text),
         FAQItem(R.string.faq_4_title, R.string.faq_4_text),
         FAQItem(R.string.faq_6_title, R.string.faq_6_text),
