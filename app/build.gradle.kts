@@ -123,15 +123,24 @@ base {
     archivesName.set("gallery-${libs.versions.app.version.versionCode.get()}")
 }
 
-android.applicationVariants.configureEach {
-    if (buildType.name != "release") {
+tasks.configureEach {
+    if (name != "assembleFossRelease") {
         return@configureEach
     }
-    val ver = versionName.orEmpty()
-    outputs.configureEach {
-        val apkOutput = this as com.android.build.gradle.api.ApkVariantOutput
-        val abi = apkOutput.getFilter(com.android.build.OutputFile.ABI) ?: "universal"
-        apkOutput.outputFileName = "Simple-Gallery_${ver}-FOSS-${abi}.apk"
+    doLast {
+        val version = libs.versions.app.version.versionName.get()
+        val dir = layout.buildDirectory.dir("outputs/apk/foss/release").get().asFile
+        listOf("arm64-v8a", "armeabi-v7a", "x86_64", "universal").forEach { abi ->
+            val dest = dir.resolve("Simple-Gallery_${version}-FOSS-${abi}.apk")
+            val src = dir.listFiles()
+                ?.filter { it.isFile && it.extension == "apk" && it.name.contains(abi) }
+                ?.minByOrNull { if (it.name == dest.name) 0 else 1 }
+                ?: error("No $abi APK in $dir")
+            if (src.canonicalFile != dest.canonicalFile) {
+                src.copyTo(dest, overwrite = true)
+                src.delete()
+            }
+        }
     }
 }
 
