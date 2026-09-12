@@ -24,6 +24,12 @@
         android:title="@string/filter_media"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/column_count"
+        android:icon="@drawable/ic_column_count_vector"
+        android:showAsAction="never"
+        android:title="@string/column_count"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/change_view_type"
         android:showAsAction="never"
         android:title="@string/change_view_type"
@@ -67,11 +73,6 @@
         android:showAsAction="never"
         android:title="@string/open_the_recycle_bin"
         app:showAsAction="never" />
-    <item
-        android:id="@+id/column_count"
-        android:icon="@drawable/ic_column_count_vector"
-        android:title="@string/column_count"
-        app:showAsAction="ifRoom" />
     <item
         android:id="@+id/more_apps_from_us"
         android:icon="@drawable/ic_google_play_vector"

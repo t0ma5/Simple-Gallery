@@ -519,6 +519,21 @@ def main() -> None:
         ],
     )
     patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/extensions/Activity-themes.kt",
+        [
+            (
+                "            else -> R.style.AppTheme_Orange_700_core\n",
+                "            -2936017 -> R.style.AppTheme_Red_700_core\n"
+                "            else -> R.style.AppTheme_Red_700_core\n",
+            ),
+            (
+                "            else -> R.style.AppTheme_Orange_700\n",
+                "            -2936017 -> R.style.AppTheme_Red_700\n"
+                "            else -> R.style.AppTheme_Red_700\n",
+            ),
+        ],
+    )
+    patch(
         "commons/src/main/kotlin/com/simplemobiletools/commons/activities/CustomizationActivity.kt",
         [
             (
