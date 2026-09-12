@@ -297,6 +297,7 @@ def main() -> None:
                 "        helpUsSection()\n"
                 "        socialSection()\n"
                 "        otherSection()\n"
+                "        SettingsListItem(text = stringResource(id = R.string.about_footer))\n"
                 "    }\n",
                 "    SimpleColumnScaffold(title = stringResource(id = R.string.about), goBack = goBack) {\n"
                 "        HistorySection()\n"
@@ -331,10 +332,6 @@ def main() -> None:
                 "            modifier = startingTitlePadding,\n"
                 "            color = colorResource(id = R.color.color_primary)\n"
                 "        )",
-            ),
-            (
-                "        SettingsListItem(text = stringResource(id = R.string.about_footer))\n",
-                "",
             ),
             (
                 "        SettingsTitleTextComponent(text = stringResource(id = R.string.social), modifier = startingTitlePadding)",
