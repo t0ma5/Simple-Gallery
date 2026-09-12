@@ -61,7 +61,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_centerHorizontal="true"
-            android:layout_marginBottom="@dimen/bottom_actions_height_double"
+            android:layout_marginBottom="@dimen/bottom_actions_height_text"
             android:background="@android:color/transparent"
             android:visibility="gone" />
 

@@ -2,6 +2,9 @@ package tomato.simple.gallery.activities
 
 import android.database.ContentObserver
 import android.net.Uri
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore.Images
 import android.provider.MediaStore.Video
 import android.view.WindowManager
@@ -9,6 +12,7 @@ import com.simplemobiletools.commons.activities.BaseSimpleActivity
 import com.simplemobiletools.commons.dialogs.FilePickerDialog
 import com.simplemobiletools.commons.extensions.getParentPath
 import com.simplemobiletools.commons.extensions.getRealPathFromURI
+import com.simplemobiletools.commons.extensions.handleAppPasswordProtection
 import com.simplemobiletools.commons.extensions.scanPathRecursively
 import com.simplemobiletools.commons.helpers.ensureBackgroundThread
 import com.simplemobiletools.commons.helpers.isPiePlus
@@ -16,9 +20,33 @@ import tomato.simple.gallery.R
 import tomato.simple.gallery.extensions.addPathToDB
 import tomato.simple.gallery.extensions.config
 import tomato.simple.gallery.extensions.updateDirectoryPath
+import tomato.simple.gallery.helpers.AppLock
 
 open class SimpleActivity : BaseSimpleActivity() {
-    val observer = object : ContentObserver(null) {
+    private var appLockPromptShown = false
+
+    protected fun ensureAppUnlocked(onUnlocked: () -> Unit): Boolean {
+        if (!config.isAppPasswordProtectionOn || AppLock.isUnlocked()) {
+            onUnlocked()
+            return true
+        }
+        if (appLockPromptShown) {
+            return false
+        }
+        appLockPromptShown = true
+        handleAppPasswordProtection { success ->
+            appLockPromptShown = false
+            if (success) {
+                AppLock.markUnlocked()
+                onUnlocked()
+            } else {
+                finish()
+            }
+        }
+        return false
+    }
+
+    val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean, uri: Uri?) {
             super.onChange(selfChange, uri)
             if (uri != null) {

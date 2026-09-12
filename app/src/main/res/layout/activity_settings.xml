@@ -852,6 +852,36 @@
             </RelativeLayout>
 
             <RelativeLayout
+                android:id="@+id/settings_stack_media_holder"
+                style="@style/SettingsHolderCheckboxStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <com.simplemobiletools.commons.views.MyAppCompatCheckbox
+                    android:id="@+id/settings_stack_media"
+                    style="@style/SettingsCheckboxStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/stack_similar_files" />
+
+            </RelativeLayout>
+
+            <RelativeLayout
+                android:id="@+id/settings_strip_on_share_holder"
+                style="@style/SettingsHolderCheckboxStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <com.simplemobiletools.commons.views.MyAppCompatCheckbox
+                    android:id="@+id/settings_strip_on_share"
+                    style="@style/SettingsCheckboxStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/strip_metadata_on_share" />
+
+            </RelativeLayout>
+
+            <RelativeLayout
                 android:id="@+id/settings_skip_delete_confirmation_holder"
                 style="@style/SettingsHolderCheckboxStyle"
                 android:layout_width="match_parent"

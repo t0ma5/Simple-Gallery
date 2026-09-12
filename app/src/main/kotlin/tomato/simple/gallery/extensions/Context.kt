@@ -69,7 +69,19 @@ val Context.favoritesDB: FavoritesDao get() = GalleryDatabase.getInstance(applic
 
 val Context.dateTakensDB: DateTakensDao get() = GalleryDatabase.getInstance(applicationContext).DateTakensDao()
 
-val Context.recycleBin: File get() = filesDir
+val Context.recycleBin: File get() = File(filesDir, "recycle_bin").also { it.mkdirs() }
+
+fun Context.migrateLegacyRecycleBin() {
+    val dest = recycleBin
+    val legacyStorage = File(filesDir, "storage")
+    if (legacyStorage.exists()) {
+        try {
+            legacyStorage.copyRecursively(File(dest, "storage"), true)
+            legacyStorage.deleteRecursively()
+        } catch (_: Exception) {
+        }
+    }
+}
 
 fun Context.movePinnedDirectoriesToFront(dirs: ArrayList<Directory>): ArrayList<Directory> {
     val foundFolders = ArrayList<Directory>()
@@ -710,11 +722,11 @@ fun Context.getCachedMedia(path: String, getVideosOnly: Boolean = false, getImag
         val foldersToScan = if (path.isEmpty()) mediaFetcher.getFoldersToScan() else arrayListOf(path)
         var media = ArrayList<Medium>()
         if (path == FAVORITES) {
-            media.addAll(mediaDB.getFavorites())
+            media.addAll(mediaDB.getFavorites().filter { !config.isPathInProtectedFolder(it.path) })
         }
 
         if (path == RECYCLE_BIN) {
-            media.addAll(getUpdatedDeletedMedia())
+            media.addAll(getUpdatedDeletedMedia().filter { !config.isPathInProtectedFolder(it.path) })
         }
 
         if (config.filterMedia and TYPE_PORTRAITS != 0) {

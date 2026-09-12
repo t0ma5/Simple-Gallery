@@ -305,8 +305,10 @@ class MediaFetcher(val context: Context) {
         val fileSizes = if (checkProperFileSize || checkFileExistence) getFolderSizes(folder) else HashMap()
 
         val files = when (folder) {
-            FAVORITES -> favoritePaths.filter { showHidden || !it.contains("/.") }.map { File(it) }.toMutableList() as ArrayList<File>
-            RECYCLE_BIN -> deletedMedia.map { File(it.path) }.toMutableList() as ArrayList<File>
+            FAVORITES -> favoritePaths.filter {
+                (showHidden || !it.contains("/.")) && !config.isPathInProtectedFolder(it)
+            }.map { File(it) }.toMutableList() as ArrayList<File>
+            RECYCLE_BIN -> deletedMedia.filter { !config.isPathInProtectedFolder(it.path) }.map { File(it.path) }.toMutableList() as ArrayList<File>
             else -> File(folder).listFiles()?.toMutableList() ?: return media
         }
 
@@ -802,7 +804,7 @@ class MediaFetcher(val context: Context) {
     fun groupMedia(media: ArrayList<Medium>, path: String): ArrayList<ThumbnailItem> {
         val pathToCheck = if (path.isEmpty()) SHOW_ALL else path
         val currentGrouping = context.config.getFolderGrouping(pathToCheck)
-        val stacked = MediaStackHelper.stack(media)
+        val stacked = if (context.config.stackMedia) MediaStackHelper.stack(media) else media
         if (currentGrouping and GROUP_BY_NONE != 0) {
             return stacked as ArrayList<ThumbnailItem>
         }

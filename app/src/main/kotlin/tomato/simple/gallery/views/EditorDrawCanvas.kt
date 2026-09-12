@@ -135,22 +135,28 @@ class EditorDrawCanvas(context: Context, attrs: AttributeSet) : View(context, at
         invalidate()
     }
 
-    fun getBitmap(): Bitmap {
-        val background = backgroundBitmap
-        val outWidth = (background?.width ?: width).coerceAtLeast(1)
-        val outHeight = (background?.height ?: height).coerceAtLeast(1)
-        val bitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.WHITE)
-        if (width > 0 && height > 0 && (width != outWidth || height != outHeight)) {
-            val scale = minOf(outWidth.toFloat() / width, outHeight.toFloat() / height)
-            canvas.translate(
-                (outWidth - width * scale) / 2f,
-                (outHeight - height * scale) / 2f
-            )
-            canvas.scale(scale, scale)
+    fun hasDrawing() = mPaths.isNotEmpty()
+
+    fun getBitmap(target: Bitmap? = backgroundBitmap): Bitmap {
+        val src = target ?: backgroundBitmap
+        if (src != null && !src.isRecycled) {
+            val out = src.copy(src.config ?: Bitmap.Config.ARGB_8888, true)
+            val canvas = Canvas(out)
+            val dest = fittedDestRect(src)
+            if (dest.width() > 0f && dest.height() > 0f) {
+                canvas.scale(src.width / dest.width(), src.height / dest.height())
+                canvas.translate(-dest.left, -dest.top)
+                for ((key, value) in mPaths) {
+                    changePaint(value)
+                    canvas.drawPath(key, mPaint)
+                }
+                changePaint(mPaintOptions)
+                canvas.drawPath(mPath, mPaint)
+            }
+            return out
         }
-        draw(canvas)
+        val bitmap = Bitmap.createBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+        draw(Canvas(bitmap))
         return bitmap
     }
 

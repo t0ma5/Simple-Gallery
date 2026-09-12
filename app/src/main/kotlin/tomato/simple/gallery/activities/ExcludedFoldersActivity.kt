@@ -19,7 +19,9 @@ class ExcludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
         isMaterialActivity = true
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        updateFolders()
+        ensureAppUnlocked {
+            updateFolders()
+        }
         setupOptionsMenu()
         binding.manageFoldersToolbar.title = getString(com.simplemobiletools.commons.R.string.excluded_folders)
 

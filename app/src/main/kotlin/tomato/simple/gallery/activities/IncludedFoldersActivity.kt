@@ -19,7 +19,9 @@ class IncludedFoldersActivity : SimpleActivity(), RefreshRecyclerViewListener {
         isMaterialActivity = true
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        updateFolders()
+        ensureAppUnlocked {
+            updateFolders()
+        }
         setupOptionsMenu()
         binding.manageFoldersToolbar.title = getString(R.string.include_folders)
 

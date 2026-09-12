@@ -19,8 +19,11 @@ import android.provider.MediaStore.Files
 import android.provider.MediaStore.Images
 import android.provider.Settings
 import android.util.DisplayMetrics
-import android.view.View
+import android.view.Window
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.exifinterface.media.ExifInterface
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DecodeFormat
@@ -43,6 +46,7 @@ import tomato.simple.gallery.dialogs.PickDirectoryDialog
 import tomato.simple.gallery.dialogs.ResizeMultipleImagesDialog
 import tomato.simple.gallery.dialogs.ResizeWithPathDialog
 import tomato.simple.gallery.helpers.DIRECTORY
+import tomato.simple.gallery.helpers.MetadataStripper
 import tomato.simple.gallery.helpers.RECYCLE_BIN
 import tomato.simple.gallery.models.DateTaken
 import com.squareup.picasso.Picasso
@@ -59,6 +63,21 @@ fun Activity.sharePaths(paths: ArrayList<String>) {
 }
 
 fun Activity.shareMediumPath(path: String) {
+    val activity = this
+    if (activity is BaseSimpleActivity && activity.config.stripMetadataOnShare) {
+        ensureBackgroundThread {
+            try {
+                val dest = File(activity.cacheDir, "share/${File(path).name}")
+                dest.parentFile?.mkdirs()
+                File(path).copyTo(dest, overwrite = true)
+                MetadataStripper.stripAll(activity, dest.absolutePath)
+                activity.runOnUiThread { sharePath(dest.absolutePath) }
+            } catch (_: Exception) {
+                activity.runOnUiThread { sharePath(path) }
+            }
+        }
+        return
+    }
     sharePath(path)
 }
 
@@ -200,19 +219,35 @@ fun BaseSimpleActivity.launchGrantAllFilesIntent() {
 }
 
 fun AppCompatActivity.showSystemUI(toggleActionBarVisibility: Boolean) {
-    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    WindowInsetsControllerCompat(window, window.decorView).apply {
+        show(WindowInsetsCompat.Type.systemBars())
+        systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
 }
 
 fun AppCompatActivity.hideSystemUI(toggleActionBarVisibility: Boolean) {
-    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-        View.SYSTEM_UI_FLAG_LOW_PROFILE or
-        View.SYSTEM_UI_FLAG_FULLSCREEN or
-        View.SYSTEM_UI_FLAG_IMMERSIVE
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    WindowInsetsControllerCompat(window, window.decorView).apply {
+        hide(WindowInsetsCompat.Type.systemBars())
+        systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+}
+
+fun Window.applyMaxBrightness(enable: Boolean, original: Float?): Float? {
+    val attrs = attributes
+    return if (enable) {
+        val saved = original ?: attrs.screenBrightness
+        attrs.screenBrightness = 1f
+        attributes = attrs
+        saved
+    } else {
+        if (original != null) {
+            attrs.screenBrightness = original
+            attributes = attrs
+        }
+        original
+    }
 }
 
 fun BaseSimpleActivity.addNoMedia(path: String, callback: () -> Unit) {
@@ -570,11 +605,11 @@ fun AppCompatActivity.fixDateTaken(
     }
 
     val pathsToRescan = ArrayList<String>()
-    try {
-        var didUpdateFile = false
-        val operations = ArrayList<ContentProviderOperation>()
+    ensureBackgroundThread {
+        try {
+            var didUpdateFile = false
+            val operations = ArrayList<ContentProviderOperation>()
 
-        ensureBackgroundThread {
             val dateTakens = ArrayList<DateTaken>()
 
             for (path in paths) {
@@ -658,10 +693,10 @@ fun AppCompatActivity.fixDateTaken(
                     fixDateTaken(paths, showToasts, true, callback)
                 }
             }
-        }
-    } catch (e: Exception) {
-        if (showToasts) {
-            showErrorToast(e)
+        } catch (e: Exception) {
+            if (showToasts) {
+                showErrorToast(e)
+            }
         }
     }
 }
@@ -875,11 +910,12 @@ fun BaseSimpleActivity.resizeImage(oldPath: String, newPath: String, size: Point
             out.use {
                 try {
                     newBitmap.compress(newFile.absolutePath.getCompressionFormat(), 90, it)
-                } catch (ignored: Exception) {
+                    writeExif(oldExif, exifUriForPath(newPath))
+                    callback(true)
+                } catch (e: Exception) {
+                    callback(false)
                 }
             }
-            writeExif(oldExif, Uri.fromFile(newFile))
-            callback(true)
         } else {
             callback(false)
         }

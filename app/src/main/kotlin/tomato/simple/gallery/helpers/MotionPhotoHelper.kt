@@ -37,6 +37,7 @@ object MotionPhotoHelper {
     private const val ITEM_LENGTH_SUFFIX = "/Item:Length"
     private const val ITEM_PADDING_SUFFIX = "/Item:Padding"
     private val SAMSUNG_MARKER = "MotionPhoto_Data".toByteArray(Charsets.US_ASCII)
+    private const val SAMSUNG_TAIL_SCAN = 64 * 1024L
     private val ATTR = Regex("""([A-Za-z0-9]+:[A-Za-z0-9]+)="([^"]+)"""")
     private val ELEM = Regex("""<([A-Za-z0-9]+:[A-Za-z0-9]+)>([^<]+)</""")
     private val LATIN_1: Charset = Charset.forName("ISO-8859-1")
@@ -48,7 +49,8 @@ object MotionPhotoHelper {
             }
 
             val xmpResult = context.contentResolver.openInputStream(uri)?.use { stream ->
-                resolveInfo(parseXmpProperties(readAsciiProbe(stream)))
+                val text = readAsciiProbe(stream)
+                resolveInfo(parseXmpProperties(text), parseContainerItems(text))
             }
             if (xmpResult != null) {
                 return xmpResult
@@ -63,12 +65,20 @@ object MotionPhotoHelper {
 
     fun parseInfo(context: Context, path: String): MotionPhotoInfo? = parseInfo(context, pathToUri(path))
 
-    fun resolveInfo(properties: Map<String, String>): MotionPhotoInfo? {
+    fun resolveInfo(properties: Map<String, String>, containerItems: List<Map<String, String>> = emptyList()): MotionPhotoInfo? {
         if (properties[KEY_MOTION_PHOTO] != "1" && properties[KEY_MICRO_VIDEO] != "1") {
             return null
         }
 
         var videoOffset = properties[KEY_MOTION_PHOTO_OFFSET]?.toLongOrNull()?.takeIf { it > 0L }
+        if (videoOffset == null) {
+            val motionItem = containerItems.firstOrNull { it["Item:Semantic"] == SEMANTIC_MOTION_PHOTO }
+            val length = motionItem?.get("Item:Length")?.toLongOrNull()
+            val padding = motionItem?.get("Item:Padding")?.toLongOrNull() ?: 0L
+            if (length != null && length > 0L && padding >= 0L && length <= Long.MAX_VALUE - padding) {
+                videoOffset = length + padding
+            }
+        }
         if (videoOffset == null) {
             val motionEntry = properties.entries.firstOrNull { (key, value) ->
                 key.endsWith(ITEM_SEMANTIC_SUFFIX) && value == SEMANTIC_MOTION_PHOTO
@@ -256,11 +266,20 @@ object MotionPhotoHelper {
     fun pathToUri(path: String): Uri =
         if (path.startsWith("content://") || path.startsWith("file://")) Uri.parse(path) else Uri.fromFile(File(path))
 
-    private fun parseXmpProperties(text: String): Map<String, String> {
+    internal fun parseXmpProperties(text: String): Map<String, String> {
         val props = mutableMapOf<String, String>()
         ATTR.findAll(text).forEach { props[it.groupValues[1]] = it.groupValues[2] }
         ELEM.findAll(text).forEach { props[it.groupValues[1]] = it.groupValues[2] }
         return props
+    }
+
+    internal fun parseContainerItems(text: String): List<Map<String, String>> {
+        val itemTag = Regex("""<Container:Item\b([^>]*?)/?>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+        return itemTag.findAll(text).map { match ->
+            val attrs = linkedMapOf<String, String>()
+            ATTR.findAll(match.groupValues[1]).forEach { attrs[it.groupValues[1]] = it.groupValues[2] }
+            attrs
+        }.toList()
     }
 
     private fun readAsciiProbe(stream: InputStream, maxBytes: Int = 256 * 1024): String {
@@ -302,11 +321,32 @@ object MotionPhotoHelper {
             header[6] == 'y'.code.toByte() && header[7] == 'p'.code.toByte()
     }
 
-    private fun findSamsungMarkerOffset(context: Context, uri: Uri): Long? =
-        context.contentResolver.openInputStream(uri)?.use { input ->
+    private fun findSamsungMarkerOffset(context: Context, uri: Uri): Long? {
+        val pfd = try {
+            context.contentResolver.openFileDescriptor(uri, "r")
+        } catch (_: Exception) {
+            null
+        }
+        if (pfd != null) {
+            pfd.use { descriptor ->
+                val size = descriptor.statSize
+                if (size <= 0L) {
+                    return null
+                }
+                val start = (size - SAMSUNG_TAIL_SCAN).coerceAtLeast(0L)
+                FileInputStream(descriptor.fileDescriptor).channel.use { channel ->
+                    channel.position(start)
+                    val scan = scanSamsungMarker(java.nio.channels.Channels.newInputStream(channel))
+                    val markerEnd = scan.lastMarkerEnd ?: return null
+                    return size - (start + markerEnd)
+                }
+            }
+        }
+        return context.contentResolver.openInputStream(uri)?.use { input ->
             val scan = scanSamsungMarker(input)
             scan.lastMarkerEnd?.let { scan.totalBytes - it }
         }
+    }
 
     private fun copySourceToSeekableFile(context: Context, uri: Uri, outputDirectory: File): File? {
         val partFile = File(outputDirectory, "${UUID.randomUUID()}.source.part")

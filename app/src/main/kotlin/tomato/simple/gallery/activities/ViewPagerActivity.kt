@@ -17,13 +17,14 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore.Images
 import android.view.MenuItem
-import android.view.View
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.RelativeLayout
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.exifinterface.media.ExifInterface
 import androidx.print.PrintHelper
 import androidx.viewpager.widget.ViewPager
@@ -61,8 +62,6 @@ import kotlin.math.min
 
 @Suppress("UNCHECKED_CAST")
 class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, ViewPagerFragment.FragmentListener {
-    private val REQUEST_VIEW_VIDEO = 1
-
     private var mPath = ""
     private var mDirectory = ""
     private var mIsFullScreen = false
@@ -71,13 +70,16 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     private var mIsSlideshowActive = false
     private var mPrevHashcode = 0
 
-    private var mSlideshowHandler = Handler()
+    private var mSlideshowHandler = Handler(Looper.getMainLooper())
     private var mSlideshowInterval = SLIDESHOW_DEFAULT_INTERVAL
     private var mSlideshowMoveBackwards = false
     private var mSlideshowMedia = mutableListOf<Medium>()
     private var mAreSlideShowMediaVisible = false
     private var mRandomSlideshowStopped = false
 
+    private var mTemporarilyShowHiddenForView = false
+    private var mIsTogglingVisibility = false
+    private var mOriginalBrightness: Float? = null
     private var mIsOrientationLocked = false
 
     private var mMediaFiles = ArrayList<Medium>()
@@ -85,6 +87,15 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     private var mIgnoredPaths = ArrayList<String>()
 
     private val binding by viewBinding(ActivityMediumBinding::inflate)
+    private val viewVideoLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            if (result.data!!.getBooleanExtra(GO_TO_NEXT_ITEM, false)) {
+                goToNextItem()
+            } else if (result.data!!.getBooleanExtra(GO_TO_PREV_ITEM, false)) {
+                goToPrevItem()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         showTransparentTop = true
@@ -101,7 +112,9 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
 
         handlePermission(getPermissionToRequest()) {
             if (it) {
-                initViewPager()
+                ensureAppUnlocked {
+                    initViewPager()
+                }
             } else {
                 toast(com.simplemobiletools.commons.R.string.no_storage_permissions)
                 finish()
@@ -125,12 +138,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
         }
 
         initBottomActions()
-
-        if (config.maxBrightness) {
-            val attributes = window.attributes
-            attributes.screenBrightness = 1f
-            window.attributes = attributes
-        }
+        mOriginalBrightness = window.applyMaxBrightness(config.maxBrightness, mOriginalBrightness)
 
         setupOrientation()
         refreshMenuItems()
@@ -146,7 +154,8 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
 
     override fun onDestroy() {
         super.onDestroy()
-        if (intent.extras?.containsKey(IS_VIEW_INTENT) == true) {
+        window.applyMaxBrightness(false, mOriginalBrightness)
+        if (mTemporarilyShowHiddenForView) {
             config.temporarilyShowHidden = false
         }
 
@@ -178,11 +187,11 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 findItem(R.id.menu_set_as).isVisible = visibleBottomActions and BOTTOM_ACTION_SET_AS == 0
                 findItem(R.id.menu_copy_to).isVisible = visibleBottomActions and BOTTOM_ACTION_COPY == 0
                 findItem(R.id.menu_copy_to_clipboard).isVisible = currentMedium.isImage()
-                findItem(R.id.menu_move_to).isVisible = visibleBottomActions and BOTTOM_ACTION_MOVE == 0
+        findItem(R.id.menu_move_to).isVisible = visibleBottomActions and BOTTOM_ACTION_MOVE == 0 && !currentMedium.getIsInRecycleBin()
                 findItem(R.id.menu_save_as).isVisible = rotationDegrees != 0
                 findItem(R.id.menu_print).isVisible = currentMedium.isImage() || currentMedium.isRaw()
                 findItem(R.id.menu_resize).isVisible = visibleBottomActions and BOTTOM_ACTION_RESIZE == 0 && currentMedium.isImage()
-                findItem(R.id.menu_optimize_jpeg).isVisible = currentMedium.path.isJpg()
+                findItem(R.id.menu_optimize_jpeg).isVisible = JpegOptim.isAvailable && currentMedium.path.isJpg()
                 findItem(R.id.menu_save_motion_video).isVisible = currentMedium.isImage() && (getCurrentPhotoFragment()?.hasMotionPhoto() == true)
                 findItem(R.id.menu_remove_location).isVisible = currentMedium.isImage() || currentMedium.isRaw()
                 findItem(R.id.menu_remove_metadata).isVisible = currentMedium.isImage() || currentMedium.isRaw()
@@ -282,12 +291,6 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             refreshViewPager()
         } else if (requestCode == REQUEST_SET_AS && resultCode == Activity.RESULT_OK) {
             toast(R.string.wallpaper_set_successfully)
-        } else if (requestCode == REQUEST_VIEW_VIDEO && resultCode == Activity.RESULT_OK && resultData != null) {
-            if (resultData.getBooleanExtra(GO_TO_NEXT_ITEM, false)) {
-                goToNextItem()
-            } else if (resultData.getBooleanExtra(GO_TO_PREV_ITEM, false)) {
-                goToPrevItem()
-            }
         }
         super.onActivityResult(requestCode, resultCode, resultData)
     }
@@ -299,14 +302,19 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     }
 
     private fun initViewPager() {
+        val trusted = intent.isTrustedInternal()
         val uri = intent.data
         if (uri != null) {
             var cursor: Cursor? = null
             try {
-                val proj = arrayOf(Images.Media.DATA)
-                cursor = contentResolver.query(uri, proj, null, null, null)
-                if (cursor?.moveToFirst() == true) {
-                    mPath = cursor.getStringValue(Images.Media.DATA)
+                val authority = uri.authority
+                val trustMediaStore = authority == "media" || authority == "com.android.providers.media.documents"
+                if (trustMediaStore) {
+                    val proj = arrayOf(Images.Media.DATA)
+                    cursor = contentResolver.query(uri, proj, null, null, null)
+                    if (cursor?.moveToFirst() == true) {
+                        mPath = cursor.getStringValue(Images.Media.DATA)
+                    }
                 }
             } finally {
                 cursor?.close()
@@ -324,7 +332,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             }
         }
 
-        if (intent.extras?.containsKey(REAL_FILE_PATH) == true) {
+        if (trusted && intent.extras?.containsKey(REAL_FILE_PATH) == true) {
             mPath = intent.extras!!.getString(REAL_FILE_PATH)!!
         }
 
@@ -334,9 +342,16 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             return
         }
 
+        if (!trusted && mPath.isThisOrParentFolderHidden() && !config.shouldShowHidden) {
+            toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+            finish()
+            return
+        }
+
         if (mPath.isPortrait() && getPortraitPath() == "") {
             val newIntent = Intent(this, ViewPagerActivity::class.java)
             newIntent.putExtras(intent!!.extras!!)
+            newIntent.putInternalNonce()
             newIntent.putExtra(PORTRAIT_PATH, mPath)
             newIntent.putExtra(PATH, "${mPath.getParentPath().getParentPath()}/${mPath.getFilenameFromPath()}")
 
@@ -352,12 +367,13 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
 
         showSystemUI(true)
 
-        if (intent.getBooleanExtra(SKIP_AUTHENTICATION, false)) {
-            initContinue()
+        val skipAuth = trusted && intent.getBooleanExtra(SKIP_AUTHENTICATION, false)
+        if (skipAuth) {
+            initContinue(trusted)
         } else {
             handleLockedFolderOpening(mPath.getParentPath()) { success ->
                 if (success) {
-                    initContinue()
+                    initContinue(trusted)
                 } else {
                     finish()
                 }
@@ -365,10 +381,17 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
         }
     }
 
-    private fun initContinue() {
-        if (intent.extras?.containsKey(IS_VIEW_INTENT) == true) {
+    private fun initContinue(trusted: Boolean = intent.isTrustedInternal()) {
+        val isViewIntent = if (trusted) {
+            intent.extras?.containsKey(IS_VIEW_INTENT) == true
+        } else {
+            intent.data != null || intent.action == Intent.ACTION_VIEW || intent.action == "android.provider.action.REVIEW" || intent.action == "com.android.camera.action.REVIEW"
+        }
+
+        if (isViewIntent) {
             if (isShowHiddenFlagNeeded()) {
-                if (!config.isHiddenPasswordProtectionOn) {
+                if (!config.isHiddenPasswordProtectionOn && !config.shouldShowHidden) {
+                    mTemporarilyShowHiddenForView = true
                     config.temporarilyShowHidden = true
                 }
             }
@@ -376,8 +399,8 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             config.isThirdPartyIntent = true
         }
 
-        val isShowingFavorites = intent.getBooleanExtra(SHOW_FAVORITES, false)
-        val isShowingRecycleBin = intent.getBooleanExtra(SHOW_RECYCLE_BIN, false)
+        val isShowingFavorites = trusted && intent.getBooleanExtra(SHOW_FAVORITES, false)
+        val isShowingRecycleBin = trusted && intent.getBooleanExtra(SHOW_RECYCLE_BIN, false)
         mDirectory = when {
             isShowingFavorites -> FAVORITES
             isShowingRecycleBin -> RECYCLE_BIN
@@ -413,23 +436,10 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
 
         if (config.hideSystemUI) {
             binding.viewPager.onGlobalLayout {
-                Handler().postDelayed({
+                Handler(Looper.getMainLooper()).postDelayed({
                     fragmentClicked()
                 }, HIDE_SYSTEM_UI_DELAY)
             }
-        }
-
-        window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
-            mIsFullScreen = if (isNougatPlus() && isInMultiWindowMode) {
-                visibility and View.SYSTEM_UI_FLAG_LOW_PROFILE != 0
-            } else if (visibility and View.SYSTEM_UI_FLAG_LOW_PROFILE == 0) {
-                false
-            } else {
-                visibility and View.SYSTEM_UI_FLAG_FULLSCREEN != 0
-            }
-
-            checkSystemUI()
-            fullscreenToggled()
         }
 
         if (intent.action == "com.android.camera.action.REVIEW") {
@@ -496,7 +506,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     }
 
     private fun checkSlideshowOnEnter() {
-        if (intent.getBooleanExtra(SLIDESHOW_START_ON_ENTER, false)) {
+        if (intent.isTrustedInternal() && intent.getBooleanExtra(SLIDESHOW_START_ON_ENTER, false)) {
             initSlideshow()
         }
     }
@@ -700,6 +710,10 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     }
 
     private fun toggleFileVisibility(hide: Boolean, callback: (() -> Unit)? = null) {
+        if (mIsTogglingVisibility) {
+            return
+        }
+        mIsTogglingVisibility = true
         toggleFileVisibility(getCurrentPath(), hide) {
             val newFileName = it.getFilenameFromPath()
             binding.mediumViewerToolbar.title = newFileName
@@ -711,6 +725,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             }
 
             refreshMenuItems()
+            mIsTogglingVisibility = false
             callback?.invoke()
         }
     }
@@ -922,6 +937,9 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
         }
 
         binding.bottomActions.bottomToggleFileVisibility.setOnClickListener {
+            if (mIsTogglingVisibility) {
+                return@setOnClickListener
+            }
             currentMedium?.apply {
                 toggleFileVisibility(!isHidden()) {
                     updateBottomActionIcons(currentMedium)
@@ -1414,7 +1432,7 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 putExtra(SHOW_NEXT_ITEM, binding.viewPager.currentItem != mMediaFiles.lastIndex)
 
                 try {
-                    startActivityForResult(this, REQUEST_VIEW_VIDEO)
+                    viewVideoLauncher.launch(this)
                 } catch (e: ActivityNotFoundException) {
                     if (!tryGenericMimeType(this, mimeType, newUri)) {
                         toast(com.simplemobiletools.commons.R.string.no_app_found)
@@ -1493,6 +1511,6 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     }
 
     private fun isExternalIntent(): Boolean {
-        return !intent.getBooleanExtra(IS_FROM_GALLERY, false)
+        return !intent.isTrustedInternal() || !intent.getBooleanExtra(IS_FROM_GALLERY, false)
     }
 }

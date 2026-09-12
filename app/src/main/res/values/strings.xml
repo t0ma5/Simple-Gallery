@@ -3,8 +3,12 @@
     <string name="app_name">Simple Gallery</string>
     <string name="app_launcher_name">Gallery</string>
     <string name="about_footer"></string>
+    <string name="history">History</string>
+    <string name="about_history_text">Simple-Gallery (GPL-3.0) was my favorite FOSS gallery app until the project was sold to a shady Israeli company named ZipoApps in 2023. I forked it to keep it alive, FOSS and updated. I will release new versions as long as I have time and energy. Code contributions on GitHub are very welcome :)</string>
     <string name="edit">Edit</string>
     <string name="save">Save</string>
+    <string name="discard_unsaved_edits">Discard unsaved edits?</string>
+    <string name="settings_import_skipped_protected">Skipped protected settings: %s</string>
     <string name="overwrite_original">Overwrite original</string>
     <string name="open_camera">Open camera</string>
     <string name="hidden">(hidden)</string>
@@ -14,6 +18,8 @@
     <string name="pin_to_the_top">Pin to the top</string>
     <string name="show_all">Show all folders content</string>
     <string name="tree_view">Tree view</string>
+    <string name="show_hidden">Show hidden</string>
+    <string name="show_excluded">Show excluded</string>
     <string name="all_folders">All folders</string>
     <string name="folder_view">Switch to folder view</string>
     <string name="other_folder">Other folder</string>
@@ -90,13 +96,15 @@
     <string name="images_resized_successfully">Images resized successfully</string>
     <string name="optimize_jpeg">Optimize JPEG</string>
     <string name="optimize_jpegs">Optimize JPEGs</string>
-    <string name="optimize_jpegs_confirmation">Optimize JPEGs with jpegoptim? Files are replaced only if they get smaller. Metadata and motion-photo data stay. Lower quality saves more space.</string>
+    <string name="optimize_jpegs_confirmation">Optimize JPEGs with jpegoptim? Files are replaced only if they get smaller. EXIF, XMP, ICC, and IPTC stay; Ultra HDR and container photos are skipped. Lower quality saves more space.</string>
     <string name="optimize_jpegs_lossless">Lossless Huffman only (tiny savings)</string>
     <string name="optimize_jpegs_lossless_hint">Pixels stay the same. Huffman tables only.</string>
     <string name="optimize_jpegs_quality">Max quality: %d (lossy)</string>
     <string name="jpegs_optimized">Optimized %1$d JPEG(s), saved %2$s</string>
     <string name="jpegs_already_optimized">JPEGs are already optimized</string>
     <string name="jpeg_optimize_failed">Could not optimize JPEG</string>
+    <string name="jpegs_skipped_hdr">Skipped %d Ultra HDR/container JPEG(s)</string>
+    <string name="jpegs_optimize_failures">Failed: %d</string>
 
     <!-- Editor -->
     <string name="editor">Editor</string>
@@ -134,16 +142,16 @@
     <string name="add_text">Add text</string>
     <string name="add_sticker">Add sticker</string>
     <string name="font">Font</string>
-    <string name="font_sans">Sans</string>
-    <string name="font_serif">Serif</string>
-    <string name="font_monospace">Monospace</string>
-    <string name="font_bold">Bold</string>
-    <string name="font_medium">Medium</string>
-    <string name="font_light">Light</string>
-    <string name="font_condensed">Condensed</string>
-    <string name="font_black">Black</string>
-    <string name="font_cursive">Cursive</string>
-    <string name="font_casual">Casual</string>
+    <string name="font_sans" translatable="false">Sans</string>
+    <string name="font_serif" translatable="false">Serif</string>
+    <string name="font_monospace" translatable="false">Monospace</string>
+    <string name="font_bold" translatable="false">Bold</string>
+    <string name="font_medium" translatable="false">Medium</string>
+    <string name="font_light" translatable="false">Light</string>
+    <string name="font_condensed" translatable="false">Condensed</string>
+    <string name="font_black" translatable="false">Black</string>
+    <string name="font_cursive" translatable="false">Cursive</string>
+    <string name="font_casual" translatable="false">Casual</string>
     <string name="flip">Flip</string>
     <string name="flip_horizontally">Flip horizontally</string>
     <string name="flip_vertically">Flip vertically</string>
@@ -437,7 +445,7 @@
     <string name="faq_18_title">Why do I see ads during video playback?</string>
     <string name="faq_18_text">Our apps have no ads whatsoever. If you see them during video playback, you must be using some other apps video player. Try finding your default video player in the device settings, then do a \"Clear defaults\" on it. The next time you invoke some video intent you will see an app picker prompt, where you can select what app you want to use.</string>
     <string name="faq_19_title">What does Optimize JPEGs do?</string>
-    <string name="faq_19_text">It runs jpegoptim. Lossless Huffman mode keeps pixels identical and usually saves little. Lossy mode re-encodes at a max quality you choose (50–100); files are overwritten only when the new copy is smaller. Metadata and trailing data such as a motion-photo clip are kept. PNG, WebP, AVIF, JPEG XL, and RAW are skipped.</string>
+    <string name="faq_19_text">It runs jpegoptim. Lossless Huffman mode keeps pixels identical and usually saves little. Lossy mode re-encodes at a max quality you choose (50–100); files are overwritten only when the new copy is smaller. EXIF, XMP, ICC, and IPTC are kept; Ultra HDR and container photos are skipped. PNG, WebP, AVIF, JPEG XL, and RAW are skipped.</string>
 
     <string name="number_of_items">Number of items</string>
     <string name="failed_to_load_media">Failed to load media.</string>
@@ -453,7 +461,10 @@
     <string name="motion_photo_save_failed">Could not save the motion photo video</string>
     <string name="remove_location">Remove location</string>
     <string name="remove_all_metadata">Remove all metadata</string>
-    <string name="remove_location_confirmation">Remove GPS location from the selected file(s)?</string>
+    <string name="stack_similar_files">Stack RAW+JPEG, bursts, and edited copies</string>
+    <string name="apply_to_stacked_files">Apply to %d stacked files?</string>
+    <string name="strip_metadata_on_share">Strip GPS and EXIF when sharing</string>
+    <string name="remove_location_confirmation">Remove GPS location from the selected file(s)? IPTC location is not changed.</string>
     <string name="remove_metadata_confirmation">Remove all metadata from the selected file(s)? This cannot be undone.</string>
     <string name="metadata_removed">Metadata removed</string>
     <string name="metadata_remove_failed">Could not remove metadata</string>

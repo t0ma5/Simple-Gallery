@@ -8,7 +8,7 @@ import tomato.simple.gallery.models.Medium
  */
 object MediaStackHelper {
     private val EDITED_SUFFIX = Regex("""(?i)([_ -](edited|edit|edytuj|bearbeitet)|~2)$""")
-    private val BURST_SPLIT = Regex("""(?i)_?burst""")
+    private val BURST_TOKEN = Regex("""(?i)(_BURST\d{14}|_burst\d+)""")
 
     fun stack(media: ArrayList<Medium>): ArrayList<Medium> {
         if (media.size < 2) {
@@ -23,8 +23,8 @@ object MediaStackHelper {
 
         val result = ArrayList<Medium>(groups.size)
         for (group in groups.values) {
-            if (group.size == 1) {
-                result.add(group.first())
+            if (group.size == 1 || !shouldCollapse(group)) {
+                result.addAll(group)
                 continue
             }
 
@@ -35,12 +35,30 @@ object MediaStackHelper {
         return result
     }
 
+    private fun shouldCollapse(group: List<Medium>): Boolean {
+        val hasRaw = group.any { it.isRaw() }
+        val hasImage = group.any { it.isImage() && !it.isRaw() }
+        if (hasRaw && hasImage) {
+            return true
+        }
+        if (group.any { BURST_TOKEN.containsMatchIn(it.name) }) {
+            return true
+        }
+        if (group.any { EDITED_SUFFIX.containsMatchIn(it.name.substringBeforeLast('.', it.name)) }) {
+            return true
+        }
+        return false
+    }
+
     private fun stackKey(medium: Medium): String {
         val parent = medium.parentPath.trimEnd('/').lowercase()
         val stem = medium.name.substringBeforeLast('.', medium.name)
-        val burstParts = BURST_SPLIT.split(stem, limit = 2)
-        if (burstParts.size > 1 && burstParts[0].isNotEmpty()) {
-            return "$parent|burst:${burstParts[0].lowercase()}"
+        val burstMatch = BURST_TOKEN.find(stem)
+        if (burstMatch != null) {
+            val prefix = stem.substring(0, burstMatch.range.first)
+            if (prefix.isNotEmpty()) {
+                return "$parent|burst:${prefix.lowercase()}"
+            }
         }
 
         val base = EDITED_SUFFIX.replace(stem, "")

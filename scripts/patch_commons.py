@@ -222,6 +222,29 @@ def main() -> None:
                 'launchViewIntent("https://github.com/t0ma5/Simple-Gallery")',
             ),
             (
+                """    private fun onVersionClick() {
+        if (firstVersionClickTS == 0L) {
+            firstVersionClickTS = System.currentTimeMillis()
+            Handler(Looper.getMainLooper()).postDelayed({
+                firstVersionClickTS = 0L
+                clicksSinceFirstClick = 0
+            }, EASTER_EGG_TIME_LIMIT)
+        }
+
+        clicksSinceFirstClick++
+        if (clicksSinceFirstClick >= EASTER_EGG_REQUIRED_CLICKS) {
+            toast(R.string.hello)
+            firstVersionClickTS = 0L
+            clicksSinceFirstClick = 0
+        }
+    }
+""",
+                """    private fun onVersionClick() {
+        launchViewIntent("https://github.com/t0ma5/Simple-Gallery/releases")
+    }
+""",
+            ),
+            (
                 "showPrivacyPolicy = showExternalLinks,",
                 "showPrivacyPolicy = false,",
             ),
@@ -264,12 +287,62 @@ def main() -> None:
         "commons/src/main/kotlin/com/simplemobiletools/commons/compose/screens/AboutScreen.kt",
         [
             (
+                "import androidx.compose.ui.res.stringResource\n",
+                "import androidx.compose.ui.res.colorResource\n"
+                "import androidx.compose.ui.res.stringResource\n",
+            ),
+            (
+                "    SimpleColumnScaffold(title = stringResource(id = R.string.about), goBack = goBack) {\n"
+                "        aboutSection()\n"
+                "        helpUsSection()\n"
+                "        socialSection()\n"
+                "        otherSection()\n"
+                "    }\n",
+                "    SimpleColumnScaffold(title = stringResource(id = R.string.about), goBack = goBack) {\n"
+                "        HistorySection()\n"
+                "        aboutSection()\n"
+                "        helpUsSection()\n"
+                "        socialSection()\n"
+                "        otherSection()\n"
+                "    }\n",
+            ),
+            (
+                "}\n\n@Composable\ninternal fun HelpUsSection(\n",
+                "}\n\n@Composable\ninternal fun HistorySection() {\n"
+                "    SettingsGroup(title = {\n"
+                "        SettingsTitleTextComponent(\n"
+                "            text = stringResource(id = R.string.history),\n"
+                "            modifier = startingTitlePadding,\n"
+                "            color = colorResource(id = R.color.color_primary)\n"
+                "        )\n"
+                "    }) {\n"
+                "        SettingsListItem(\n"
+                "            tint = SimpleTheme.colorScheme.onSurface,\n"
+                "            text = stringResource(id = R.string.about_history_text),\n"
+                "        )\n"
+                "        SettingsHorizontalDivider()\n"
+                "    }\n"
+                "}\n\n@Composable\ninternal fun HelpUsSection(\n",
+            ),
+            (
+                "        SettingsTitleTextComponent(text = stringResource(id = R.string.other), modifier = startingTitlePadding)",
+                "        SettingsTitleTextComponent(\n"
+                "            text = stringResource(id = R.string.other),\n"
+                "            modifier = startingTitlePadding,\n"
+                "            color = colorResource(id = R.color.color_primary)\n"
+                "        )",
+            ),
+            (
                 "        SettingsListItem(text = stringResource(id = R.string.about_footer))\n",
                 "",
             ),
             (
                 "        SettingsTitleTextComponent(text = stringResource(id = R.string.social), modifier = startingTitlePadding)",
-                "        SettingsTitleTextComponent(text = stringResource(id = R.string.website), modifier = startingTitlePadding)",
+                "        SettingsTitleTextComponent(\n"
+                "            text = stringResource(id = R.string.website),\n"
+                "            modifier = startingTitlePadding,\n"
+                "            color = colorResource(id = R.color.color_primary)\n"
+                "        )",
             ),
             (
                 "        SocialText(\n"
@@ -304,6 +377,16 @@ def main() -> None:
     )
 
     patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/extensions/Context-storage.kt",
+        [
+            (
+                "val Context.recycleBinPath: String get() = filesDir.absolutePath\n",
+                "val Context.recycleBinPath: String get() = java.io.File(filesDir, \"recycle_bin\").absolutePath\n",
+            ),
+        ],
+    )
+
+    patch(
         "commons/src/main/kotlin/com/simplemobiletools/commons/helpers/Constants.kt",
         [
             (
@@ -329,6 +412,125 @@ def main() -> None:
                 '    <string name="zip4j_title">Zip4j (ZIP compression and decompression)</string>\n',
                 '    <string name="zip4j_title">Zip4j (ZIP compression and decompression)</string>\n'
                 '    <string name="jpegoptim_title">jpegoptim (lossless JPEG optimization)</string>\n',
+            ),
+            (
+                '    <string name="disclaimer">Disclaimer</string>\n',
+                '    <string name="disclaimer">Disclaimer</string>\n'
+                '    <string name="history">History</string>\n'
+                '    <string name="about_history_text">Simple-Gallery (GPL-3.0) was my favorite FOSS gallery app until the project was sold to a shady Israeli company named ZipoApps in 2023. I forked it to keep it alive, FOSS and updated. I will release new versions as long as I have time and energy. Code contributions on GitHub are very welcome :)</string>\n',
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/helpers/BaseConfig.kt",
+        [
+            (
+                "        get() = prefs.getBoolean(IS_USING_SYSTEM_THEME, isSPlus())\n",
+                "        get() = prefs.getBoolean(IS_USING_SYSTEM_THEME, false)\n",
+            ),
+            (
+                "        get() = prefs.getBoolean(USE_24_HOUR_FORMAT, DateFormat.is24HourFormat(context))\n",
+                "        get() = prefs.getBoolean(USE_24_HOUR_FORMAT, true)\n",
+            ),
+            (
+                "        get() = prefs.getString(DATE_FORMAT, getDefaultDateFormat())!!\n",
+                "        get() = prefs.getString(DATE_FORMAT, DATE_FORMAT_TWO)!!\n",
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/dialogs/LineColorPickerDialog.kt",
+        [
+            (
+                "    private val DEFAULT_PRIMARY_COLOR_INDEX = 14\n",
+                "    private val DEFAULT_PRIMARY_COLOR_INDEX = 0\n",
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/compose/theme/Colors.kt",
+        [
+            (
+                "val color_primary = Color(0xFFF57C00)\n"
+                "val color_primary_dark = Color(0xFFD76D00)\n",
+                "val color_primary = Color(0xFFD3332F)\n"
+                "val color_primary_dark = Color(0xFFB71C1C)\n",
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/res/values/colors.xml",
+        [
+            (
+                '    <color name="color_primary">#FFF57C00</color>\n'
+                '    <color name="color_primary_dark">#FFD76D00</color>\n',
+                '    <color name="color_primary">#FFD3332F</color>\n'
+                '    <color name="color_primary_dark">#FFB71C1C</color>\n',
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/res/values/styles.xml",
+        [
+            (
+                '        <item name="colorAccent">@color/color_accent</item>\n',
+                '        <item name="colorAccent">@color/color_accent</item>\n'
+                '        <item name="colorControlActivated">@color/color_primary</item>\n'
+                '        <item name="android:colorControlActivated">@color/color_primary</item>\n',
+            ),
+            (
+                '    <style name="TopPopupMenu.Overflow.Light" parent="@style/Widget.MaterialComponents.PopupMenu.Overflow">\n'
+                '        <item name="android:popupBackground">@drawable/top_popup_menu_bg_light</item>\n'
+                '    </style>\n\n'
+                '    <style name="TopPopupMenu.Overflow.Dark" parent="@style/Widget.MaterialComponents.PopupMenu.Overflow">\n'
+                '        <item name="android:popupBackground">@drawable/top_popup_menu_bg_dark</item>\n'
+                '    </style>\n',
+                '    <style name="TopPopupMenu.Overflow.Light" parent="@style/Widget.MaterialComponents.PopupMenu.Overflow">\n'
+                '        <item name="android:popupBackground">@drawable/top_popup_menu_bg_light</item>\n'
+                '        <item name="colorControlActivated">@color/color_primary</item>\n'
+                '        <item name="android:colorControlActivated">@color/color_primary</item>\n'
+                '    </style>\n\n'
+                '    <style name="TopPopupMenu.Overflow.Dark" parent="@style/Widget.MaterialComponents.PopupMenu.Overflow">\n'
+                '        <item name="android:popupBackground">@drawable/top_popup_menu_bg_dark</item>\n'
+                '        <item name="colorControlActivated">@color/color_primary</item>\n'
+                '        <item name="android:colorControlActivated">@color/color_primary</item>\n'
+                '    </style>\n',
+            ),
+            (
+                '    <style name="TopPopupMenuYou" parent="@style/Widget.AppCompat.ActionButton.Overflow">\n'
+                '        <item name="android:popupBackground">@drawable/dialog_you_background</item>\n'
+                '        <item name="android:dropDownHorizontalOffset">-10dp</item>\n'
+                '        <item name="android:popupElevation">@dimen/popup_menu_elevation</item>\n'
+                '    </style>\n',
+                '    <style name="TopPopupMenuYou" parent="@style/Widget.AppCompat.ActionButton.Overflow">\n'
+                '        <item name="android:popupBackground">@drawable/dialog_you_background</item>\n'
+                '        <item name="android:dropDownHorizontalOffset">-10dp</item>\n'
+                '        <item name="android:popupElevation">@dimen/popup_menu_elevation</item>\n'
+                '        <item name="colorControlActivated">@color/color_primary</item>\n'
+                '        <item name="android:colorControlActivated">@color/color_primary</item>\n'
+                '    </style>\n',
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/compose/theme/DynamicTheme.kt",
+        [
+            (
+                "                else -> md_orange_700\n",
+                "                else -> md_red_700\n",
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/activities/CustomizationActivity.kt",
+        [
+            (
+                '        if (!packageName.startsWith("com.simplemobiletools.", true) && baseConfig.appRunCount > 50) {\n'
+                "            finish()\n"
+                "            return\n"
+                "        }\n\n"
+                "        curPrimaryLineColorPicker = LineColorPickerDialog",
+                "        curPrimaryLineColorPicker = LineColorPickerDialog",
             ),
         ],
     )

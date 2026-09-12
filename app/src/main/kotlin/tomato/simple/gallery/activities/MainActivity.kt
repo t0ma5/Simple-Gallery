@@ -6,12 +6,14 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.MediaStore.Images
 import android.provider.MediaStore.Video
 import android.view.ViewGroup
 import android.widget.RelativeLayout
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.RecyclerView
 import com.simplemobiletools.commons.dialogs.ConfirmationDialog
 import com.simplemobiletools.commons.dialogs.CreateNewFolderDialog
@@ -43,8 +45,6 @@ import java.io.*
 
 class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     companion object {
-        private const val PICK_MEDIA = 2
-        private const val PICK_WALLPAPER = 3
         private const val LAST_MEDIA_CHECK_PERIOD = 3000L
     }
 
@@ -59,19 +59,17 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mIsGettingDirs = false
     private var mLoadedInitialPhotos = false
     private var mIsPasswordProtectionPending = false
-    private var mWasProtectionHandled = false
     private var mShouldStopFetching = false
     private var mWasDefaultFolderChecked = false
     private var mWasMediaManagementPromptShown = false
-    private var mWasUpgradedFromFreeShown = false
     private var mLatestMediaId = 0L
     private var mLatestMediaDateId = 0L
     private var mCurrentPathPrefix = ""                 // used at "Group direct subfolders" for navigation
     private var mOpenedSubfolders = arrayListOf("")     // used at "Group direct subfolders" for navigating Up with the back button
     private var mDateFormat = ""
     private var mTimeFormat = ""
-    private var mLastMediaHandler = Handler()
-    private var mTempShowHiddenHandler = Handler()
+    private var mLastMediaHandler = Handler(Looper.getMainLooper())
+    private var mTempShowHiddenHandler = Handler(Looper.getMainLooper())
     private var mZoomListener: MyRecyclerView.MyZoomListener? = null
     private var mLastMediaFetcher: MediaFetcher? = null
     private var mDirs = ArrayList<Directory>()
@@ -84,6 +82,17 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private var mStoredPrimaryColor = 0
     private var mStoredStyleString = ""
     private val binding by viewBinding(ActivityMainBinding::inflate)
+    private val pickWallpaperLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            setResult(Activity.RESULT_OK)
+            finish()
+        }
+    }
+    private val pickMediaLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            handlePickedMedia(result.data!!)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         isMaterialActivity = true
@@ -92,8 +101,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         appLaunched(BuildConfig.APPLICATION_ID)
 
         if (savedInstanceState == null) {
-            config.temporarilyShowHidden = false
-            config.temporarilyShowExcluded = false
             config.tempSkipDeleteConfirmation = false
             config.tempSkipRecycleBin = false
             removeTempFolder()
@@ -241,17 +248,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
         if (!binding.mainMenu.isSearchOpen) {
             refreshMenuItems()
-            if (mIsPasswordProtectionPending && !mWasProtectionHandled) {
-                handleAppPasswordProtection {
-                    mWasProtectionHandled = it
-                    if (it) {
-                        mIsPasswordProtectionPending = false
-                        tryLoadGallery()
-                    } else {
-                        finish()
-                    }
-                }
-            } else {
+            ensureAppUnlocked {
+                mIsPasswordProtectionPending = false
                 tryLoadGallery()
             }
         }
@@ -274,10 +272,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     override fun onStop() {
         super.onStop()
 
-        if (config.temporarilyShowHidden || config.tempSkipDeleteConfirmation || config.temporarilyShowExcluded) {
+        if (config.tempSkipDeleteConfirmation) {
             mTempShowHiddenHandler.postDelayed({
-                config.temporarilyShowHidden = false
-                config.temporarilyShowExcluded = false
                 config.tempSkipDeleteConfirmation = false
                 config.tempSkipRecycleBin = false
             }, SHOW_TEMP_HIDDEN_DURATION)
@@ -289,8 +285,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     override fun onDestroy() {
         super.onDestroy()
         if (!isChangingConfigurations) {
-            config.temporarilyShowHidden = false
-            config.temporarilyShowExcluded = false
             config.tempSkipDeleteConfirmation = false
             config.tempSkipRecycleBin = false
             mTempShowHiddenHandler.removeCallbacksAndMessages(null)
@@ -320,35 +314,27 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, resultData: Intent?) {
-        if (resultCode == Activity.RESULT_OK) {
-            if (requestCode == PICK_MEDIA && resultData != null) {
-                val resultIntent = Intent()
-                var resultUri: Uri? = null
-                if (mIsThirdPartyIntent) {
-                    when {
-                        intent.extras?.containsKey(MediaStore.EXTRA_OUTPUT) == true && intent.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0 -> {
-                            resultUri = fillExtraOutput(resultData)
-                        }
-
-                        resultData.extras?.containsKey(PICKED_PATHS) == true -> fillPickedPaths(resultData, resultIntent)
-                        else -> fillIntentPath(resultData, resultIntent)
-                    }
+    private fun handlePickedMedia(resultData: Intent) {
+        val resultIntent = Intent()
+        var resultUri: Uri? = null
+        if (mIsThirdPartyIntent) {
+            when {
+                intent.extras?.containsKey(MediaStore.EXTRA_OUTPUT) == true && intent.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0 -> {
+                    resultUri = fillExtraOutput(resultData)
                 }
 
-                if (resultUri != null) {
-                    resultIntent.data = resultUri
-                    resultIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-
-                setResult(Activity.RESULT_OK, resultIntent)
-                finish()
-            } else if (requestCode == PICK_WALLPAPER) {
-                setResult(Activity.RESULT_OK)
-                finish()
+                resultData.extras?.containsKey(PICKED_PATHS) == true -> fillPickedPaths(resultData, resultIntent)
+                else -> fillIntentPath(resultData, resultIntent)
             }
         }
-        super.onActivityResult(requestCode, resultCode, resultData)
+
+        if (resultUri != null) {
+            resultIntent.data = resultUri
+            resultIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        setResult(Activity.RESULT_OK, resultIntent)
+        finish()
     }
 
     private fun refreshMenuItems() {
@@ -362,16 +348,8 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
 
         binding.mainMenu.getToolbar().menu.apply {
-            findItem(R.id.temporarily_show_hidden).isVisible = !config.shouldShowHidden
-            findItem(R.id.stop_showing_hidden).isVisible = (!isRPlus() || isExternalStorageManager()) && config.temporarilyShowHidden
-
-            findItem(R.id.temporarily_show_excluded).isVisible = !config.temporarilyShowExcluded
-            findItem(R.id.stop_showing_excluded).isVisible = config.temporarilyShowExcluded
-
-            val treeItem = findItem(R.id.tree_view)
-            if (treeItem != null) {
-                treeItem.isChecked = config.treeModeEnabled
-            }
+            findItem(R.id.temporarily_show_hidden).isChecked = config.shouldShowHidden
+            findItem(R.id.temporarily_show_excluded).isChecked = config.temporarilyShowExcluded
         }
     }
 
@@ -405,12 +383,9 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 R.id.open_camera -> launchCamera()
                 R.id.show_all -> showAllMedia()
                 R.id.change_view_type -> changeViewType()
-                R.id.temporarily_show_hidden -> tryToggleTemporarilyShowHidden()
-                R.id.stop_showing_hidden -> tryToggleTemporarilyShowHidden()
-                R.id.temporarily_show_excluded -> tryToggleTemporarilyShowExcluded()
-                R.id.stop_showing_excluded -> tryToggleTemporarilyShowExcluded()
+                R.id.temporarily_show_hidden -> tryToggleShowHidden()
+                R.id.temporarily_show_excluded -> tryToggleShowExcluded()
                 R.id.create_new_folder -> createNewFolder()
-                R.id.tree_view -> toggleTreeMode()
                 R.id.open_recycle_bin -> openRecycleBin()
                 R.id.column_count -> changeColumnCount()
                 R.id.set_as_default_folder -> setAsDefaultFolder()
@@ -421,16 +396,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             }
             return@setOnMenuItemClickListener true
         }
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putBoolean(WAS_PROTECTION_HANDLED, mWasProtectionHandled)
-    }
-
-    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
-        super.onRestoreInstanceState(savedInstanceState)
-        mWasProtectionHandled = savedInstanceState.getBoolean(WAS_PROTECTION_HANDLED, false)
     }
 
     private fun updateMenuColors() {
@@ -514,17 +479,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 if (!mWasDefaultFolderChecked) {
                     openDefaultFolder()
                     mWasDefaultFolderChecked = true
-                }
-
-                if (isPackageInstalled("com.simplemobiletools.gallery")) {
-                    ConfirmationDialog(
-                        this,
-                        "",
-                        com.simplemobiletools.commons.R.string.upgraded_from_free_gallery,
-                        com.simplemobiletools.commons.R.string.ok,
-                        0,
-                        false
-                    ) {}
                 }
 
                 checkOTGPath()
@@ -618,39 +572,45 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         }
     }
 
-    private fun tryToggleTemporarilyShowHidden() {
-        if (config.temporarilyShowHidden) {
-            toggleTemporarilyShowHidden(false)
+    private fun tryToggleShowHidden() {
+        if (config.shouldShowHidden) {
+            toggleShowHidden(false)
         } else {
             if (isRPlus() && !isExternalStorageManager()) {
                 GrantAllFilesDialog(this)
+                refreshMenuItems()
             } else {
                 handleHiddenFolderPasswordProtection {
-                    toggleTemporarilyShowHidden(true)
+                    toggleShowHidden(true)
                 }
+                refreshMenuItems()
             }
         }
     }
 
-    private fun toggleTemporarilyShowHidden(show: Boolean) {
+    private fun toggleShowHidden(show: Boolean) {
         mLoadedInitialPhotos = false
-        config.temporarilyShowHidden = show
+        config.showHiddenMedia = show
+        if (!show) {
+            config.temporarilyShowHidden = false
+        }
         binding.directoriesGrid.adapter = null
         getDirectories()
         refreshMenuItems()
     }
 
-    private fun tryToggleTemporarilyShowExcluded() {
+    private fun tryToggleShowExcluded() {
         if (config.temporarilyShowExcluded) {
-            toggleTemporarilyShowExcluded(false)
+            toggleShowExcluded(false)
         } else {
             handleExcludedFolderPasswordProtection {
-                toggleTemporarilyShowExcluded(true)
+                toggleShowExcluded(true)
             }
+            refreshMenuItems()
         }
     }
 
-    private fun toggleTemporarilyShowExcluded(show: Boolean) {
+    private fun toggleShowExcluded(show: Boolean) {
         mLoadedInitialPhotos = false
         config.temporarilyShowExcluded = show
         binding.directoriesGrid.adapter = null
@@ -841,11 +801,15 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
 
     private fun isGetContentIntent(intent: Intent) = intent.action == Intent.ACTION_GET_CONTENT && intent.type != null
 
-    private fun isGetImageContentIntent(intent: Intent) = isGetContentIntent(intent) &&
-        (intent.type!!.startsWith("image/") || intent.type == Images.Media.CONTENT_TYPE)
+    private fun isGetImageContentIntent(intent: Intent) = isGetContentIntent(intent) && extraMimes(intent).let { mimes ->
+        if (mimes != null) mimes.any { it.startsWith("image/") } else intent.type!!.startsWith("image/") || intent.type == Images.Media.CONTENT_TYPE
+    }
 
-    private fun isGetVideoContentIntent(intent: Intent) = isGetContentIntent(intent) &&
-        (intent.type!!.startsWith("video/") || intent.type == Video.Media.CONTENT_TYPE)
+    private fun isGetVideoContentIntent(intent: Intent) = isGetContentIntent(intent) && extraMimes(intent).let { mimes ->
+        if (mimes != null) mimes.any { it.startsWith("video/") } else intent.type!!.startsWith("video/") || intent.type == Video.Media.CONTENT_TYPE
+    }
+
+    private fun extraMimes(intent: Intent): Array<String>? = intent.getStringArrayExtra(Intent.EXTRA_MIME_TYPES)
 
     private fun isGetAnyContentIntent(intent: Intent) = isGetContentIntent(intent) && intent.type == "*/*"
 
@@ -908,6 +872,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         handleLockedFolderOpening(path) { success ->
             if (success) {
                 Intent(this, MediaActivity::class.java).apply {
+                    putInternalNonce()
                     putExtra(SKIP_AUTHENTICATION, true)
                     putExtra(DIRECTORY, path)
                     handleMediaIntent(this)
@@ -921,13 +886,13 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         intent.apply {
             if (mIsSetWallpaperIntent) {
                 putExtra(SET_WALLPAPER_INTENT, true)
-                startActivityForResult(this, PICK_WALLPAPER)
+                pickWallpaperLauncher.launch(this)
             } else {
                 putExtra(GET_IMAGE_INTENT, mIsPickImageIntent || mIsGetImageContentIntent)
                 putExtra(GET_VIDEO_INTENT, mIsPickVideoIntent || mIsGetVideoContentIntent)
                 putExtra(GET_ANY_INTENT, mIsGetAnyContentIntent)
                 putExtra(Intent.EXTRA_ALLOW_MULTIPLE, mAllowPickingMultiple)
-                startActivityForResult(this, PICK_MEDIA)
+                pickMediaLauncher.launch(this)
             }
         }
     }
@@ -1258,28 +1223,6 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
         binding.directoriesFastscroller.beVisibleIf(binding.directoriesEmptyPlaceholder.isGone())
     }
 
-    private fun toggleTreeMode() {
-        val enabling = !config.treeModeEnabled
-        config.treeModeEnabled = enabling
-        if (enabling) {
-            config.viewTypeFoldersBeforeTree = config.viewTypeFolders
-            if (config.viewTypeFolders != VIEW_TYPE_LIST) {
-                config.viewTypeFolders = VIEW_TYPE_LIST
-            }
-        } else {
-            mDirs.forEach { it.treeDepth = 0 }
-            mDirsIgnoringSearch.forEach { it.treeDepth = 0 }
-            val previous = config.viewTypeFoldersBeforeTree
-            if (previous != 0) {
-                config.viewTypeFolders = previous
-                config.viewTypeFoldersBeforeTree = 0
-            }
-        }
-        setupLayoutManager()
-        refreshMenuItems()
-        setupAdapter(mDirs.ifEmpty { mDirsIgnoringSearch }, forceRecreate = true)
-    }
-
     /**
      * Nested folder list for tree view. Albums nest under the closest ancestor that is also
      * in the list. Sibling albums at different path depths still indent relative to the
@@ -1344,8 +1287,15 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
             dir.treeDepth = depth
             dir.containsMediaFilesDirectly = dir.mediaCnt > 0
             result.add(dir)
-            children[dir.path]?.sortedBy { it.name.lowercase() }?.forEach { child ->
-                walk(child, depth + 1)
+            children[dir.path]?.let { kids ->
+                val sortedKids = if (config.directorySorting and SORT_BY_NAME != 0) {
+                    kids.sortedBy { it.name.lowercase() }
+                } else {
+                    kids.sortedBy { it.sortValue }
+                }
+                movePinnedDirectoriesToFront(ArrayList(sortedKids)).forEach { child ->
+                    walk(child, depth + 1)
+                }
             }
             visiting.remove(dir.path)
         }
@@ -1530,7 +1480,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
     private fun checkRecycleBinItems() {
         if (config.useRecycleBin && config.lastBinCheck < System.currentTimeMillis() - DAY_SECONDS * 1000) {
             config.lastBinCheck = System.currentTimeMillis()
-            Handler().postDelayed({
+            Handler(Looper.getMainLooper()).postDelayed({
                 ensureBackgroundThread {
                     try {
                         val filesToDelete = mediaDB.getOldRecycleBinItems(System.currentTimeMillis() - MONTH_MILLISECONDS)

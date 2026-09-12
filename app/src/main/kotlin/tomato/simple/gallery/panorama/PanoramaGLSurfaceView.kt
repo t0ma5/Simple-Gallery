@@ -43,6 +43,7 @@ class PanoramaGLSurfaceView @JvmOverloads constructor(
 
     init {
         setEGLContextClientVersion(2)
+        setPreserveEGLContextOnPause(true)
         setRenderer(renderer)
         renderMode = RENDERMODE_WHEN_DIRTY
     }
@@ -111,9 +112,11 @@ class PanoramaGLSurfaceView @JvmOverloads constructor(
         private val view = FloatArray(16)
         private val proj = FloatArray(16)
         private var pendingBitmap: Bitmap? = null
+        private var retainedBitmap: Bitmap? = null
         private var pendingProjection = Projection.SPHERE
 
         fun setBitmap(bitmap: Bitmap, projection: Projection) {
+            retainedBitmap = bitmap
             pendingBitmap = bitmap
             pendingProjection = projection
         }
@@ -130,6 +133,7 @@ class PanoramaGLSurfaceView @JvmOverloads constructor(
             val textures = IntArray(1)
             GLES20.glGenTextures(1, textures, 0)
             textureId = textures[0]
+            pendingBitmap = retainedBitmap
         }
 
         override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {

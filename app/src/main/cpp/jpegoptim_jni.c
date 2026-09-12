@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <android/log.h>
 
 #include "jpegoptim.h"
 
@@ -26,6 +27,7 @@ extern int noaction;
 extern int verbose_mode;
 extern int target_size;
 extern double threshold;
+extern int strip_none;
 
 static pthread_mutex_t jpegoptim_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -59,6 +61,7 @@ Java_tomato_simple_gallery_helpers_JpegOptim_optimizeNative(
     preserve_mode = 1;
     all_progressive = 0;
     save_extra = 1;
+    strip_none = 1;
     quality = (int) jquality;
     if (quality > 100) {
         quality = 100;
@@ -72,7 +75,8 @@ Java_tomato_simple_gallery_helpers_JpegOptim_optimizeNative(
     if (setjmp(jpegoptim_fatal_jmp) != 0) {
         jpegoptim_fatal_jmp_ready = 0;
         pthread_mutex_unlock(&jpegoptim_lock);
-        result = -1;
+        __android_log_print(ANDROID_LOG_ERROR, "jpegoptim", "fatal during optimize of %s", path);
+        result = -3;
         goto done;
     }
     jpegoptim_fatal_jmp_ready = 1;
@@ -81,12 +85,18 @@ Java_tomato_simple_gallery_helpers_JpegOptim_optimizeNative(
     jpegoptim_fatal_jmp_ready = 0;
     pthread_mutex_unlock(&jpegoptim_lock);
 
+    if (rc == 3) {
+        __android_log_print(ANDROID_LOG_ERROR, "jpegoptim", "optimize fatal rc=3 for %s", path);
+        result = -3;
+        goto done;
+    }
     if (rc != 0) {
+        __android_log_print(ANDROID_LOG_WARN, "jpegoptim", "optimize failed rc=%d for %s", rc, path);
         result = -1;
         goto done;
     }
     if (stat(path, &st) != 0) {
-        result = -1;
+        result = -2;
         goto done;
     }
     result = (jlong) (before - st.st_size);

@@ -28,6 +28,7 @@
 #include "config.h"
 #endif
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -61,6 +62,10 @@
 #include <math.h>
 
 #include "jpegmarker.h"
+#ifdef JPEGOPTIM_ANDROID_JNI
+extern jmp_buf jpegoptim_fatal_jmp;
+extern int jpegoptim_fatal_jmp_ready;
+#endif
 #include "jpegoptim.h"
 
 
@@ -637,6 +642,13 @@ int optimize(FILE *log_fh, const char *filename, const char *newname,
 	FILE *outfile = NULL;
 	const char *outfname = NULL;
 	char tmpfilename[MAXPATHLEN];
+	tmpfilename[0] = '\0';
+#ifdef JPEGOPTIM_ANDROID_JNI
+	jmp_buf local_fatal;
+	jmp_buf saved_fatal;
+	int saved_ready = jpegoptim_fatal_jmp_ready;
+	memcpy(&saved_fatal, &jpegoptim_fatal_jmp, sizeof(jmp_buf));
+#endif
 	struct jpeg_decompress_struct dinfo;
 	struct jpeg_compress_struct cinfo;
 	struct my_error_mgr jcerr, jderr;
@@ -681,6 +693,15 @@ int optimize(FILE *log_fh, const char *filename, const char *newname,
 	jcerr.pub.output_message=my_output_message;
 	jcerr.jump_set = 0;
 
+#ifdef JPEGOPTIM_ANDROID_JNI
+	if (setjmp(local_fatal)) {
+		res = 3;
+		goto exit_point;
+	}
+	memcpy(&jpegoptim_fatal_jmp, &local_fatal, sizeof(jmp_buf));
+	jpegoptim_fatal_jmp_ready = 1;
+#endif
+
 	if (rate)
 		*rate = 0.0;
 	if (saved)
@@ -703,7 +724,10 @@ retry_point:
 		/* Error handler for decompress */
 	abort_decompress:
 		jpeg_abort_decompress(&dinfo);
-		fclose(infile);
+		if (infile && infile != stdin) {
+			fclose(infile);
+			infile = NULL;
+		}
 		free_line_buf(&buf, dinfo.output_height);
 		if (!quiet_mode || csv)
 			fprintf(log_fh,csv ? ",,,,,error\n" : " [ERROR]\n");
@@ -892,6 +916,13 @@ binary_search_loop:
 		cinfo.image_width=dinfo.image_width;
 		cinfo.image_height=dinfo.image_height;
 		jpeg_set_defaults(&cinfo);
+		if (dinfo.num_components == cinfo.num_components && dinfo.comp_info && cinfo.comp_info) {
+			int ci;
+			for (ci = 0; ci < dinfo.num_components; ci++) {
+				cinfo.comp_info[ci].h_samp_factor = dinfo.comp_info[ci].h_samp_factor;
+				cinfo.comp_info[ci].v_samp_factor = dinfo.comp_info[ci].v_samp_factor;
+			}
+		}
 		jpeg_set_quality(&cinfo,quality,TRUE);
 #ifdef HAVE_JINT_DC_SCAN_OPT_MODE
 		if (jpeg_c_int_param_supported(&cinfo, JINT_DC_SCAN_OPT_MODE))
@@ -1239,6 +1270,17 @@ binary_search_loop:
 	res = 0;
 
  exit_point:
+	if (outfile) {
+		fclose(outfile);
+		outfile = NULL;
+	}
+	if (infile && infile != stdin) {
+		fclose(infile);
+		infile = NULL;
+	}
+	if (tmpfilename[0] != '\0' && file_exists(tmpfilename)) {
+		unlink(tmpfilename);
+	}
 	if (inbuffer)
 		free(inbuffer);
 	if (outbuffer)
@@ -1249,6 +1291,10 @@ binary_search_loop:
 		free(extrabuffer);
 	jpeg_destroy_compress(&cinfo);
 	jpeg_destroy_decompress(&dinfo);
+#ifdef JPEGOPTIM_ANDROID_JNI
+	memcpy(&jpegoptim_fatal_jmp, &saved_fatal, sizeof(jmp_buf));
+	jpegoptim_fatal_jmp_ready = saved_ready;
+#endif
 
 	return res;
 }

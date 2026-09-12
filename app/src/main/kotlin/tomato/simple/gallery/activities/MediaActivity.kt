@@ -7,13 +7,14 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import android.widget.RelativeLayout
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
-import com.bumptech.glide.request.target.SimpleTarget
+import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import com.simplemobiletools.commons.dialogs.ConfirmationDialog
 import com.simplemobiletools.commons.dialogs.CreateNewFolderDialog
@@ -51,12 +52,11 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     private var mShowAll = false
     private var mLoadedInitialPhotos = false
     private var mWasFullscreenViewOpen = false
-    private var mWasUpgradedFromFreeShown = false
     private var mLastSearchedText = ""
     private var mLatestMediaId = 0L
     private var mLatestMediaDateId = 0L
-    private var mLastMediaHandler = Handler()
-    private var mTempShowHiddenHandler = Handler()
+    private var mLastMediaHandler = Handler(Looper.getMainLooper())
+    private var mTempShowHiddenHandler = Handler(Looper.getMainLooper())
     private var mCurrAsyncTask: GetMediaAsynctask? = null
     private var mZoomListener: MyRecyclerView.MyZoomListener? = null
 
@@ -104,17 +104,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
         if (mShowAll) {
             registerFileUpdateListener()
-
-            if (isPackageInstalled("com.simplemobiletools.gallery")) {
-                ConfirmationDialog(
-                    this,
-                    "",
-                    com.simplemobiletools.commons.R.string.upgraded_from_free_gallery,
-                    com.simplemobiletools.commons.R.string.ok,
-                    0,
-                    false
-                ) {}
-            }
         }
 
         binding.mediaEmptyTextPlaceholder2.setOnClickListener {
@@ -181,21 +170,23 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         binding.mediaEmptyTextPlaceholder2.setTextColor(getProperPrimaryColor())
         binding.mediaEmptyTextPlaceholder2.bringToFront()
 
-        // do not refresh Random sorted files after opening a fullscreen image and going Back
-        val isRandomSorting = config.getFolderSorting(mPath) and SORT_BY_RANDOM != 0
-        if (mMedia.isEmpty() || !isRandomSorting || (isRandomSorting && !mWasFullscreenViewOpen)) {
-            if (shouldSkipAuthentication()) {
-                tryLoadGallery()
-            } else {
-                handleLockedFolderOpening(mPath) { success ->
-                    if (success) {
-                        tryLoadGallery()
-                    } else {
-                        finish()
+        val loadMedia = {
+            val isRandomSorting = config.getFolderSorting(mPath) and SORT_BY_RANDOM != 0
+            if (mMedia.isEmpty() || !isRandomSorting || (isRandomSorting && !mWasFullscreenViewOpen)) {
+                if (shouldSkipAuthentication()) {
+                    tryLoadGallery()
+                } else {
+                    handleLockedFolderOpening(mPath) { success ->
+                        if (success) {
+                            tryLoadGallery()
+                        } else {
+                            finish()
+                        }
                     }
                 }
             }
         }
+        ensureAppUnlocked(loadMedia)
     }
 
     override fun onPause() {
@@ -213,9 +204,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     override fun onStop() {
         super.onStop()
 
-        if (config.temporarilyShowHidden || config.tempSkipDeleteConfirmation) {
+        if (config.tempSkipDeleteConfirmation) {
             mTempShowHiddenHandler.postDelayed({
-                config.temporarilyShowHidden = false
                 config.tempSkipDeleteConfirmation = false
                 config.tempSkipRecycleBin = false
             }, SHOW_TEMP_HIDDEN_DURATION)
@@ -227,7 +217,6 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
     override fun onDestroy() {
         super.onDestroy()
         if (config.showAll && !isChangingConfigurations) {
-            config.temporarilyShowHidden = false
             config.tempSkipDeleteConfirmation = false
             config.tempSkipRecycleBin = false
             unregisterFileUpdateListener()
@@ -271,8 +260,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             findItem(R.id.create_new_folder).isVisible = !mShowAll && mPath != RECYCLE_BIN && mPath != FAVORITES
             findItem(R.id.open_recycle_bin).isVisible = config.useRecycleBin && mPath != RECYCLE_BIN
 
-            findItem(R.id.temporarily_show_hidden).isVisible = !config.shouldShowHidden
-            findItem(R.id.stop_showing_hidden).isVisible = (!isRPlus() || isExternalStorageManager()) && config.temporarilyShowHidden
+            findItem(R.id.temporarily_show_hidden).isChecked = config.shouldShowHidden
 
             findItem(R.id.set_as_default_folder).isVisible = !isDefaultFolder
             findItem(R.id.unset_as_default_folder).isVisible = isDefaultFolder
@@ -308,8 +296,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 R.id.group -> showGroupByDialog()
                 R.id.create_new_folder -> createNewFolder()
                 R.id.open_recycle_bin -> openRecycleBin()
-                R.id.temporarily_show_hidden -> tryToggleTemporarilyShowHidden()
-                R.id.stop_showing_hidden -> tryToggleTemporarilyShowHidden()
+                R.id.temporarily_show_hidden -> tryToggleShowHidden()
                 R.id.column_count -> changeColumnCount()
                 R.id.set_as_default_folder -> setAsDefaultFolder()
                 R.id.unset_as_default_folder -> unsetAsDefaultFolder()
@@ -327,6 +314,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
             hideKeyboard()
             Intent(this, ViewPagerActivity::class.java).apply {
                 val item = mMedia.firstOrNull { it is Medium } as? Medium ?: return
+                putInternalNonce()
                 putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
                 putExtra(PATH, item.path)
                 putExtra(SHOW_ALL, mShowAll)
@@ -661,23 +649,28 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
         }
     }
 
-    private fun tryToggleTemporarilyShowHidden() {
-        if (config.temporarilyShowHidden) {
-            toggleTemporarilyShowHidden(false)
+    private fun tryToggleShowHidden() {
+        if (config.shouldShowHidden) {
+            toggleShowHidden(false)
         } else {
             if (isRPlus() && !isExternalStorageManager()) {
                 GrantAllFilesDialog(this)
+                refreshMenuItems()
             } else {
                 handleHiddenFolderPasswordProtection {
-                    toggleTemporarilyShowHidden(true)
+                    toggleShowHidden(true)
                 }
+                refreshMenuItems()
             }
         }
     }
 
-    private fun toggleTemporarilyShowHidden(show: Boolean) {
+    private fun toggleShowHidden(show: Boolean) {
         mLoadedInitialPhotos = false
-        config.temporarilyShowHidden = show
+        config.showHiddenMedia = show
+        if (!show) {
+            config.temporarilyShowHidden = false
+        }
         getMedia()
         refreshMenuItems()
     }
@@ -823,7 +816,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 .asBitmap()
                 .load(File(path))
                 .apply(options)
-                .into(object : SimpleTarget<Bitmap>() {
+                .into(object : CustomTarget<Bitmap>() {
                     override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
                         try {
                             WallpaperManager.getInstance(applicationContext).setBitmap(resource)
@@ -833,6 +826,8 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
 
                         finish()
                     }
+
+                    override fun onLoadCleared(placeholder: android.graphics.drawable.Drawable?) {}
                 })
         } else if (mIsGetImageIntent || mIsGetVideoIntent || mIsGetAnyIntent) {
             Intent().apply {
@@ -861,6 +856,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                             launchGesturePlayer(path)
                         } else {
                             Intent(this, ViewPagerActivity::class.java).apply {
+                                putInternalNonce()
                                 putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
                                 putExtra(PATH, path)
                                 putExtra(SHOW_ALL, mShowAll)
@@ -873,6 +869,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                     }
                     else -> {
                         Intent(this, ViewPagerActivity::class.java).apply {
+                            putInternalNonce()
                             putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
                             putExtra(PATH, path)
                             putExtra(SHOW_ALL, mShowAll)
@@ -885,6 +882,7 @@ class MediaActivity : SimpleActivity(), MediaOperationsListener {
                 }
             } else {
                 Intent(this, ViewPagerActivity::class.java).apply {
+                    putInternalNonce()
                     putExtra(SKIP_AUTHENTICATION, shouldSkipAuthentication())
                     putExtra(PATH, path)
                     putExtra(SHOW_ALL, mShowAll)

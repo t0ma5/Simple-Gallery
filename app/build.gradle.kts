@@ -3,13 +3,10 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jetbrains.kotlin.konan.properties.Properties
 import java.io.FileInputStream
 
-val isProprietary = gradle.startParameter.taskNames.any { task -> task.contains("Proprietary") }
-
 plugins {
     alias(libs.plugins.android)
     alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.imgly).apply(false)
 }
 
 val keystorePropertiesFile: File = rootProject.file("keystore.properties")
@@ -32,7 +29,7 @@ android {
         }
         externalNativeBuild {
             cmake {
-                arguments += listOf("-DANDROID_STL=none")
+        arguments += listOf("-DANDROID_STL=none", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON")
             }
         }
     }
@@ -68,6 +65,7 @@ android {
         }
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -80,15 +78,20 @@ android {
 
     flavorDimensions.add("licensing")
     productFlavors {
-        register("proprietary")
         register("foss")
-        register("prepaid")
     }
 
     sourceSets {
         getByName("main").java.srcDirs("src/main/kotlin")
-        if (isProprietary) {
-            getByName("main").java.srcDirs("src/proprietary/kotlin")
+        getByName("test").java.srcDirs("src/test/kotlin")
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
         }
     }
 
@@ -99,6 +102,10 @@ android {
     }
 
     namespace = libs.versions.app.version.appId.get()
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 
     lint {
         checkReleaseBuilds = false
@@ -116,6 +123,18 @@ base {
     archivesName.set("gallery-${libs.versions.app.version.versionCode.get()}")
 }
 
+android.applicationVariants.configureEach {
+    if (buildType.name != "release") {
+        return@configureEach
+    }
+    val ver = versionName.orEmpty()
+    outputs.configureEach {
+        val apkOutput = this as com.android.build.gradle.api.ApkVariantOutput
+        val abi = apkOutput.getFilter(com.android.build.OutputFile.ABI) ?: "universal"
+        apkOutput.outputFileName = "Simple-Gallery_${ver}-FOSS-${abi}.apk"
+    }
+}
+
 tasks.withType<KotlinCompile>().configureEach {
     compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
 }
@@ -126,6 +145,8 @@ dependencies {
     implementation(libs.exif)
     implementation(libs.android.gif.drawable)
     implementation(libs.androidx.constraintlayout)
+    implementation(libs.androidx.documentfile)
+    implementation(libs.androidx.print)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.sanselan)
     implementation(libs.imagefilters)
@@ -137,16 +158,9 @@ dependencies {
     implementation(libs.apng)
     implementation(libs.avif)
     implementation(libs.avif.integration)
-    implementation(libs.jxl.coder) {
-        exclude(group = "androidx.core")
-        exclude(group = "androidx.appcompat")
-        exclude(group = "com.google.android.material")
-    }
+    implementation(libs.jxl.coder)
     implementation(libs.jxl.integration) {
         exclude(group = "com.github.bumptech.glide")
-        exclude(group = "androidx.core")
-        exclude(group = "androidx.appcompat")
-        exclude(group = "com.google.android.material")
     }
     implementation(libs.okio)
     implementation(libs.picasso) {
@@ -159,9 +173,5 @@ dependencies {
 
     implementation(libs.bundles.room)
     ksp(libs.androidx.room.compiler)
-}
-
-// Apply the PESDKPlugin
-if (isProprietary) {
-    apply(from = "../gradle/imglysdk.gradle")
+    testImplementation("junit:junit:4.13.2")
 }

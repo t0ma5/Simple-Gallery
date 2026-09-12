@@ -205,8 +205,29 @@ class Config(context: Context) : BaseConfig(context) {
         set(muteVideos) = prefs.edit().putBoolean(MUTE_VIDEOS, muteVideos).apply()
 
     var videoPlayerType: Int
-        get() = prefs.getInt(VIDEO_PLAYER_TYPE, if (appRunCount <= 1) VIDEO_PLAYER_APP else VIDEO_PLAYER_SYSTEM)
+        get() = prefs.getInt(VIDEO_PLAYER_TYPE, VIDEO_PLAYER_SYSTEM)
         set(videoPlayerType) = prefs.edit().putInt(VIDEO_PLAYER_TYPE, videoPlayerType).apply()
+
+    fun hasVideoPlayerTypePref() = prefs.contains(VIDEO_PLAYER_TYPE)
+
+    fun isPathInProtectedFolder(path: String): Boolean {
+        if (path.isEmpty() || path == FAVORITES || path == RECYCLE_BIN) {
+            return false
+        }
+
+        var current = path.trimEnd('/')
+        while (current.isNotEmpty() && current != "/") {
+            if (isFolderProtected(current)) {
+                return true
+            }
+            val slash = current.lastIndexOf('/')
+            if (slash <= 0) {
+                break
+            }
+            current = current.substring(0, slash)
+        }
+        return false
+    }
 
     var playbackSpeed: Float
         get() = prefs.getFloat(PLAYBACK_SPEED, 1f)
@@ -379,10 +400,6 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getInt(EXTENDED_DETAILS, EXT_RESOLUTION or EXT_LAST_MODIFIED or EXT_EXIF_PROPERTIES)
         set(extendedDetails) = prefs.edit().putInt(EXTENDED_DETAILS, extendedDetails).apply()
 
-    var wasNewAppShown: Boolean
-        get() = prefs.getBoolean(WAS_NEW_APP_SHOWN, false)
-        set(wasNewAppShown) = prefs.edit().putBoolean(WAS_NEW_APP_SHOWN, wasNewAppShown).apply()
-
     var lastFilepickerPath: String
         get() = prefs.getString(LAST_FILEPICKER_PATH, "")!!
         set(lastFilepickerPath) = prefs.edit().putString(LAST_FILEPICKER_PATH, lastFilepickerPath).apply()
@@ -524,7 +541,7 @@ class Config(context: Context) : BaseConfig(context) {
         set(showWidgetFolderName) = prefs.edit().putBoolean(SHOW_WIDGET_FOLDER_NAME, showWidgetFolderName).apply()
 
     var allowOneToOneZoom: Boolean
-        get() = prefs.getBoolean(ALLOW_ONE_TO_ONE_ZOOM, false)
+        get() = prefs.getBoolean(ALLOW_ONE_TO_ONE_ZOOM, true)
         set(allowOneToOneZoom) = prefs.edit().putBoolean(ALLOW_ONE_TO_ONE_ZOOM, allowOneToOneZoom).apply()
 
     var allowRotatingWithGestures: Boolean
@@ -547,6 +564,14 @@ class Config(context: Context) : BaseConfig(context) {
         get() = prefs.getInt(JPEG_OPTIM_QUALITY, 85)
         set(jpegOptimQuality) = prefs.edit().putInt(JPEG_OPTIM_QUALITY, jpegOptimQuality).apply()
 
+    var stackMedia: Boolean
+        get() = prefs.getBoolean(STACK_MEDIA, true)
+        set(stackMedia) = prefs.edit().putBoolean(STACK_MEDIA, stackMedia).apply()
+
+    var stripMetadataOnShare: Boolean
+        get() = prefs.getBoolean(STRIP_METADATA_ON_SHARE, false)
+        set(stripMetadataOnShare) = prefs.edit().putBoolean(STRIP_METADATA_ON_SHARE, stripMetadataOnShare).apply()
+
     var lastEditorBrushSize: Int
         get() = prefs.getInt(LAST_EDITOR_BRUSH_SIZE, 50)
         set(lastEditorBrushSize) = prefs.edit().putInt(LAST_EDITOR_BRUSH_SIZE, lastEditorBrushSize).apply()
@@ -558,18 +583,6 @@ class Config(context: Context) : BaseConfig(context) {
     var spamFoldersChecked: Boolean
         get() = prefs.getBoolean(SPAM_FOLDERS_CHECKED, false)
         set(spamFoldersChecked) = prefs.edit().putBoolean(SPAM_FOLDERS_CHECKED, spamFoldersChecked).apply()
-
-    var editorBrushColor: Int
-        get() = prefs.getInt(EDITOR_BRUSH_COLOR, -1)
-        set(editorBrushColor) = prefs.edit().putInt(EDITOR_BRUSH_COLOR, editorBrushColor).apply()
-
-    var editorBrushHardness: Float
-        get() = prefs.getFloat(EDITOR_BRUSH_HARDNESS, 0.5f)
-        set(editorBrushHardness) = prefs.edit().putFloat(EDITOR_BRUSH_HARDNESS, editorBrushHardness).apply()
-
-    var editorBrushSize: Float
-        get() = prefs.getFloat(EDITOR_BRUSH_SIZE, 0.05f)
-        set(editorBrushSize) = prefs.edit().putFloat(EDITOR_BRUSH_SIZE, editorBrushSize).apply()
 
     var wereFavoritesMigrated: Boolean
         get() = prefs.getBoolean(WERE_FAVORITES_MIGRATED, false)

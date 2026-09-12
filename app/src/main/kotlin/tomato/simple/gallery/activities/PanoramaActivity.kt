@@ -48,6 +48,12 @@ class PanoramaActivity : SimpleActivity(), SensorEventListener {
         binding.panoramaGyro.setOnClickListener { toggleGyro() }
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
 
+        ensureAppUnlocked {
+            loadPanorama(path)
+        }
+    }
+
+    private fun loadPanorama(path: String) {
         ensureBackgroundThread {
             val bitmap = loadBitmap(path)
             runOnUiThread {
@@ -68,12 +74,14 @@ class PanoramaActivity : SimpleActivity(), SensorEventListener {
 
     override fun onResume() {
         super.onResume()
+        binding.panoramaView.onResume()
         if (gyroEnabled) {
             registerGyro()
         }
     }
 
     override fun onPause() {
+        binding.panoramaView.onPause()
         super.onPause()
         unregisterGyro()
     }

@@ -1,85 +1,116 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/bottom_editor_text_actions_wrapper"
     android:layout_width="match_parent"
-    android:layout_height="@dimen/bottom_actions_height">
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
 
-    <ImageView
-        android:id="@+id/bottom_text_add"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/add_text"
-        android:padding="@dimen/medium_margin"
-        android:src="@drawable/ic_text_vector"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/bottom_text_sticker"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/bottom_actions_height">
 
-    <ImageView
-        android:id="@+id/bottom_text_sticker"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/add_sticker"
-        android:padding="@dimen/medium_margin"
-        android:src="@drawable/ic_portrait_photo_vector"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/bottom_text_font"
-        app:layout_constraintStart_toEndOf="@+id/bottom_text_add"
-        app:layout_constraintTop_toTopOf="parent" />
+        <ImageView
+            android:id="@+id/bottom_text_add"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/add_text"
+            android:padding="@dimen/medium_margin"
+            android:src="@drawable/ic_text_vector"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/bottom_text_sticker"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    <ImageView
-        android:id="@+id/bottom_text_font"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/font"
-        android:padding="@dimen/medium_margin"
-        android:src="@drawable/ic_font_vector"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/bottom_text_width"
-        app:layout_constraintStart_toEndOf="@+id/bottom_text_sticker"
-        app:layout_constraintTop_toTopOf="parent" />
+        <ImageView
+            android:id="@+id/bottom_text_sticker"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/add_sticker"
+            android:padding="@dimen/medium_margin"
+            android:src="@drawable/ic_portrait_photo_vector"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/bottom_text_font"
+            app:layout_constraintStart_toEndOf="@+id/bottom_text_add"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    <com.simplemobiletools.commons.views.MySeekBar
-        android:id="@+id/bottom_text_width"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/small_margin"
-        android:layout_marginEnd="@dimen/small_margin"
-        android:max="100"
-        android:progress="40"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/bottom_text_color"
-        app:layout_constraintStart_toEndOf="@+id/bottom_text_font"
-        app:layout_constraintTop_toTopOf="parent" />
+        <ImageView
+            android:id="@+id/bottom_text_font"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/font"
+            android:padding="@dimen/medium_margin"
+            android:src="@drawable/ic_font_vector"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/bottom_text_width"
+            app:layout_constraintStart_toEndOf="@+id/bottom_text_sticker"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    <ImageView
-        android:id="@+id/bottom_text_color"
-        android:layout_width="@dimen/bottom_editor_color_picker_size"
-        android:layout_height="@dimen/bottom_editor_color_picker_size"
-        android:layout_marginEnd="@dimen/small_margin"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/change_color"
-        android:padding="@dimen/small_margin"
-        android:src="@drawable/circle_background"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/bottom_text_undo"
-        app:layout_constraintTop_toTopOf="parent" />
+        <com.simplemobiletools.commons.views.MySeekBar
+            android:id="@+id/bottom_text_width"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/small_margin"
+            android:layout_marginEnd="@dimen/small_margin"
+            android:max="100"
+            android:progress="40"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/bottom_text_color"
+            app:layout_constraintStart_toEndOf="@+id/bottom_text_font"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    <ImageView
-        android:id="@+id/bottom_text_undo"
-        android:layout_width="@dimen/bottom_editor_color_picker_size"
-        android:layout_height="@dimen/bottom_editor_color_picker_size"
-        android:layout_marginEnd="@dimen/normal_margin"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/undo"
-        android:padding="@dimen/medium_margin"
-        android:src="@drawable/ic_undo_vector"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <ImageView
+            android:id="@+id/bottom_text_color"
+            android:layout_width="@dimen/bottom_editor_color_picker_size"
+            android:layout_height="@dimen/bottom_editor_color_picker_size"
+            android:layout_marginEnd="@dimen/small_margin"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/change_color"
+            android:padding="@dimen/small_margin"
+            android:src="@drawable/circle_background"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/bottom_text_undo"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <ImageView
+            android:id="@+id/bottom_text_undo"
+            android:layout_width="@dimen/bottom_editor_color_picker_size"
+            android:layout_height="@dimen/bottom_editor_color_picker_size"
+            android:layout_marginEnd="@dimen/normal_margin"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/undo"
+            android:padding="@dimen/medium_margin"
+            android:src="@drawable/ic_undo_vector"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/activity_margin"
+        android:paddingEnd="@dimen/normal_margin">
+
+        <ImageView
+            android:id="@+id/bottom_text_rotate_icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/rotate"
+            android:padding="@dimen/small_margin"
+            android:src="@drawable/ic_rotate_right_vector" />
+
+        <com.simplemobiletools.commons.views.MySeekBar
+            android:id="@+id/bottom_text_rotation"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="360"
+            android:progress="0" />
+    </LinearLayout>
+</LinearLayout>
