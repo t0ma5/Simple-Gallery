@@ -3,24 +3,18 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="AppCompatResource">
-    <item
-        android:id="@+id/temporarily_show_hidden"
-        android:showAsAction="never"
-        android:title="@string/temporarily_show_hidden"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/stop_showing_hidden"
-        android:showAsAction="never"
-        android:title="@string/stop_showing_hidden"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/temporarily_show_excluded"
-        android:showAsAction="never"
-        android:title="@string/temporarily_show_excluded"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/stop_showing_excluded"
-        android:showAsAction="never"
-        android:title="@string/stop_showing_excluded"
-        app:showAsAction="never" />
+    <group android:checkableBehavior="all">
+        <item
+            android:id="@+id/temporarily_show_hidden"
+            android:checkable="true"
+            android:showAsAction="never"
+            android:title="@string/show_hidden"
+            app:showAsAction="never" />
+        <item
+            android:id="@+id/temporarily_show_excluded"
+            android:checkable="true"
+            android:showAsAction="never"
+            android:title="@string/show_excluded"
+            app:showAsAction="never" />
+    </group>
 </menu>

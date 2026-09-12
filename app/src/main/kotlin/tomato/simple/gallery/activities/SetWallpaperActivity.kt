@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import com.canhub.cropper.CropImageView
 import com.simplemobiletools.commons.dialogs.RadioGroupDialog
 import com.simplemobiletools.commons.extensions.toast
@@ -23,7 +24,6 @@ class SetWallpaperActivity : SimpleActivity(), CropImageView.OnCropImageComplete
     private val RATIO_LANDSCAPE = 1
     private val RATIO_SQUARE = 2
 
-    private val PICK_IMAGE = 1
     private var aspectRatio = RATIO_PORTRAIT
     private var wallpaperFlag = -1
 
@@ -31,6 +31,13 @@ class SetWallpaperActivity : SimpleActivity(), CropImageView.OnCropImageComplete
     lateinit var wallpaperManager: WallpaperManager
 
     private val binding by viewBinding(ActivitySetWallpaperBinding::inflate)
+    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            handleImage(result.data!!)
+        } else {
+            finish()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,27 +53,18 @@ class SetWallpaperActivity : SimpleActivity(), CropImageView.OnCropImageComplete
             val pickIntent = Intent(applicationContext, MainActivity::class.java)
             pickIntent.action = Intent.ACTION_PICK
             pickIntent.type = "image/*"
-            startActivityForResult(pickIntent, PICK_IMAGE)
+            pickImageLauncher.launch(pickIntent)
             return
         }
 
-        handleImage(intent)
+        ensureAppUnlocked {
+            handleImage(intent)
+        }
     }
 
     override fun onResume() {
         super.onResume()
         setupToolbar(binding.setWallpaperToolbar, NavigationIcon.Arrow)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, resultData: Intent?) {
-        if (requestCode == PICK_IMAGE) {
-            if (resultCode == Activity.RESULT_OK && resultData != null) {
-                handleImage(resultData)
-            } else {
-                finish()
-            }
-        }
-        super.onActivityResult(requestCode, resultCode, resultData)
     }
 
     private fun setupOptionsMenu() {

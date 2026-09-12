@@ -46,6 +46,15 @@ class MyWidgetProvider : AppWidgetProvider() {
                 }
 
                 val path = context.directoryDB.getDirectoryThumbnail(it.folderPath) ?: return@forEach
+                if (context.config.isFolderProtected(it.folderPath) || context.config.isPathInProtectedFolder(it.folderPath)) {
+                    views.setImageViewResource(R.id.widget_imageview, com.simplemobiletools.commons.R.drawable.ic_lock_vector)
+                    setupAppOpenIntent(context, views, R.id.widget_holder, it)
+                    try {
+                        appWidgetManager.updateAppWidget(it.widgetId, views)
+                    } catch (ignored: Exception) {
+                    }
+                    return@forEach
+                }
                 val options = RequestOptions()
                     .signature(path.getFileSignature())
                     .diskCacheStrategy(DiskCacheStrategy.RESOURCE)

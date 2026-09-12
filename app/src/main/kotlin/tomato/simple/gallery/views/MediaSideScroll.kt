@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.media.AudioManager
 import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.AttributeSet
 import android.view.GestureDetector
@@ -31,7 +32,7 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
     private var dragThreshold = DRAG_THRESHOLD * context.resources.displayMetrics.density
 
     private var mSlideInfoText = ""
-    private var mSlideInfoFadeHandler = Handler()
+    private var mSlideInfoFadeHandler = Handler(Looper.getMainLooper())
     private var mParentView: ViewGroup? = null
     private var activity: Activity? = null
     private var doubleTap: ((Float, Float) -> Unit)? = null
@@ -157,12 +158,12 @@ class MediaSideScroll(context: Context, attrs: AttributeSet) : RelativeLayout(co
     private fun volumePercentChanged(percent: Int) {
         val stream = AudioManager.STREAM_MUSIC
         val maxVolume = activity!!.audioManager.getStreamMaxVolume(stream)
-        val percentPerPoint = 100 / maxVolume
-        if (percentPerPoint == 0) {
+        val percentPerPoint = 100f / maxVolume
+        if (maxVolume == 0) {
             return
         }
 
-        val addPoints = percent / percentPerPoint
+        val addPoints = (percent / percentPerPoint).toInt()
         val newVolume = Math.min(maxVolume, Math.max(0, mTouchDownValue + addPoints))
         activity!!.audioManager.setStreamVolume(stream, newVolume, 0)
 

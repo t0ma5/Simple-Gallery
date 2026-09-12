@@ -18,12 +18,12 @@ object EditorColorMatrix {
         val out = Bitmap.createBitmap(source.width, source.height, config)
         val canvas = Canvas(out)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-        paint.colorFilter = ColorMatrixColorFilter(combined(brightness, contrast, saturation, temperature))
+        paint.colorFilter = ColorMatrixColorFilter(matrix(brightness, contrast, saturation, temperature))
         canvas.drawBitmap(source, 0f, 0f, paint)
         return out
     }
 
-    private fun combined(brightness: Int, contrast: Int, saturation: Int, temperature: Int): ColorMatrix {
+    fun matrix(brightness: Int, contrast: Int, saturation: Int, temperature: Int): ColorMatrix {
         val b = (brightness - SLIDER_CENTER) * 1.2f
         val scale = contrast / SLIDER_CENTER.toFloat()
         val translate = (1f - scale) * 128f

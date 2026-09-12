@@ -7,6 +7,7 @@ import android.graphics.SurfaceTexture
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.*
 import android.widget.ImageView
@@ -36,6 +37,7 @@ import tomato.simple.gallery.databinding.PagerVideoItemBinding
 import tomato.simple.gallery.extensions.config
 import tomato.simple.gallery.extensions.getFriendlyMessage
 import tomato.simple.gallery.extensions.hasNavBar
+import tomato.simple.gallery.extensions.mediumExtra
 import tomato.simple.gallery.extensions.mute
 import tomato.simple.gallery.extensions.parseFileChannel
 import tomato.simple.gallery.extensions.unmute
@@ -70,7 +72,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
 
     private var mExoPlayer: ExoPlayer? = null
     private var mVideoSize = Point(1, 1)
-    private var mTimerHandler = Handler()
+    private var mTimerHandler = Handler(Looper.getMainLooper())
 
     private var mStoredShowExtendedDetails = false
     private var mStoredHideExtendedDetails = false
@@ -111,7 +113,7 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
         val activity = requireActivity()
         val arguments = requireArguments()
 
-        mMedium = arguments.getSerializable(MEDIUM) as Medium
+        mMedium = arguments.mediumExtra()
         mConfig = context.config
         mTouchSlop = ViewConfiguration.get(context).scaledTouchSlop / 3
         binding = PagerVideoItemBinding.inflate(inflater, container, false).apply {
@@ -635,9 +637,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
         val roundProgress = Math.round(newProgress / 1000f)
         val limitedProgress = Math.max(Math.min(mExoPlayer!!.duration.toInt() / 1000, roundProgress), 0)
         setPosition(limitedProgress)
-        if (!mIsPlaying) {
-            togglePlayPause()
-        }
     }
 
     override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -677,8 +676,6 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
 
         if (mIsPlaying) {
             mExoPlayer!!.playWhenReady = true
-        } else {
-            playVideo()
         }
 
         mIsDragged = false
@@ -821,6 +818,9 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
             mSeekBar.progress = mSeekBar.max
             mCurrTimeView.text = mDuration.getFormattedDuration()
             pauseVideo()
+            if (mConfig.rememberLastVideoPosition) {
+                mConfig.removeLastVideoPosition(mMedium.path)
+            }
         }
     }
 

@@ -1,8 +1,17 @@
 ### Reporting
-Before you report something, read the reporting rules [here](https://github.com/SimpleMobileTools/General-Discussion#how-do-i-suggest-an-improvement-ask-a-question-or-report-an-issue) please.
+
+Open an issue on this repository: https://github.com/t0ma5/Simple-Gallery/issues
+
+Include the app version (Settings → About), Android version, and steps to reproduce. Do not attach photos that contain private information.
 
 ### Contributing as a developer
-Some instructions about code style and everything that has to be done to increase the change of your code getting accepted can be found at the [General Discussion](https://github.com/SimpleMobileTools/General-Discussion#contribution-rules-for-developers) section. 
 
-### Contributing as a non developer
-In case you just want to for example improve a translation, you can find the way of doing it [here](https://github.com/SimpleMobileTools/General-Discussion#how-can-i-suggest-an-edit-to-a-file).
+1. Fork [t0ma5/Simple-Gallery](https://github.com/t0ma5/Simple-Gallery) and open a pull request against `master`.
+2. Keep changes focused. Commons (`Simple-Commons`) is patched only through `scripts/patch_commons.py`.
+3. Match existing Kotlin style. Do not mass-reformat unrelated files.
+4. User-visible features need README, CHANGELOG, fastlane changelog, and the GitHub Release body in `.github/workflows/build.yml`.
+5. The launcher name stays `Gallery`. Build the FOSS flavor (`assembleFossRelease` for signed APKs). Release APKs are named `Simple-Gallery_<version>-FOSS-arm64-v8a.apk`, `...-armeabi-v7a.apk`, `...-x86_64.apk`, and `...-FOSS-universal.apk`.
+
+### Translations
+
+Edit `app/src/main/res/values-<locale>/strings.xml` and send a pull request. Keep `font_*` keys untranslated (`translatable="false"`).

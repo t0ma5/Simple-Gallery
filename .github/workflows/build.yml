@@ -11,6 +11,10 @@ on:
       - master
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   actions: write
@@ -76,9 +80,15 @@ jobs:
       - name: Install NDK and CMake
         run: |
           yes | sdkmanager --licenses >/dev/null
-          sdkmanager "ndk;27.2.12479018" "cmake;3.22.1"
+          sdkmanager "platforms;android-36" "ndk;27.2.12479018" "cmake;3.22.1"
+
+      - name: Unit tests
+        run: |
+          chmod +x gradlew
+          ./gradlew testFossDebugUnitTest --stacktrace --no-daemon
 
       - name: Release signing
+        if: github.event_name != 'pull_request'
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -92,23 +102,40 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 -d > app/keystore.jks
           printf '%s\n' "keyAlias=$KEY_ALIAS" "keyPassword=$KEY_PASSWORD" "storeFile=keystore.jks" "storePassword=$KEYSTORE_PASSWORD" > keystore.properties
 
+      - name: Build FOSS debug APK
+        if: github.event_name == 'pull_request'
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleFossDebug --stacktrace --no-daemon
+
       - name: Build FOSS release APK
+        if: github.event_name != 'pull_request'
         run: |
           chmod +x gradlew
           ./gradlew assembleFossRelease --stacktrace --no-daemon
 
-      - name: Name APK Simple-Gallery_<version>
+      - name: Name APK Simple-Gallery_<version>-FOSS-<abi>
+        if: github.event_name != 'pull_request'
         id: apk
         run: |
           VERSION=$(grep -oP 'app-version-versionName = "\K[^"]+' gradle/libs.versions.toml)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           mkdir -p dist
-          apk=$(find app/build/outputs/apk/foss/release -name '*.apk' | head -n 1)
-          test -n "$apk"
-          cp "$apk" "dist/Simple-Gallery_${VERSION}.apk"
+          copy_abi() {
+            local abi="$1"
+            local src
+            src=$(find app/build/outputs/apk/foss/release -name "*${abi}*.apk" | head -n 1)
+            test -n "$src"
+            cp "$src" "dist/Simple-Gallery_${VERSION}-FOSS-${abi}.apk"
+          }
+          copy_abi arm64-v8a
+          copy_abi armeabi-v7a
+          copy_abi x86_64
+          copy_abi universal
           ls -l dist
 
       - name: Upload APK artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: Simple-Gallery_${{ steps.apk.outputs.version }}
@@ -122,20 +149,22 @@ jobs:
           files: dist/Simple-Gallery_*.apk
           generate_release_notes: true
           body: |
-            Release-signed FOSS APK (`Simple-Gallery_<version>.apk`) for applicationId tomato.simple.gallery.
-            It can sit next to Play Store Simple Gallery Pro. Launcher name is Gallery.
+            Release-signed FOSS APKs for applicationId tomato.simple.gallery.
+            `Simple-Gallery_<version>-FOSS-arm64-v8a.apk` for most phones; `...-armeabi-v7a.apk` for 32-bit ARM; `...-x86_64.apk` for 64-bit emulators; `...-FOSS-universal.apk` has all three ABIs.
+            They can sit next to Play Store Simple Gallery Pro. Launcher name is Gallery.
 
-            ## New in 6.29
+            ## New in 6.30
 
-            1. **JPEG optimize** — Native jpegoptim from the grid (batch) or the viewer. Lossless Huffman, or lossy max quality (50–100, default 85). Metadata and motion-photo tails stay; files are replaced only if they get smaller.
-            2. **Motion photos** — Play Google Motion Photos, Samsung Live Photos, and Micro Videos in the viewer. Save the embedded clip as an MP4.
-            3. **OpenGL panorama viewer** — Open 360° panoramas and photospheres with touch, pinch, and optional gyroscope (replaces the removed Google VR Cardboard widgets).
-            4. **Strip metadata** — Remove GPS, or all EXIF, from photos in the viewer and from a multi-select in the grid.
-            5. **Stacks** — RAW+JPEG pairs, bursts, and edited copies collapse to one grid cover, with a strip in the viewer.
-            6. **Editor** — Stack crop, draw, filters, adjust, and text in one session. Tone sliders, font picker, draggable text and emoji stickers, overwrite original. Tap 4:3 or 16:9 again for 3:4 or 9:16. Save is the top-bar checkmark (toolbar sits below the status bar).
-            7. **Folder tree view** — Nested albums indent in a list. Unchecking restores the previous grid/list.
-            8. **Formats** — AVIF and JPEG XL in the grid, viewer, and “open with”. Ultra HDR (Android 14+ gain maps) with a settings toggle.
-            9. **In-app video player** — Speed, mute, long-press 2×, exact seek/loop. New installs default to the in-app player.
-            10. **Other** — Hidden-folder include no longer leaks Android/data / Android/obb; edge-to-edge on Android 15/16; copy image to clipboard; sort folders by item count; confirm recycle-bin restore; keep screen on for fullscreen photos; reverse landscape; no silent auto-save of gesture rotation; no donation prompts; no “fake version” block on save.
+            1. **Lock and intents** — Untrusted viewer launches ignore skip-authentication and hidden-path extras. App lock uses a 5-minute grace. Settings import skips PIN-protected keys.
+            2. **Recycle Bin / backup** — Bin lives in `files/recycle_bin`. Android backup of the bin, database, and PIN hashes is off.
+            3. **JPEG optimize** — Atomic write-back, SAF restore on failure, skip Ultra HDR/container JPEGs. EXIF/XMP/ICC/IPTC kept.
+            4. **Editor** — Draw/text composite onto the full-res bitmap. Text and stickers rotate a full 360° (slider or two-finger twist). Double-tap text to edit it. Size slider max is 25% larger. Adjust uses a color-matrix preview. Image rotation keeps unsaved work; Back asks to discard.
+            5. **Motion photos** — Container:Item XMP is parsed per element. Extracted MP4s are deleted after playback.
+            6. **16 KB / size** — Native libs target 16 KB pages. GitHub ships arm64-v8a, armeabi-v7a, x86_64, and universal FOSS APKs.
+            7. **Stacks / share** — Optional stacking of RAW+JPEG, bursts, and edited copies. Optional strip of GPS/EXIF when sharing.
+            8. **Other** — Locked Favorites/Bin/widget thumbnails; hide/unhide race fix; seeking keeps pause; okio CVE bump; unit tests; translations for new strings.
+            9. **Android 16** — compileSdk/targetSdk 36. Media3 1.10.1, JPEG XL decoder 2.6.1.
+            10. **About / defaults** — History section on About (fork origin). Version line opens GitHub Releases. New installs: dark red theme (not Material You), `dd/MM/yyyy`, 24-hour clock, 1:1 zoom on, system video player. Color pickers default to red.
+            11. **Folders menu** — Show hidden and Show excluded are persistent overflow toggles (red checkmarks). Tree view is a third option in Change view type: Grid, List, Tree.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

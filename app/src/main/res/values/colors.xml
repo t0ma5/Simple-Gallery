@@ -2,6 +2,12 @@
 <resources>
     <color name="crop_image_view_background">#BB000000</color>
     <color name="circle_black_background">#66000000</color>
-    <color name="color_primary">@color/md_red_700</color>
+    <color name="color_primary">#D3332F</color>
     <color name="color_primary_dark">#B71C1C</color>
+    <color name="default_text_color">#EEEEEE</color>
+    <color name="default_background_color">#2D2D2D</color>
+    <color name="default_primary_color">#D3332F</color>
+    <color name="default_accent_color">#D3332F</color>
+    <color name="default_app_icon_color">#D3332F</color>
+    <color name="default_widget_text_color">#D3332F</color>
 </resources>

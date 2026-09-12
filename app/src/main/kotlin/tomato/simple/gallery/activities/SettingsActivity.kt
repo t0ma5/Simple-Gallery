@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.simplemobiletools.commons.dialogs.*
@@ -25,14 +26,23 @@ import java.util.Locale
 import kotlin.system.exitProcess
 
 class SettingsActivity : SimpleActivity() {
-    companion object {
-        private const val PICK_IMPORT_SOURCE_INTENT = 1
-        private const val SELECT_EXPORT_FAVORITES_FILE_INTENT = 2
-        private const val SELECT_IMPORT_FAVORITES_FILE_INTENT = 3
-    }
-
     private var mRecycleBinContentSize = 0L
     private val binding by viewBinding(ActivitySettingsBinding::inflate)
+    private val importSettingsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data?.data != null) {
+            parseFile(contentResolver.openInputStream(result.data!!.data!!))
+        }
+    }
+    private val exportFavoritesLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data?.data != null) {
+            exportFavoritesTo(contentResolver.openOutputStream(result.data!!.data!!))
+        }
+    }
+    private val importFavoritesLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data?.data != null) {
+            importFavorites(contentResolver.openInputStream(result.data!!.data!!))
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         isMaterialActivity = true
@@ -45,8 +55,10 @@ class SettingsActivity : SimpleActivity() {
 
     override fun onResume() {
         super.onResume()
-        setupToolbar(binding.settingsToolbar, NavigationIcon.Arrow)
-        setupSettingItems()
+        ensureAppUnlocked {
+            setupToolbar(binding.settingsToolbar, NavigationIcon.Arrow)
+            setupSettingItems()
+        }
     }
 
     private fun setupSettingItems() {
@@ -88,6 +100,8 @@ class SettingsActivity : SimpleActivity() {
         setupFileThumbnailStyle()
         setupFolderThumbnailStyle()
         setupKeepLastModified()
+        setupStackMedia()
+        setupStripOnShare()
         setupEnablePullToRefresh()
         setupAllowZoomingImages()
         setupShowHighestQuality()
@@ -125,20 +139,6 @@ class SettingsActivity : SimpleActivity() {
             binding.settingsMigratingLabel
         ).forEach {
             it.setTextColor(getProperPrimaryColor())
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, resultData: Intent?) {
-        super.onActivityResult(requestCode, resultCode, resultData)
-        if (requestCode == PICK_IMPORT_SOURCE_INTENT && resultCode == Activity.RESULT_OK && resultData != null && resultData.data != null) {
-            val inputStream = contentResolver.openInputStream(resultData.data!!)
-            parseFile(inputStream)
-        } else if (requestCode == SELECT_EXPORT_FAVORITES_FILE_INTENT && resultCode == Activity.RESULT_OK && resultData != null && resultData.data != null) {
-            val outputStream = contentResolver.openOutputStream(resultData.data!!)
-            exportFavoritesTo(outputStream)
-        } else if (requestCode == SELECT_IMPORT_FAVORITES_FILE_INTENT && resultCode == Activity.RESULT_OK && resultData != null && resultData.data != null) {
-            val inputStream = contentResolver.openInputStream(resultData.data!!)
-            importFavorites(inputStream)
         }
     }
 
@@ -561,6 +561,22 @@ class SettingsActivity : SimpleActivity() {
         }
     }
 
+    private fun setupStackMedia() {
+        binding.settingsStackMedia.isChecked = config.stackMedia
+        binding.settingsStackMediaHolder.setOnClickListener {
+            binding.settingsStackMedia.toggle()
+            config.stackMedia = binding.settingsStackMedia.isChecked
+        }
+    }
+
+    private fun setupStripOnShare() {
+        binding.settingsStripOnShare.isChecked = config.stripMetadataOnShare
+        binding.settingsStripOnShareHolder.setOnClickListener {
+            binding.settingsStripOnShare.toggle()
+            config.stripMetadataOnShare = binding.settingsStripOnShare.isChecked
+        }
+    }
+
     private fun setupEnablePullToRefresh() {
         binding.settingsEnablePullToRefresh.isChecked = config.enablePullToRefresh
         binding.settingsEnablePullToRefreshHolder.setOnClickListener {
@@ -793,7 +809,7 @@ class SettingsActivity : SimpleActivity() {
                         addCategory(Intent.CATEGORY_OPENABLE)
 
                         try {
-                            startActivityForResult(this, SELECT_EXPORT_FAVORITES_FILE_INTENT)
+                            exportFavoritesLauncher.launch(this)
                         } catch (e: ActivityNotFoundException) {
                             toast(com.simplemobiletools.commons.R.string.system_service_disabled, Toast.LENGTH_LONG)
                         } catch (e: Exception) {
@@ -849,7 +865,7 @@ class SettingsActivity : SimpleActivity() {
                 Intent(Intent.ACTION_GET_CONTENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = "text/plain"
-                    startActivityForResult(this, SELECT_IMPORT_FAVORITES_FILE_INTENT)
+                    importFavoritesLauncher.launch(this)
                 }
             } else {
                 handlePermission(PERMISSION_READ_STORAGE) {
@@ -973,9 +989,6 @@ class SettingsActivity : SimpleActivity() {
                 put(LAST_EDITOR_CROP_OTHER_ASPECT_RATIO_Y, config.lastEditorCropOtherAspectRatioY)
                 put(LAST_CONFLICT_RESOLUTION, config.lastConflictResolution)
                 put(LAST_CONFLICT_APPLY_TO_ALL, config.lastConflictApplyToAll)
-                put(EDITOR_BRUSH_COLOR, config.editorBrushColor)
-                put(EDITOR_BRUSH_HARDNESS, config.editorBrushHardness)
-                put(EDITOR_BRUSH_SIZE, config.editorBrushSize)
                 put(ALBUM_COVERS, config.albumCovers)
                 put(FOLDER_THUMBNAIL_STYLE, config.folderStyle)
                 put(FOLDER_MEDIA_COUNT, config.showFolderMediaCount)
@@ -995,7 +1008,7 @@ class SettingsActivity : SimpleActivity() {
                 Intent(Intent.ACTION_GET_CONTENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = "text/plain"
-                    startActivityForResult(this, PICK_IMPORT_SOURCE_INTENT)
+                    importSettingsLauncher.launch(this)
                 }
             } else {
                 handlePermission(PERMISSION_READ_STORAGE) {
@@ -1019,6 +1032,7 @@ class SettingsActivity : SimpleActivity() {
 
         var importedItems = 0
         val configValues = LinkedHashMap<String, Any>()
+        val skippedProtectedKeys = ArrayList<String>()
         inputStream.bufferedReader().use {
             while (true) {
                 try {
@@ -1054,9 +1068,15 @@ class SettingsActivity : SimpleActivity() {
                 WIDGET_TEXT_COLOR -> config.widgetTextColor = value.toInt()
                 DATE_FORMAT -> config.dateFormat = value.toString()
                 USE_24_HOUR_FORMAT -> config.use24HourFormat = value.toBoolean()
-                INCLUDED_FOLDERS -> config.addIncludedFolders(value.toStringSet())
-                EXCLUDED_FOLDERS -> config.addExcludedFolders(value.toStringSet())
-                SHOW_HIDDEN_MEDIA -> config.showHiddenMedia = value.toBoolean()
+                INCLUDED_FOLDERS -> {
+                    if (config.isHiddenPasswordProtectionOn) skippedProtectedKeys.add(key) else config.addIncludedFolders(value.toStringSet())
+                }
+                EXCLUDED_FOLDERS -> {
+                    if (config.isExcludedPasswordProtectionOn) skippedProtectedKeys.add(key) else config.addExcludedFolders(value.toStringSet())
+                }
+                SHOW_HIDDEN_MEDIA -> {
+                    if (config.isHiddenPasswordProtectionOn) skippedProtectedKeys.add(key) else config.showHiddenMedia = value.toBoolean()
+                }
                 FILE_LOADING_PRIORITY -> config.fileLoadingPriority = value.toInt()
                 AUTOPLAY_VIDEOS -> config.autoplayVideos = value.toBoolean()
                 REMEMBER_LAST_VIDEO_POSITION -> config.rememberLastVideoPosition = value.toBoolean()
@@ -1120,9 +1140,6 @@ class SettingsActivity : SimpleActivity() {
                 LAST_EDITOR_CROP_OTHER_ASPECT_RATIO_Y -> config.lastEditorCropOtherAspectRatioY = value.toString().toFloat()
                 LAST_CONFLICT_RESOLUTION -> config.lastConflictResolution = value.toInt()
                 LAST_CONFLICT_APPLY_TO_ALL -> config.lastConflictApplyToAll = value.toBoolean()
-                EDITOR_BRUSH_COLOR -> config.editorBrushColor = value.toInt()
-                EDITOR_BRUSH_HARDNESS -> config.editorBrushHardness = value.toString().toFloat()
-                EDITOR_BRUSH_SIZE -> config.editorBrushSize = value.toString().toFloat()
                 FOLDER_THUMBNAIL_STYLE -> config.folderStyle = value.toInt()
                 FOLDER_MEDIA_COUNT -> config.showFolderMediaCount = value.toInt()
                 LIMIT_FOLDER_TITLE -> config.limitFolderTitle = value.toBoolean()
@@ -1145,6 +1162,9 @@ class SettingsActivity : SimpleActivity() {
         }
 
         toast(if (configValues.size > 0) com.simplemobiletools.commons.R.string.settings_imported_successfully else com.simplemobiletools.commons.R.string.no_entries_for_importing)
+        if (skippedProtectedKeys.isNotEmpty()) {
+            toast(getString(R.string.settings_import_skipped_protected, skippedProtectedKeys.joinToString()))
+        }
         runOnUiThread {
             setupSettingItems()
         }

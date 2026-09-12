@@ -143,7 +143,7 @@ class MediaAdapter(
             findItem(R.id.cab_edit).isVisible = isOneItemSelected
             findItem(R.id.cab_set_as).isVisible = isOneItemSelected
             findItem(R.id.cab_resize).isVisible = canResize(selectedItems)
-            findItem(R.id.cab_optimize_jpegs).isVisible = !isInRecycleBin && selectedItems.any { it.path.isJpg() }
+            findItem(R.id.cab_optimize_jpegs).isVisible = JpegOptim.isAvailable && !isInRecycleBin && selectedItems.any { it.path.isJpg() }
             findItem(R.id.cab_confirm_selection).isVisible = isAGetIntent && allowMultiplePicks && selectedKeys.isNotEmpty()
             findItem(R.id.cab_restore_recycle_bin_files).isVisible = selectedPaths.all { it.startsWith(activity.recycleBinPath) }
             findItem(R.id.cab_create_shortcut).isVisible = isOreoPlus() && isOneItemSelected
@@ -573,7 +573,31 @@ class MediaAdapter(
         }
 
         val selectedItems = getSelectedItems()
-        val selectedPaths = selectedItems.map { it.path } as ArrayList<String>
+        val stackedCount = selectedItems.sumOf { maxOf(it.stackMembers.size, 1) }
+        val selectedPaths = ArrayList<String>()
+        selectedItems.forEach { item ->
+            if (item.stackMembers.size > 1) {
+                selectedPaths.addAll(item.stackMembers)
+            } else {
+                selectedPaths.add(item.path)
+            }
+        }
+        if (stackedCount > selectedItems.size) {
+            ConfirmationDialog(
+                activity,
+                activity.getString(R.string.apply_to_stacked_files, stackedCount),
+                0,
+                com.simplemobiletools.commons.R.string.yes,
+                com.simplemobiletools.commons.R.string.no
+            ) {
+                deleteExpanded(selectedPaths, skipRecycleBin)
+            }
+            return
+        }
+        deleteExpanded(selectedPaths, skipRecycleBin)
+    }
+
+    private fun deleteExpanded(selectedPaths: ArrayList<String>, skipRecycleBin: Boolean) {
         val SAFPath = selectedPaths.firstOrNull { activity.needsStupidWritePermissions(it) } ?: getFirstSelectedItemPath() ?: return
         activity.handleSAFDialog(SAFPath) {
             if (!it) {
@@ -586,12 +610,14 @@ class MediaAdapter(
                     return@checkManageMediaOrHandleSAFDialogSdk30
                 }
 
-                val fileDirItems = ArrayList<FileDirItem>(selectedKeys.size)
-                val removeMedia = ArrayList<Medium>(selectedKeys.size)
+                val fileDirItems = ArrayList<FileDirItem>(selectedPaths.size)
+                val removeMedia = ArrayList<Medium>()
                 val positions = getSelectedItemPositions()
 
-                selectedItems.forEach { medium ->
-                    fileDirItems.add(medium.toFileDirItem())
+                selectedPaths.forEach { path ->
+                    fileDirItems.add(FileDirItem(path, path.getFilenameFromPath()))
+                }
+                getSelectedItems().forEach { medium ->
                     removeMedia.add(medium)
                 }
 
@@ -720,14 +746,14 @@ class MediaAdapter(
             }
 
             val roundedCorners = when {
-                isListViewType -> ROUNDED_CORNERS_SMALL
+                isListViewType -> ROUNDED_CORNERS_NONE
                 config.fileRoundedCorners -> ROUNDED_CORNERS_BIG
                 else -> ROUNDED_CORNERS_NONE
             }
 
             if (loadImageInstantly) {
                 activity.loadImage(
-                    medium.type, path, mediumThumbnail, scrollHorizontally, animateGifs, cropThumbnails, roundedCorners, medium.getKey(), rotatedImagePaths
+                    medium.type, path, mediumThumbnail, scrollHorizontally, animateGifs, isListViewType || cropThumbnails, roundedCorners, medium.getKey(), rotatedImagePaths
                 )
             } else {
                 mediumThumbnail.setImageDrawable(null)
@@ -736,7 +762,7 @@ class MediaAdapter(
                     val isVisible = visibleItemPaths.contains(medium.path)
                     if (isVisible) {
                         activity.loadImage(
-                            medium.type, path, mediumThumbnail, scrollHorizontally, animateGifs, cropThumbnails, roundedCorners,
+                            medium.type, path, mediumThumbnail, scrollHorizontally, animateGifs, isListViewType || cropThumbnails, roundedCorners,
                             medium.getKey(), rotatedImagePaths
                         )
                     }

@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.text.Html
-import android.view.View
 import android.widget.RelativeLayout
 import com.simplemobiletools.commons.dialogs.PropertiesDialog
 import com.simplemobiletools.commons.extensions.*
@@ -30,6 +29,7 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
     private var mIsFromGallery = false
     private var mFragment: ViewPagerFragment? = null
     private var mUri: Uri? = null
+    private var mOriginalBrightness: Float? = null
 
     var mIsVideo = false
 
@@ -45,7 +45,9 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
         refreshMenuItems()
         handlePermission(getPermissionToRequest()) {
             if (it) {
-                checkIntent(savedInstanceState)
+                ensureAppUnlocked {
+                    checkIntent(savedInstanceState)
+                }
             } else {
                 toast(com.simplemobiletools.commons.R.string.no_storage_permissions)
                 finish()
@@ -65,6 +67,11 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
         if (config.blackBackground) {
             updateStatusbarColor(Color.BLACK)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        window.applyMaxBrightness(false, mOriginalBrightness)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -133,16 +140,11 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
 
         mUri = intent.data ?: return
         val uri = mUri.toString()
-        if (uri.startsWith("content:/") && uri.contains("/storage/") && !intent.getBooleanExtra(IS_IN_RECYCLE_BIN, false)) {
-            val guessedPath = uri.substring(uri.indexOf("/storage/"))
-            if (getDoesFilePathExist(guessedPath)) {
-                val extras = intent.extras ?: Bundle()
-                extras.apply {
-                    putString(REAL_FILE_PATH, guessedPath)
-                    intent.putExtras(this)
-                }
-            }
-        }
+        val trustedUri = mUri!!.authority in setOf(
+            "media",
+            "com.android.providers.media.documents",
+            "com.android.externalstorage.documents"
+        )
 
         var filename = getFilenameFromUri(mUri!!)
         mIsFromGallery = intent.getBooleanExtra(IS_FROM_GALLERY, false)
@@ -183,7 +185,7 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
             val realPath = applicationContext.getRealPathFromURI(mUri!!) ?: ""
             val isFileFolderHidden = (File(realPath).isHidden || File(realPath.getParentPath(), NOMEDIA).exists() || realPath.contains("/."))
             val preventShowingHiddenFile = (isRPlus() && !isExternalStorageManager()) && isFileFolderHidden
-            if (!preventShowingHiddenFile) {
+            if (trustedUri && !preventShowingHiddenFile) {
                 if (realPath != mUri.toString() && realPath.isNotEmpty() && mUri!!.authority != "mms" && filename.contains('.') && getDoesFilePathExist(realPath)) {
                     if (isFileTypeVisible(realPath)) {
                         binding.bottomActions.root.beGone()
@@ -233,16 +235,7 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
             binding.fragmentHolder.background = ColorDrawable(Color.BLACK)
         }
 
-        if (config.maxBrightness) {
-            val attributes = window.attributes
-            attributes.screenBrightness = 1f
-            window.attributes = attributes
-        }
-
-        window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
-            val isFullscreen = visibility and View.SYSTEM_UI_FLAG_FULLSCREEN != 0
-            mFragment?.fullscreenToggled(isFullscreen)
-        }
+        mOriginalBrightness = window.applyMaxBrightness(config.maxBrightness, mOriginalBrightness)
 
         initBottomActions()
     }
@@ -287,7 +280,8 @@ open class PhotoVideoActivity : SimpleActivity(), ViewPagerFragment.FragmentList
         runOnUiThread {
             hideKeyboard()
             Intent(this, ViewPagerActivity::class.java).apply {
-                putExtra(SKIP_AUTHENTICATION, intent.getBooleanExtra(SKIP_AUTHENTICATION, false))
+                putInternalNonce()
+                putExtra(SKIP_AUTHENTICATION, mIsFromGallery && intent.getBooleanExtra(SKIP_AUTHENTICATION, false))
                 putExtra(SHOW_FAVORITES, intent.getBooleanExtra(SHOW_FAVORITES, false))
                 putExtra(IS_VIEW_INTENT, true)
                 putExtra(IS_FROM_GALLERY, mIsFromGallery)

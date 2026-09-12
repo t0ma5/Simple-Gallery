@@ -12,6 +12,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.MediaStore.Images
 import android.provider.MediaStore.Video
@@ -31,7 +32,7 @@ class NewPhotoFetcher : JobService() {
         private val VIDEO_PATH_SEGMENTS = Video.Media.EXTERNAL_CONTENT_URI.pathSegments
     }
 
-    private val mHandler = Handler()
+    private val mHandler = Handler(Looper.getMainLooper())
     private val mWorker = Runnable {
         scheduleJob(this@NewPhotoFetcher)
         jobFinished(mRunningParams, false)
@@ -75,20 +76,15 @@ class NewPhotoFetcher : JobService() {
                 }
 
                 if (ids.isNotEmpty()) {
-                    val selection = StringBuilder()
-                    for (id in ids) {
-                        if (selection.isNotEmpty()) {
-                            selection.append(" OR ")
-                        }
-                        selection.append("${Images.ImageColumns._ID} = '$id'")
-                    }
+                    val placeholders = ids.joinToString(" OR ") { "${Images.ImageColumns._ID} = ?" }
+                    val args = ids.toTypedArray()
 
                     var cursor: Cursor? = null
                     try {
                         val projection = arrayOf(Images.ImageColumns.DATA)
                         val uris = arrayListOf(Images.Media.EXTERNAL_CONTENT_URI, Video.Media.EXTERNAL_CONTENT_URI)
                         uris.forEach {
-                            cursor = contentResolver.query(it, projection, selection.toString(), null, null)
+                            cursor = contentResolver.query(it, projection, placeholders, args, null)
                             while (cursor!!.moveToNext()) {
                                 val path = cursor!!.getStringValue(Images.ImageColumns.DATA)
                                 affectedFolderPaths.add(path.getParentPath())
@@ -105,9 +101,9 @@ class NewPhotoFetcher : JobService() {
             affectedFolderPaths.forEach {
                 updateDirectoryPath(it)
             }
+            mHandler.post(mWorker)
         }
 
-        mHandler.post(mWorker)
         return true
     }
 

@@ -19,7 +19,7 @@ include(FetchContent)
 FetchContent_Declare(
     mozjpeg
     GIT_REPOSITORY https://github.com/mozilla/mozjpeg.git
-    GIT_TAG v4.1.1
+    GIT_TAG a2d2907ff023227e80c1e4efa809812410275a12
 )
 FetchContent_MakeAvailable(mozjpeg)
 
@@ -58,6 +58,7 @@ target_compile_definitions(jpegoptim-jni PRIVATE
 )
 
 find_library(log-lib log)
+target_link_options(jpegoptim-jni PRIVATE "-Wl,-z,max-page-size=16384")
 target_link_libraries(jpegoptim-jni
     jpeg-static
     ${log-lib}

@@ -17,6 +17,8 @@ class OptimizeJpegsDialog(
     private val imagePaths: List<String>,
     private val callback: () -> Unit
 ) {
+    @Volatile
+    private var cancelled = false
     private var dialog: AlertDialog? = null
     private val binding = DialogOptimizeJpegsBinding.inflate(activity.layoutInflater)
     private val progressView = binding.optimizeProgress
@@ -46,19 +48,20 @@ class OptimizeJpegsDialog(
                     val positiveButton = alertDialog.getButton(AlertDialog.BUTTON_POSITIVE)
                     val negativeButton = alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE)
                     positiveButton.setOnClickListener {
+                        alertDialog.setCancelable(false)
                         alertDialog.setCanceledOnTouchOutside(false)
                         arrayOf(
                             binding.optimizeMessage,
                             binding.optimizeLossless,
                             binding.optimizeQualityLabel,
                             binding.optimizeQuality,
-                            positiveButton,
-                            negativeButton
+                            positiveButton
                         ).forEach {
                             it.isEnabled = false
                             it.alpha = 0.6f
                         }
-                        optimizeImages()
+                        negativeButton.setOnClickListener { cancelled = true }
+                        requestWriteAccessThenOptimize()
                     }
                 }
             }
@@ -75,6 +78,20 @@ class OptimizeJpegsDialog(
         }
     }
 
+    private fun requestWriteAccessThenOptimize() {
+        val parents = imagePaths.map { it.getParentPath() }.distinct()
+        fun next(index: Int) {
+            if (index >= parents.size) {
+                optimizeImages()
+            } else {
+                activity.ensureWriteAccess(parents[index]) {
+                    next(index + 1)
+                }
+            }
+        }
+        next(0)
+    }
+
     private fun optimizeImages() {
         val lossless = binding.optimizeLossless.isChecked
         val qualitySetting = binding.optimizeQuality.progress.coerceIn(50, 100)
@@ -83,56 +100,71 @@ class OptimizeJpegsDialog(
         val nativeQuality = if (lossless) -1 else qualitySetting
 
         progressView.show()
-        val parentPath = imagePaths.first().getParentPath()
         val pathsToRescan = arrayListOf<String>()
         val pathLastModifiedMap = mutableMapOf<String, Long>()
         var savedTotal = 0L
         var optimizedCount = 0
         var failureCount = 0
+        var skippedCount = 0
 
-        activity.ensureWriteAccess(parentPath) {
-            ensureBackgroundThread {
-                for (i in imagePaths.indices) {
-                    val path = imagePaths[i]
-                    val lastModified = File(path).lastModified()
-                    val result = JpegOptim.optimize(activity, path, nativeQuality)
-                    if (!result.ok) {
-                        failureCount++
-                    } else if (result.bytesSaved > 0L) {
+        ensureBackgroundThread {
+            for (i in imagePaths.indices) {
+                if (cancelled) {
+                    break
+                }
+                val path = imagePaths[i]
+                val lastModified = File(path).lastModified()
+                val result = JpegOptim.optimize(activity, path, nativeQuality)
+                when {
+                    result.skipped -> skippedCount++
+                    !result.ok -> failureCount++
+                    result.bytesSaved > 0L -> {
                         optimizedCount++
                         savedTotal += result.bytesSaved
                         pathsToRescan.add(path)
                         pathLastModifiedMap[path] = lastModified
                     }
-                    activity.runOnUiThread {
-                        progressView.progress = i + 1
-                    }
                 }
-
                 activity.runOnUiThread {
-                    val message = when {
-                        failureCount > 0 && optimizedCount == 0 -> activity.getString(R.string.jpeg_optimize_failed)
-                        optimizedCount == 0 -> activity.getString(R.string.jpegs_already_optimized)
-                        else -> activity.getString(
-                            R.string.jpegs_optimized,
-                            optimizedCount,
-                            savedTotal.formatSize()
-                        )
-                    }
-                    activity.toast(message)
+                    progressView.progress = i + 1
                 }
+            }
 
-                if (pathsToRescan.isEmpty()) {
+            activity.runOnUiThread {
+                val parts = ArrayList<String>()
+                when {
+                    cancelled -> Unit
+                    failureCount > 0 && optimizedCount == 0 && skippedCount == 0 -> {
+                        parts.add(activity.getString(R.string.jpeg_optimize_failed))
+                    }
+                    optimizedCount == 0 && skippedCount == 0 -> {
+                        parts.add(activity.getString(R.string.jpegs_already_optimized))
+                    }
+                    optimizedCount > 0 -> {
+                        parts.add(activity.getString(R.string.jpegs_optimized, optimizedCount, savedTotal.formatSize()))
+                    }
+                }
+                if (skippedCount > 0) {
+                    parts.add(activity.getString(R.string.jpegs_skipped_hdr, skippedCount))
+                }
+                if (failureCount > 0 && optimizedCount > 0) {
+                    parts.add(activity.getString(R.string.jpegs_optimize_failures, failureCount))
+                }
+                if (parts.isNotEmpty()) {
+                    activity.toast(parts.joinToString(" "))
+                }
+            }
+
+            if (pathsToRescan.isEmpty()) {
+                activity.runOnUiThread {
+                    dialog?.dismiss()
+                    callback.invoke()
+                }
+            } else {
+                activity.rescanPathsAndUpdateLastModified(pathsToRescan, pathLastModifiedMap) {
                     activity.runOnUiThread {
                         dialog?.dismiss()
                         callback.invoke()
-                    }
-                } else {
-                    activity.rescanPathsAndUpdateLastModified(pathsToRescan, pathLastModifiedMap) {
-                        activity.runOnUiThread {
-                            dialog?.dismiss()
-                            callback.invoke()
-                        }
                     }
                 }
             }

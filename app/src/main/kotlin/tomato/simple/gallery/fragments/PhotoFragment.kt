@@ -15,6 +15,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -24,7 +25,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.RelativeLayout
-import androidx.core.graphics.drawable.toBitmapOrNull
 import androidx.exifinterface.media.ExifInterface.*
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -61,6 +61,7 @@ import tomato.simple.gallery.activities.ViewPagerActivity
 import tomato.simple.gallery.adapters.PortraitPhotosAdapter
 import tomato.simple.gallery.databinding.PagerPhotoItemBinding
 import tomato.simple.gallery.extensions.config
+import tomato.simple.gallery.extensions.mediumExtra
 import tomato.simple.gallery.extensions.sendFakeClick
 import tomato.simple.gallery.helpers.*
 import tomato.simple.gallery.models.Medium
@@ -96,12 +97,13 @@ class PhotoFragment : ViewPagerFragment() {
     private var mIsPanorama = false
     private var mMotionPhotoInfo: MotionPhotoInfo? = null
     private var mMotionPlayer: ExoPlayer? = null
+    private var mMotionExtractedFile: File? = null
     private var mIsSubsamplingVisible = false    // checking view.visibility is unreliable, use an extra variable for it
     private var mShouldResetImage = false
     private var mCurrentPortraitPhotoPath = ""
     private var mOriginalPath = ""
     private var mImageOrientation = -1
-    private var mLoadZoomableViewHandler = Handler()
+    private var mLoadZoomableViewHandler = Handler(Looper.getMainLooper())
     private var mScreenWidth = 0
     private var mScreenHeight = 0
     private var mCurrentGestureViewZoom = 1f
@@ -129,7 +131,7 @@ class PhotoFragment : ViewPagerFragment() {
             return mView
         }
 
-        mMedium = arguments.getSerializable(MEDIUM) as Medium
+        mMedium = arguments.mediumExtra()
         mOriginalPath = mMedium.path
 
         binding.apply {
@@ -306,7 +308,7 @@ class PhotoFragment : ViewPagerFragment() {
             mView.onGlobalLayout {
                 if (activity != null) {
                     measureScreen()
-                    Handler().postDelayed({
+                    Handler(Looper.getMainLooper()).postDelayed({
                         binding.gifViewFrame.controller.resetState()
                         loadGif()
                     }, 50)
@@ -452,8 +454,13 @@ class PhotoFragment : ViewPagerFragment() {
 
     private fun loadAVIF() {
         if (context != null) {
-            val drawable = AVIFDrawable.fromFile(mMedium.path)
-            if (drawable.intrinsicWidth == 0 || drawable.intrinsicHeight == 0) {
+            val drawable = try {
+                AVIFDrawable.fromFile(mMedium.path)
+            } catch (_: Exception) {
+                loadBitmap()
+                return
+            }
+            if (drawable == null || drawable.intrinsicWidth == 0 || drawable.intrinsicHeight == 0) {
                 loadBitmap()
                 return
             }
@@ -698,7 +705,7 @@ class PhotoFragment : ViewPagerFragment() {
                     }
                 }
 
-                Handler().postDelayed({
+                Handler(Looper.getMainLooper()).postDelayed({
                     adapter.performClickOn(closestIndex)
                 }, 100)
             }
@@ -744,13 +751,17 @@ class PhotoFragment : ViewPagerFragment() {
     }
 
     private fun checkIfMotionPhoto() {
+        val ctx = context ?: return
         val info = try {
-            MotionPhotoHelper.parseInfo(requireContext(), mMedium.path)
+            MotionPhotoHelper.parseInfo(ctx, mMedium.path)
         } catch (_: Exception) {
             null
         }
         mMotionPhotoInfo = info
         activity?.runOnUiThread {
+            if (!isAdded) {
+                return@runOnUiThread
+            }
             binding.motionPhotoPlay.beVisibleIf(info != null)
             if (mIsFullscreen) {
                 binding.motionPhotoPlay.alpha = 0f
@@ -775,12 +786,19 @@ class PhotoFragment : ViewPagerFragment() {
         }
 
         ensureBackgroundThread {
-            val file = MotionPhotoHelper.extractVideo(requireContext(), MotionPhotoHelper.pathToUri(mMedium.path), info)
+            val ctx = context ?: return@ensureBackgroundThread
+            val file = MotionPhotoHelper.extractVideo(ctx, MotionPhotoHelper.pathToUri(mMedium.path), info)
             activity?.runOnUiThread {
+                if (!isAdded) {
+                    file?.delete()
+                    return@runOnUiThread
+                }
                 if (file == null) {
                     activity?.toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
                     return@runOnUiThread
                 }
+                mMotionExtractedFile?.delete()
+                mMotionExtractedFile = file
                 startMotionPlayer(file)
             }
         }
@@ -826,6 +844,8 @@ class PhotoFragment : ViewPagerFragment() {
     private fun releaseMotionPlayer() {
         mMotionPlayer?.release()
         mMotionPlayer = null
+        mMotionExtractedFile?.delete()
+        mMotionExtractedFile = null
         if (::binding.isInitialized) {
             binding.motionPhotoSurface.beGone()
         }
@@ -1040,7 +1060,8 @@ class PhotoFragment : ViewPagerFragment() {
     }
 
     private fun initExtendedDetails() {
-        if (requireContext().config.showExtendedDetails) {
+        val ctx = context ?: return
+        if (ctx.config.showExtendedDetails) {
             binding.photoDetails.apply {
                 beInvisible()   // make it invisible so we can measure it, but not show yet
                 text = getMediumExtendedDetails(mMedium)
@@ -1050,7 +1071,8 @@ class PhotoFragment : ViewPagerFragment() {
                         if (realY > 0) {
                             y = realY
                             beVisibleIf(text.isNotEmpty())
-                            alpha = if (!requireContext().config.hideExtendedDetails || !mIsFullscreen) 1f else 0f
+                            val hideExtendedDetails = context?.config?.hideExtendedDetails == true
+                            alpha = if (!hideExtendedDetails || !mIsFullscreen) 1f else 0f
                         }
                     }
                 }
@@ -1129,7 +1151,7 @@ class PhotoFragment : ViewPagerFragment() {
         if (mIsFragmentVisible && activity != null) {
             ColorModeHelper.setColorModeForImage(
                 activity = requireActivity(),
-                bitmap = (resource as? BitmapDrawable)?.bitmap ?: resource?.toBitmapOrNull(),
+                bitmap = (resource as? BitmapDrawable)?.bitmap,
                 ultraHdr = context?.config?.ultraHdrRendering ?: true
             )
         }

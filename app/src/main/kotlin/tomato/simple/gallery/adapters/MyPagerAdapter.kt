@@ -41,6 +41,7 @@ class MyPagerAdapter(val activity: ViewPagerActivity, fm: FragmentManager, val m
 
     override fun instantiateItem(container: ViewGroup, position: Int): Any {
         val fragment = super.instantiateItem(container, position) as ViewPagerFragment
+        fragment.listener = activity
         fragments[position] = fragment
         return fragment
     }

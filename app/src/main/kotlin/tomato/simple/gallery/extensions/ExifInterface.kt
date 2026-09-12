@@ -3,8 +3,10 @@ package tomato.simple.gallery.extensions
 import android.content.Context
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
+import com.simplemobiletools.commons.activities.BaseSimpleActivity
+import com.simplemobiletools.commons.extensions.getDocumentFile
+import com.simplemobiletools.commons.extensions.needsStupidWritePermissions
 import java.io.File
-import java.io.InputStream
 
 /**
  * A non-exhaustive list of all Exif attributes excluding dimension-related ones.
@@ -146,15 +148,11 @@ fun ExifInterface.copyNonDimensionAttributesTo(destination: ExifInterface) {
     }
 }
 
-fun Context.readExif(uri: Uri): ExifInterface? {
-    var inputStream: InputStream? = null
-    return try {
-        inputStream = contentResolver.openInputStream(uri)
-        ExifInterface(inputStream!!)
-    } catch (_: Exception) {
-        null
-    } finally {
-        inputStream?.close()
+fun Context.exifUriForPath(path: String): Uri {
+    return if (this is BaseSimpleActivity && needsStupidWritePermissions(path)) {
+        getDocumentFile(path)?.uri ?: Uri.fromFile(File(path))
+    } else {
+        Uri.fromFile(File(path))
     }
 }
 

@@ -37,7 +37,9 @@ class WidgetConfigureActivity : SimpleActivity() {
         super.onCreate(savedInstanceState)
         setResult(RESULT_CANCELED)
         setContentView(binding.root)
-        initVariables()
+        ensureAppUnlocked {
+            initVariables()
+        }
 
         mWidgetId = intent.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID) ?: AppWidgetManager.INVALID_APPWIDGET_ID
 

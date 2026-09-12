@@ -819,7 +819,7 @@ class DirectoryAdapter(
             } else {
                 dirLock.beGone()
                 val roundedCorners = when {
-                    isListViewType -> ROUNDED_CORNERS_SMALL
+                    isListViewType -> ROUNDED_CORNERS_NONE
                     folderStyle == FOLDER_STYLE_SQUARE -> ROUNDED_CORNERS_NONE
                     else -> ROUNDED_CORNERS_BIG
                 }
@@ -830,7 +830,7 @@ class DirectoryAdapter(
                     dirThumbnail,
                     scrollHorizontally,
                     animateGifs,
-                    cropThumbnails,
+                    isListViewType || cropThumbnails,
                     roundedCorners,
                     directory.getKey()
                 )

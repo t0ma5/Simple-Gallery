@@ -1,0 +1,10 @@
+• Security: untrusted viewer intents can no longer skip folder lock
+• Recycle Bin isolated; Android backup of private files is off
+• JPEG optimize is crash-safe and skips Ultra HDR/container photos
+• Editor keeps full resolution; text overlays rotate 360°, double-tap to edit, larger max size
+• Show hidden / Show excluded stay on until toggled off; Tree view is in Change view type
+• Motion photos parse Container:Item XMP
+• About History section; version line opens GitHub Releases; color pickers default to red
+• 16 KB page-size libs; FOSS APKs named Simple-Gallery_<version>-FOSS-<abi>.apk, okio CVE fix
+• Hide/unhide race fix; seeking keeps pause; FOSS-only build
+• Targets Android 16; updated video player and JPEG XL decoder

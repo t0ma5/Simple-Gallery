@@ -6,6 +6,9 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Bitmap.CompressFormat
 import android.graphics.Color
+import android.graphics.ColorMatrixColorFilter
+import android.os.Looper
+import androidx.activity.OnBackPressedCallback
 import android.graphics.Point
 import android.net.Uri
 import android.os.Build
@@ -27,6 +30,7 @@ import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.Target
 import com.canhub.cropper.CropImageView
 import com.simplemobiletools.commons.dialogs.ColorPickerDialog
+import com.simplemobiletools.commons.dialogs.ConfirmationDialog
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.NavigationIcon
 import com.simplemobiletools.commons.helpers.REAL_FILE_PATH
@@ -47,6 +51,7 @@ import tomato.simple.gallery.extensions.config
 import tomato.simple.gallery.extensions.fixDateTaken
 import tomato.simple.gallery.extensions.openEditor
 import tomato.simple.gallery.extensions.setupEdgeToEdge
+import tomato.simple.gallery.extensions.exifUriForPath
 import tomato.simple.gallery.extensions.writeExif
 import tomato.simple.gallery.helpers.*
 import tomato.simple.gallery.models.FilterItem
@@ -99,6 +104,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private var adjustSourceBitmap: Bitmap? = null
     private var adjustPreviewBitmap: Bitmap? = null
     private var overwriteRequested = false
+    private var hasUnsavedEdits = false
+    private val editorDecodeSize = 4096
     private val binding by viewBinding(ActivityEditBinding::inflate)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,8 +121,28 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             if (!it) {
                 toast(com.simplemobiletools.commons.R.string.no_storage_permissions)
                 finish()
+                return@handlePermission
             }
-            initEditActivity()
+            ensureAppUnlocked {
+                initEditActivity()
+                onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+                    override fun handleOnBackPressed() {
+                        if (hasUnsavedEdits) {
+                            ConfirmationDialog(
+                                this@EditActivity,
+                                "",
+                                R.string.discard_unsaved_edits,
+                                com.simplemobiletools.commons.R.string.yes,
+                                com.simplemobiletools.commons.R.string.no
+                            ) {
+                                finish()
+                            }
+                        } else {
+                            finish()
+                        }
+                    }
+                })
+            }
         }
     }
 
@@ -128,6 +155,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         binding.bottomEditorAdjustActions.adjustSaturation.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
         binding.bottomEditorAdjustActions.adjustTemperature.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
         binding.bottomEditorTextActions.bottomTextWidth.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
+        binding.bottomEditorTextActions.bottomTextRotation.setColors(getProperTextColor(), getProperPrimaryColor(), getProperBackgroundColor())
         setupToolbar(binding.editorToolbar, NavigationIcon.Arrow)
         styleEditorToolbar()
     }
@@ -252,6 +280,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         val options = RequestOptions()
             .skipMemoryCache(true)
             .diskCacheStrategy(DiskCacheStrategy.NONE)
+            .override(editorDecodeSize)
 
         Glide.with(this)
             .asBitmap()
@@ -261,7 +290,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                 override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Bitmap>, isFirstResource: Boolean): Boolean {
                     if (uri != originalUri) {
                         uri = originalUri
-                        Handler().post {
+                        Handler(Looper.getMainLooper()).post {
                             loadDefaultImageView()
                         }
                     }
@@ -275,8 +304,13 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                     dataSource: DataSource,
                     isFirstResource: Boolean
                 ): Boolean {
+                    val copy = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, true)
+                    if (workingBitmap == null) {
+                        workingBitmap = copy
+                    }
                     val currentFilter = getFiltersAdapter()?.getCurrentFilter()
                     if (filterInitialBitmap == null) {
+                        filterInitialBitmap = copy
                         loadCropImageView()
                         bottomCropRotateClicked()
                     }
@@ -285,8 +319,6 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                         binding.defaultImageView.onGlobalLayout {
                             applyFilter(currentFilter)
                         }
-                    } else {
-                        filterInitialBitmap = bitmap
                     }
 
                     if (isCropIntent) {
@@ -383,7 +415,9 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         val source = usableWorkingBitmap() ?: filterInitialBitmap
         if (source != null && !source.isRecycled) {
             adjustSourceBitmap = source
+            binding.defaultImageView.colorFilter = null
             binding.defaultImageView.setImageBitmap(source)
+            applyAdjustPreview()
         } else {
             loadDefaultImageView()
         }
@@ -443,8 +477,20 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         setOldExif()
         when {
             binding.cropImageView.isVisible() -> binding.cropImageView.croppedImageAsync()
-            binding.editorDrawCanvas.isVisible() -> saveEditedBitmap(binding.editorDrawCanvas.getBitmap())
-            binding.editorOverlayView.isVisible() -> saveEditedBitmap(binding.editorOverlayView.getBitmap())
+            binding.editorDrawCanvas.isVisible() -> saveEditedBitmap(
+                if (binding.editorDrawCanvas.hasDrawing()) {
+                    binding.editorDrawCanvas.getBitmap(usableWorkingBitmap())
+                } else {
+                    usableWorkingBitmap() ?: return
+                }
+            )
+            binding.editorOverlayView.isVisible() -> saveEditedBitmap(
+                if (binding.editorOverlayView.hasOverlays()) {
+                    binding.editorOverlayView.getBitmap(usableWorkingBitmap())
+                } else {
+                    usableWorkingBitmap() ?: return
+                }
+            )
             currPrimaryAction == PRIMARY_ACTION_ADJUST -> saveEditedBitmap(currentAdjustBitmap() ?: return)
             else -> saveFilteredImage()
         }
@@ -470,6 +516,10 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
     private fun saveEditedBitmap(bitmap: Bitmap, showSavingToast: Boolean = true) {
         if (overwriteRequested) {
+            if (saveUri.scheme == "content" && applicationContext.getRealPathFromURI(saveUri).isNullOrEmpty()) {
+                saveBitmapToContentUri(bitmap, saveUri, showSavingToast)
+                return
+            }
             val path = overwritePath()
             if (path.isNullOrEmpty()) {
                 toast(R.string.error_saving_file)
@@ -497,6 +547,29 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         return when {
             saveUri.scheme == "file" -> saveUri.path
             else -> getNewFilePath().first.takeIf { it.isNotEmpty() }
+        }
+    }
+
+    private fun saveBitmapToContentUri(bitmap: Bitmap, uri: Uri, showSavingToast: Boolean) {
+        if (showSavingToast) {
+            toast(com.simplemobiletools.commons.R.string.saving)
+        }
+        ensureBackgroundThread {
+            try {
+                contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                    val format = applicationContext.getFilenameFromContentUri(uri)?.getCompressionFormat()
+                        ?: CompressFormat.JPEG
+                    bitmap.compress(format, 90, out)
+                } ?: throw IllegalStateException("Cannot open $uri")
+                writeExif(oldExif, uri)
+                runOnUiThread {
+                    setResult(Activity.RESULT_OK, intent)
+                    toast(com.simplemobiletools.commons.R.string.file_saved)
+                    finish()
+                }
+            } catch (e: Exception) {
+                showErrorToast(e)
+            }
         }
     }
 
@@ -543,8 +616,20 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                     }
                 }
 
-                binding.editorDrawCanvas.isVisible() -> shareBitmap(binding.editorDrawCanvas.getBitmap())
-                binding.editorOverlayView.isVisible() -> shareBitmap(binding.editorOverlayView.getBitmap())
+                binding.editorDrawCanvas.isVisible() -> shareBitmap(
+                    if (binding.editorDrawCanvas.hasDrawing()) {
+                        binding.editorDrawCanvas.getBitmap(usableWorkingBitmap())
+                    } else {
+                        usableWorkingBitmap() ?: return@ensureBackgroundThread
+                    }
+                )
+                binding.editorOverlayView.isVisible() -> shareBitmap(
+                    if (binding.editorOverlayView.hasOverlays()) {
+                        binding.editorOverlayView.getBitmap(usableWorkingBitmap())
+                    } else {
+                        usableWorkingBitmap() ?: return@ensureBackgroundThread
+                    }
+                )
                 currPrimaryAction == PRIMARY_ACTION_ADJUST -> {
                     val bitmap = currentAdjustBitmap()
                     if (bitmap == null) {
@@ -824,23 +909,29 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         val contrast = binding.bottomEditorAdjustActions.adjustContrast.progress
         val saturation = binding.bottomEditorAdjustActions.adjustSaturation.progress
         val temperature = binding.bottomEditorAdjustActions.adjustTemperature.progress
+        binding.defaultImageView.setImageBitmap(source)
         if (EditorColorMatrix.isIdentity(brightness, contrast, saturation, temperature)) {
-            recycleAdjustPreview()
-            binding.defaultImageView.setImageBitmap(source)
-            return
+            binding.defaultImageView.colorFilter = null
+        } else {
+            binding.defaultImageView.colorFilter = ColorMatrixColorFilter(
+                EditorColorMatrix.matrix(brightness, contrast, saturation, temperature)
+            )
         }
-        val preview = EditorColorMatrix.apply(source, brightness, contrast, saturation, temperature)
-        recycleAdjustPreview()
-        adjustPreviewBitmap = preview
-        binding.defaultImageView.setImageBitmap(preview)
     }
 
     private fun currentAdjustBitmap(): Bitmap? {
-        val preview = adjustPreviewBitmap
-        if (preview != null && !preview.isRecycled) {
-            return preview
+        val source = adjustSourceBitmap ?: usableWorkingBitmap() ?: filterInitialBitmap ?: return null
+        if (source.isRecycled) {
+            return null
         }
-        return adjustSourceBitmap ?: usableWorkingBitmap() ?: filterInitialBitmap
+        val brightness = binding.bottomEditorAdjustActions.adjustBrightness.progress
+        val contrast = binding.bottomEditorAdjustActions.adjustContrast.progress
+        val saturation = binding.bottomEditorAdjustActions.adjustSaturation.progress
+        val temperature = binding.bottomEditorAdjustActions.adjustTemperature.progress
+        if (EditorColorMatrix.isIdentity(brightness, contrast, saturation, temperature)) {
+            return source
+        }
+        return EditorColorMatrix.apply(source, brightness, contrast, saturation, temperature)
     }
 
     private fun recycleAdjustPreview() {
@@ -856,16 +947,33 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         updateTextFont(config.lastEditorTextFont)
         binding.bottomEditorTextActions.bottomTextWidth.progress = 40
         binding.editorOverlayView.applySizeToSelected(40)
+        binding.bottomEditorTextActions.bottomTextRotation.progress = 0
+        binding.editorOverlayView.onOverlayChanged = { rotation ->
+            if (binding.bottomEditorTextActions.bottomTextRotation.progress != rotation) {
+                binding.bottomEditorTextActions.bottomTextRotation.progress = rotation
+            }
+        }
+        binding.editorOverlayView.onEditSelectedOverlay = { current ->
+            AddTextDialog(this, current) { text ->
+                binding.editorOverlayView.updateSelectedText(text)
+            }
+        }
 
         binding.bottomEditorTextActions.bottomTextAdd.setOnClickListener {
             AddTextDialog(this) { text ->
+                val rotation = binding.bottomEditorTextActions.bottomTextRotation.progress
                 binding.editorOverlayView.addLabel(text)
+                binding.editorOverlayView.applyRotationToSelected(rotation)
+                binding.bottomEditorTextActions.bottomTextRotation.progress = rotation
             }
         }
 
         binding.bottomEditorTextActions.bottomTextSticker.setOnClickListener {
             AddStickerDialog(this) { emoji ->
+                val rotation = binding.bottomEditorTextActions.bottomTextRotation.progress
                 binding.editorOverlayView.addLabel(emoji)
+                binding.editorOverlayView.applyRotationToSelected(rotation)
+                binding.bottomEditorTextActions.bottomTextRotation.progress = rotation
             }
         }
 
@@ -877,6 +985,10 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
         binding.bottomEditorTextActions.bottomTextWidth.onSeekBarChangeListener {
             binding.editorOverlayView.applySizeToSelected(it)
+        }
+
+        binding.bottomEditorTextActions.bottomTextRotation.onSeekBarChangeListener {
+            binding.editorOverlayView.applyRotationToSelected(it)
         }
 
         binding.bottomEditorTextActions.bottomTextColor.setOnClickListener {
@@ -1147,7 +1259,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                         val stream = ByteArrayOutputStream()
                         bitmap.compress(CompressFormat.JPEG, 100, stream)
                         inputStream = ByteArrayInputStream(stream.toByteArray())
-                        outputStream = contentResolver.openOutputStream(saveUri)
+                        outputStream = contentResolver.openOutputStream(saveUri, "wt")
                         inputStream.copyTo(outputStream!!)
                     } catch (e: Exception) {
                         showErrorToast(e)
@@ -1232,14 +1344,14 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
         out.use {
             if (resizeWidth > 0 && resizeHeight > 0) {
-                val resized = Bitmap.createScaledBitmap(bitmap, resizeWidth, resizeHeight, false)
+                val resized = Bitmap.createScaledBitmap(bitmap, resizeWidth, resizeHeight, true)
                 resized.compress(file.absolutePath.getCompressionFormat(), 90, it)
             } else {
                 bitmap.compress(file.absolutePath.getCompressionFormat(), 90, it)
             }
         }
 
-        writeExif(oldExif, Uri.fromFile(file))
+        writeExif(oldExif, exifUriForPath(file.absolutePath))
 
         setResult(Activity.RESULT_OK, intent)
         scanFinalPath(file.absolutePath)
@@ -1284,7 +1396,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         return Glide.with(applicationContext)
             .asBitmap()
             .load(uri)
-            .submit(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+            .submit(editorDecodeSize, editorDecodeSize)
             .get()
     }
 
@@ -1326,6 +1438,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private fun replaceWorkingBitmap(bitmap: Bitmap) {
         val previous = workingBitmap
         workingBitmap = bitmap
+        hasUnsavedEdits = true
         if (previous != null && previous !== bitmap && previous !== filterInitialBitmap && !previous.isRecycled) {
             previous.recycle()
         }
@@ -1342,40 +1455,76 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         resetEditorLayerSize(binding.editorOverlayView)
         recycleAdjustPreview()
         adjustSourceBitmap = null
+        binding.defaultImageView.colorFilter = null
     }
 
     private fun commitCurrentTool(done: () -> Unit) {
         try {
             when {
                 binding.cropImageView.isVisible() -> {
-                    val cropped = binding.cropImageView.getCroppedImage()
-                    if (cropped != null) {
-                        replaceWorkingBitmap(cropped)
-                        invalidateToolCaches()
+                    ensureBackgroundThread {
+                        try {
+                            val cropped = binding.cropImageView.getCroppedImage()
+                            runOnUiThread {
+                                if (cropped != null) {
+                                    replaceWorkingBitmap(cropped)
+                                    invalidateToolCaches()
+                                }
+                                done()
+                            }
+                        } catch (e: Exception) {
+                            runOnUiThread {
+                                showErrorToast(e)
+                                done()
+                            }
+                        }
                     }
+                    return
                 }
-                binding.editorDrawCanvas.isVisible() && wasDrawCanvasPositioned -> {
-                    replaceWorkingBitmap(binding.editorDrawCanvas.getBitmap())
+                binding.editorDrawCanvas.isVisible() && wasDrawCanvasPositioned && binding.editorDrawCanvas.hasDrawing() -> {
+                    replaceWorkingBitmap(binding.editorDrawCanvas.getBitmap(usableWorkingBitmap()))
                     invalidateToolCaches()
                 }
                 binding.editorOverlayView.isVisible() && wasOverlayPositioned -> {
                     if (binding.editorOverlayView.hasOverlays()) {
-                        replaceWorkingBitmap(binding.editorOverlayView.getBitmap())
+                        replaceWorkingBitmap(binding.editorOverlayView.getBitmap(usableWorkingBitmap()))
                         invalidateToolCaches()
                     }
                 }
                 currPrimaryAction == PRIMARY_ACTION_ADJUST -> {
-                    val adjusted = currentAdjustBitmap()
-                    if (adjusted != null && !adjusted.isRecycled) {
-                        val keep = if (adjusted === adjustSourceBitmap || adjusted === workingBitmap || adjusted === filterInitialBitmap) {
-                            adjusted.copy(adjusted.config ?: Bitmap.Config.ARGB_8888, true)
-                        } else {
-                            adjusted
+                    ensureBackgroundThread {
+                        try {
+                            val adjusted = currentAdjustBitmap()
+                            val keep = if (adjusted != null && !adjusted.isRecycled) {
+                                if (adjusted === adjustSourceBitmap || adjusted === workingBitmap || adjusted === filterInitialBitmap) {
+                                    adjusted.copy(adjusted.config ?: Bitmap.Config.ARGB_8888, true)
+                                } else {
+                                    adjusted
+                                }
+                            } else {
+                                null
+                            }
+                            runOnUiThread {
+                                if (keep != null) {
+                                    adjustPreviewBitmap = null
+                                    replaceWorkingBitmap(keep)
+                                    invalidateToolCaches()
+                                }
+                                done()
+                            }
+                        } catch (e: OutOfMemoryError) {
+                            runOnUiThread {
+                                toast(com.simplemobiletools.commons.R.string.out_of_memory_error)
+                                done()
+                            }
+                        } catch (e: Exception) {
+                            runOnUiThread {
+                                showErrorToast(e)
+                                done()
+                            }
                         }
-                        adjustPreviewBitmap = null
-                        replaceWorkingBitmap(keep)
-                        invalidateToolCaches()
                     }
+                    return
                 }
                 binding.defaultImageView.isVisible() -> {
                     val currentFilter = getFiltersAdapter()?.getCurrentFilter()
@@ -1386,10 +1535,28 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                         currentFilter != null &&
                         currentFilter.name != getString(com.simplemobiletools.commons.R.string.none)
                     ) {
-                        val filtered = Bitmap.createBitmap(source)
-                        currentFilter.filter.processFilter(filtered)
-                        replaceWorkingBitmap(filtered)
-                        invalidateToolCaches()
+                        ensureBackgroundThread {
+                            try {
+                                val filtered = Bitmap.createBitmap(source)
+                                currentFilter.filter.processFilter(filtered)
+                                runOnUiThread {
+                                    replaceWorkingBitmap(filtered)
+                                    invalidateToolCaches()
+                                    done()
+                                }
+                            } catch (e: OutOfMemoryError) {
+                                runOnUiThread {
+                                    toast(com.simplemobiletools.commons.R.string.out_of_memory_error)
+                                    done()
+                                }
+                            } catch (e: Exception) {
+                                runOnUiThread {
+                                    showErrorToast(e)
+                                    done()
+                                }
+                            }
+                        }
+                        return
                     }
                 }
             }

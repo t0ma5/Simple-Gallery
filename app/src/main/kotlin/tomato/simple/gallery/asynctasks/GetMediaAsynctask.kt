@@ -1,11 +1,13 @@
 package tomato.simple.gallery.asynctasks
 
 import android.content.Context
-import android.os.AsyncTask
+import android.os.Handler
+import android.os.Looper
 import com.simplemobiletools.commons.helpers.FAVORITES
 import com.simplemobiletools.commons.helpers.SORT_BY_DATE_MODIFIED
 import com.simplemobiletools.commons.helpers.SORT_BY_DATE_TAKEN
 import com.simplemobiletools.commons.helpers.SORT_BY_SIZE
+import com.simplemobiletools.commons.helpers.ensureBackgroundThread
 import tomato.simple.gallery.extensions.config
 import tomato.simple.gallery.extensions.getFavoritePaths
 import tomato.simple.gallery.helpers.*
@@ -15,11 +17,24 @@ import tomato.simple.gallery.models.ThumbnailItem
 class GetMediaAsynctask(
     val context: Context, val mPath: String, val isPickImage: Boolean = false, val isPickVideo: Boolean = false,
     val showAll: Boolean, val callback: (media: ArrayList<ThumbnailItem>) -> Unit
-) :
-    AsyncTask<Void, Void, ArrayList<ThumbnailItem>>() {
+) {
     private val mediaFetcher = MediaFetcher(context)
+    @Volatile
+    private var cancelled = false
 
-    override fun doInBackground(vararg params: Void): ArrayList<ThumbnailItem> {
+    fun execute() {
+        ensureBackgroundThread {
+            if (cancelled) {
+                return@ensureBackgroundThread
+            }
+            val media = fetch()
+            if (!cancelled) {
+                Handler(Looper.getMainLooper()).post { callback(media) }
+            }
+        }
+    }
+
+    private fun fetch(): ArrayList<ThumbnailItem> {
         val pathToUse = if (showAll) SHOW_ALL else mPath
         val folderGrouping = context.config.getFolderGrouping(pathToUse)
         val folderSorting = context.config.getFolderSorting(pathToUse)
@@ -41,6 +56,9 @@ class GetMediaAsynctask(
             val foldersToScan = mediaFetcher.getFoldersToScan().filter { it != RECYCLE_BIN && it != FAVORITES && !context.config.isFolderProtected(it) }
             val media = ArrayList<Medium>()
             foldersToScan.forEach {
+                if (cancelled) {
+                    return@forEach
+                }
                 val newMedia = mediaFetcher.getFilesFrom(
                     it, isPickImage, isPickVideo, getProperDateTaken, getProperLastModified, getProperFileSize,
                     favoritePaths, getVideoDurations, lastModifieds, dateTakens.clone() as HashMap<String, Long>, null
@@ -60,13 +78,8 @@ class GetMediaAsynctask(
         return mediaFetcher.groupMedia(media, pathToUse)
     }
 
-    override fun onPostExecute(media: ArrayList<ThumbnailItem>) {
-        super.onPostExecute(media)
-        callback(media)
-    }
-
     fun stopFetching() {
+        cancelled = true
         mediaFetcher.shouldStop = true
-        cancel(true)
     }
 }

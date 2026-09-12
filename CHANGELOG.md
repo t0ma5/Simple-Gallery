@@ -1,6 +1,25 @@
 Changelog
 ==========
 
+Version 6.30 *(2026-09-12)*
+----------------------------
+
+ * Security: untrusted viewer intents can no longer skip folder lock or force hidden paths; app lock has a 5-minute grace
+ * Recycle Bin moved out of the app files root; Android backup of the bin, database, and PIN hashes is off
+ * JPEG optimize writes atomically, skips Ultra HDR/container photos, and restores SAF copies on failure
+ * Editor Draw/Text keep full resolution; text and stickers rotate 360°; Adjust preview uses a color matrix; rotation no longer wipes unsaved work
+ * Motion Photo Container:Item XMP parsed per item; extracted clips are deleted after playback
+ * 16 KB page-size native libs; FOSS APKs named `Simple-Gallery_<version>-FOSS-<abi>.apk` (arm64-v8a, armeabi-v7a, x86_64, universal); okio CVE bump, unit tests, and translations for new strings
+ * Optional stacks toggle, strip metadata on share, and recycle-bin / favorites lock filtering
+ * Hide/unhide race no longer corrupts videos; seeking keeps pause; system-bar swipe does not toggle app chrome
+ * FOSS-only build (img.ly / proprietary flavors removed); boot media scan runs as a job
+ * Targets Android 16 (API 36); Media3 1.10.1 and JPEG XL decoder 2.6.1
+ * About page History section; version line opens GitHub Releases; section titles use the red primary color
+ * Customize Colors primary/app-icon pickers default to red
+ * New installs use dark red theme, dd/MM/yyyy, 24-hour time, and the system video player
+ * Editor text overlays: double-tap to edit, size slider max is 25% larger
+ * Show hidden / Show excluded are persistent overflow toggles; Tree view moved into Change view type (Grid, List, Tree)
+
 Version 6.29 *(2026-09-09)*
 ----------------------------
 
