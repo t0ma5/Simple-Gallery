@@ -24,6 +24,12 @@
         android:title="@string/filter_media"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/column_count"
+        android:icon="@drawable/ic_column_count_vector"
+        android:showAsAction="never"
+        android:title="@string/column_count"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/change_view_type"
         android:showAsAction="never"
         android:title="@string/change_view_type"
@@ -91,11 +97,6 @@
         android:showAsAction="never"
         android:title="@string/unset_as_default_folder"
         app:showAsAction="never" />
-    <item
-        android:id="@+id/column_count"
-        android:icon="@drawable/ic_column_count_vector"
-        android:title="@string/column_count"
-        app:showAsAction="ifRoom" />
     <item
         android:id="@+id/slideshow"
         android:showAsAction="never"
