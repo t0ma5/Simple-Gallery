@@ -59,7 +59,7 @@ class ChangeViewTypeDialog(val activity: BaseSimpleActivity, val fromFoldersView
     private fun updateFolderOnlyOptions() {
         val treeSelected = binding.changeViewTypeDialogRadio.checkedRadioButtonId == binding.changeViewTypeDialogRadioTree.id
         binding.changeViewTypeDialogGroupDirectSubfolders.beVisibleIf(fromFoldersView && !treeSelected)
-        binding.groupDirectSubfoldersDivider.beVisibleIf(fromFoldersView && !treeSelected)
+        binding.groupDirectSubfoldersDivider.root.beVisibleIf(fromFoldersView && !treeSelected)
     }
 
     private fun dialogConfirmed() {
