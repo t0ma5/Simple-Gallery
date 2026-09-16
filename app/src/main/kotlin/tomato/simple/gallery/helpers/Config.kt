@@ -250,7 +250,7 @@ class Config(context: Context) : BaseConfig(context) {
         set(display) = prefs.edit().putBoolean(DISPLAY_FILE_NAMES, display).apply()
 
     var blackBackground: Boolean
-        get() = prefs.getBoolean(BLACK_BACKGROUND, false)
+        get() = prefs.getBoolean(BLACK_BACKGROUND, true)
         set(blackBackground) = prefs.edit().putBoolean(BLACK_BACKGROUND, blackBackground).apply()
 
     var filterMedia: Int
@@ -571,6 +571,14 @@ class Config(context: Context) : BaseConfig(context) {
     var stripMetadataOnShare: Boolean
         get() = prefs.getBoolean(STRIP_METADATA_ON_SHARE, false)
         set(stripMetadataOnShare) = prefs.edit().putBoolean(STRIP_METADATA_ON_SHARE, stripMetadataOnShare).apply()
+
+    var showFavoritesOnly: Boolean
+        get() = false
+        set(showFavoritesOnly) = prefs.edit().putBoolean(SHOW_FAVORITES_ONLY, false).apply()
+
+    var useSystemTrash: Boolean
+        get() = prefs.getBoolean(USE_SYSTEM_TRASH, false)
+        set(useSystemTrash) = prefs.edit().putBoolean(USE_SYSTEM_TRASH, useSystemTrash).apply()
 
     var lastEditorBrushSize: Int
         get() = prefs.getInt(LAST_EDITOR_BRUSH_SIZE, 50)

@@ -27,7 +27,7 @@ If build locally always use the same github key, always update the readme with n
 
 When you add a user-visible feature:
 
-1. Add a bullet under **New features ahead of mainstream** in `README.md`.
+1. Add a bullet under **New features in this fork** in `README.md` (keep groups short: Edit, Formats, Organize, Private, No nags).
 2. Add the same item to the `body:` of Publish GitHub Release in `.github/workflows/build.yml`.
 3. Add it to `CHANGELOG.md` and `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`.
 

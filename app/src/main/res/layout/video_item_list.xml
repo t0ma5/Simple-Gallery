@@ -28,6 +28,8 @@
         android:gravity="end"
         android:background="@drawable/circle_black_background"
         android:src="@drawable/ic_star_vector"
+        android:clickable="true"
+        android:focusable="true"
         android:visibility="gone" />
 
     <ImageView

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/add_tag_holder"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingLeft="@dimen/activity_margin"
+    android:paddingTop="@dimen/activity_margin"
+    android:paddingRight="@dimen/activity_margin">
+
+    <com.simplemobiletools.commons.views.MyTextView
+        android:id="@+id/add_tag_existing"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/small_margin"
+        android:layout_marginEnd="@dimen/small_margin"
+        android:layout_marginBottom="@dimen/small_margin"
+        android:textSize="@dimen/smaller_text_size"
+        android:visibility="gone"
+        tools:text="Current tags"
+        tools:visibility="visible" />
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/add_tag_chips"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/small_margin"
+        android:layout_marginEnd="@dimen/small_margin"
+        android:layout_marginBottom="@dimen/activity_margin"
+        android:visibility="gone"
+        app:chipSpacing="8dp"
+        tools:visibility="visible" />
+
+    <com.simplemobiletools.commons.views.MyTextInputLayout
+        android:id="@+id/add_tag_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/activity_margin"
+        android:hint="@string/tag_hint">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/add_tag_value"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapSentences"
+            android:singleLine="true"
+            android:textCursorDrawable="@null"
+            android:textSize="@dimen/bigger_text_size" />
+    </com.simplemobiletools.commons.views.MyTextInputLayout>
+</LinearLayout>

@@ -854,6 +854,17 @@ class VideoFragment : ViewPagerFragment(), TextureView.SurfaceTextureListener, S
         mExoPlayer?.setVideoSurface(Surface(mTextureView.surfaceTexture))
     }
 
+    fun captureFrame(): android.graphics.Bitmap? {
+        if (!mWasFragmentInit || !::mTextureView.isInitialized || mTextureView.width <= 0) {
+            return null
+        }
+        return try {
+            mTextureView.getBitmap()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun setVideoSize() {
         if (activity == null || mConfig.openVideosOnSeparateScreen) {
             return

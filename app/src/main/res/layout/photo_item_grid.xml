@@ -56,6 +56,8 @@
         android:gravity="end"
         android:background="@drawable/circle_black_background"
         android:src="@drawable/ic_star_vector"
+        android:clickable="true"
+        android:focusable="true"
         android:visibility="gone" />
 
     <ImageView
@@ -90,6 +92,7 @@
         android:shadowRadius="4"
         android:textColor="@android:color/white"
         android:textSize="@dimen/smaller_text_size"
+        android:visibility="gone"
         tools:text="My photo" />
 
 </RelativeLayout>

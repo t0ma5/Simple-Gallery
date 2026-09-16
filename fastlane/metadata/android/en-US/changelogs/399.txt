@@ -2,6 +2,7 @@
 • Recycle Bin isolated; Android backup of private files is off
 • JPEG optimize is crash-safe and skips Ultra HDR/container photos
 • Editor keeps full resolution; text overlays rotate 360°, double-tap to edit, larger max size
+• Editor stickers: 6-column emoji grid plus More for the system emoji picker
 • Show hidden / Show excluded stay on until toggled off; Tree view is in Change view type
 • Motion photos parse Container:Item XMP
 • About History section; version line opens GitHub Releases; color pickers default to red

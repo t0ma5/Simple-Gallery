@@ -29,6 +29,8 @@
         android:gravity="end"
         android:padding="@dimen/tiny_margin"
         android:src="@drawable/ic_star_vector"
+        android:clickable="true"
+        android:focusable="true"
         android:visibility="gone" />
 
     <ImageView

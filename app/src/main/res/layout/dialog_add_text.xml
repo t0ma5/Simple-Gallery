@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/add_text_holder"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingLeft="@dimen/activity_margin"
+    android:paddingTop="@dimen/activity_margin"
+    android:paddingRight="@dimen/activity_margin">
+
+    <com.simplemobiletools.commons.views.MyTextInputLayout
+        android:id="@+id/add_text_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/activity_margin"
+        android:hint="@string/text">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/add_text_value"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapSentences"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:textCursorDrawable="@null"
+            android:textSize="@dimen/bigger_text_size" />
+    </com.simplemobiletools.commons.views.MyTextInputLayout>
+</LinearLayout>

@@ -3,8 +3,11 @@ package tomato.simple.gallery.extensions
 import android.annotation.TargetApi
 import android.app.Activity
 import android.content.ContentProviderOperation
+import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Process
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -48,7 +51,10 @@ import tomato.simple.gallery.dialogs.ResizeWithPathDialog
 import tomato.simple.gallery.helpers.DIRECTORY
 import tomato.simple.gallery.helpers.MetadataStripper
 import tomato.simple.gallery.helpers.RECYCLE_BIN
+import tomato.simple.gallery.helpers.REQUEST_FAVORITE_SYSTEM
+import tomato.simple.gallery.helpers.REQUEST_SYSTEM_TRASH
 import tomato.simple.gallery.models.DateTaken
+import tomato.simple.gallery.models.Medium
 import com.squareup.picasso.Picasso
 import java.io.*
 import java.text.SimpleDateFormat
@@ -61,6 +67,93 @@ fun Activity.sharePath(path: String) {
 fun Activity.sharePaths(paths: ArrayList<String>) {
     sharePathsIntent(paths, BuildConfig.APPLICATION_ID)
 }
+
+fun applyFavoriteToOpenGrids(path: String, isFavorite: Boolean) {
+    MediaActivity.mMedia.filterIsInstance<Medium>().forEach {
+        if (it.path.equals(path, true)) {
+            it.isFavorite = isFavorite
+        }
+    }
+}
+
+fun Activity.updateFavorite(path: String, isFavorite: Boolean) {
+    if (!updateFavoriteLocal(path, isFavorite)) {
+        return
+    }
+    applyFavoriteToOpenGrids(path, isFavorite)
+    if (!isRPlus()) {
+        return
+    }
+    try {
+        val uri = getFilePublicUri(java.io.File(path), BuildConfig.APPLICATION_ID)
+        if (isMediaStoreUri(uri) && isSupportedForFavorite(contentResolver, uri)) {
+            updateFavoriteInMediaStore(uri, isFavorite)
+        }
+    } catch (_: Exception) {
+    }
+}
+
+private fun isMediaStoreUri(uri: Uri): Boolean {
+    return uri.scheme == ContentResolver.SCHEME_CONTENT && uri.authority?.startsWith("media") == true
+}
+
+@androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
+private fun Activity.updateFavoriteInMediaStore(uri: Uri, isFavorite: Boolean) {
+    try {
+        if (checkUriPermission(uri, Process.myPid(), Process.myUid(), Intent.FLAG_GRANT_WRITE_URI_PERMISSION) != PackageManager.PERMISSION_GRANTED) {
+            val pendingIntent = MediaStore.createFavoriteRequest(contentResolver, listOf(uri), isFavorite)
+            startIntentSenderForResult(pendingIntent.intentSender, REQUEST_FAVORITE_SYSTEM, null, 0, 0, 0)
+        } else {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.IS_FAVORITE, if (isFavorite) 1 else 0)
+            }
+            contentResolver.update(uri, values, null, null)
+        }
+    } catch (_: Exception) {
+    }
+}
+
+private fun isSupportedForFavorite(contentResolver: ContentResolver, uri: Uri): Boolean {
+    return try {
+        val type = contentResolver.getType(uri) ?: return false
+        type == "image/jpeg" || type.startsWith("video/")
+    } catch (_: Exception) {
+        false
+    }
+}
+
+fun BaseSimpleActivity.shouldUseSystemTrash() = isRPlus() && config.useSystemTrash
+
+fun BaseSimpleActivity.trashPathsWithSystem(paths: ArrayList<String>, callback: ((Boolean) -> Unit)?) {
+    if (!isRPlus()) {
+        callback?.invoke(false)
+        return
+    }
+    val uris = paths.mapNotNull { path ->
+        try {
+            getFilePublicUri(java.io.File(path), BuildConfig.APPLICATION_ID)
+        } catch (_: Exception) {
+            null
+        }
+    }
+    if (uris.isEmpty()) {
+        callback?.invoke(false)
+        return
+    }
+    pendingSystemTrashCallback = callback
+    pendingSystemTrashPaths = ArrayList(paths)
+    try {
+        val pendingIntent = MediaStore.createTrashRequest(contentResolver, uris, true)
+        startIntentSenderForResult(pendingIntent.intentSender, REQUEST_SYSTEM_TRASH, null, 0, 0, 0)
+    } catch (_: Exception) {
+        pendingSystemTrashCallback = null
+        pendingSystemTrashPaths = null
+        callback?.invoke(false)
+    }
+}
+
+internal var pendingSystemTrashCallback: ((Boolean) -> Unit)? = null
+internal var pendingSystemTrashPaths: ArrayList<String>? = null
 
 fun Activity.shareMediumPath(path: String) {
     val activity = this
@@ -114,7 +207,34 @@ fun Activity.launchGesturePlayer(path: String, extras: HashMap<String, Boolean> 
 
 fun Activity.openEditor(path: String, forceChooser: Boolean = false) {
     val newPath = path.removePrefix("file://")
-    openEditorIntent(newPath, forceChooser, BuildConfig.APPLICATION_ID)
+    if (newPath.isEmpty()) {
+        toast(R.string.invalid_image_path)
+        return
+    }
+
+    // "Edit with…" still goes through Commons FileProvider. The in-app editor
+    // must not: Commons also FileProvider-wraps a sibling `_1` output path that
+    // does not exist yet, which toasts IllegalArgumentException on the way in.
+    if (forceChooser) {
+        openEditorIntent(newPath, true, BuildConfig.APPLICATION_ID)
+        return
+    }
+
+    val uri = when {
+        newPath.startsWith("content:", true) -> Uri.parse(newPath)
+        newPath.startsWith("file:", true) -> Uri.parse(newPath)
+        else -> Uri.fromFile(java.io.File(newPath))
+    }
+    val mime = contentResolver.getType(uri) ?: newPath.getMimeType().ifEmpty { "image/*" }
+    try {
+        startActivityForResult(Intent(this, tomato.simple.gallery.activities.EditActivity::class.java).apply {
+            action = Intent.ACTION_EDIT
+            setDataAndType(uri, mime)
+            putExtra(REAL_FILE_PATH, newPath)
+        }, REQUEST_EDIT_IMAGE)
+    } catch (e: Exception) {
+        showErrorToast(e)
+    }
 }
 
 fun Activity.launchCamera() {
@@ -385,6 +505,10 @@ fun BaseSimpleActivity.tryDeleteFileDirItem(
 }
 
 fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback: ((wasSuccess: Boolean) -> Unit)?) {
+    if (shouldUseSystemTrash()) {
+        trashPathsWithSystem(paths, callback)
+        return
+    }
     ensureBackgroundThread {
         var pathsCnt = paths.size
         val OTGPath = config.OTGPath

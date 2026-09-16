@@ -7,6 +7,11 @@
         android:title="@string/save"
         app:showAsAction="always|withText" />
     <item
+        android:id="@+id/undo_last_tool"
+        android:icon="@drawable/ic_undo_vector"
+        android:title="@string/undo_last_tool"
+        app:showAsAction="ifRoom" />
+    <item
         android:id="@+id/overwrite_original"
         android:title="@string/overwrite_original"
         app:showAsAction="never" />

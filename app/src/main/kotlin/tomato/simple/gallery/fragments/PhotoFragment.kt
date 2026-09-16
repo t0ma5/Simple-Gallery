@@ -377,12 +377,10 @@ class PhotoFragment : ViewPagerFragment() {
     }
 
     private fun rotateViaMatrix(original: Bitmap, orientation: Int): Bitmap {
-        val degrees = degreesForRotation(orientation).toFloat()
-        return if (degrees == 0f) {
+        val matrix = OrientationTransformation.getMatrix(orientation)
+        return if (matrix.isIdentity) {
             original
         } else {
-            val matrix = Matrix()
-            matrix.setRotate(degrees)
             Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
         }
     }
@@ -448,7 +446,7 @@ class PhotoFragment : ViewPagerFragment() {
     private fun loadAPNG() {
         if (context != null) {
             val drawable = APNGDrawable.fromFile(mMedium.path)
-            binding.gesturesView.setImageDrawable(drawable)
+            showZoomableDrawable(drawable)
         }
     }
 
@@ -465,7 +463,7 @@ class PhotoFragment : ViewPagerFragment() {
                 return
             }
 
-            binding.gesturesView.setImageDrawable(drawable)
+            showZoomableDrawable(drawable)
         }
     }
 
@@ -483,12 +481,33 @@ class PhotoFragment : ViewPagerFragment() {
                     File(pathToLoad).readBytes()
                 } ?: return@ensureBackgroundThread
 
+                val animated = try {
+                    com.awxkee.jxlcoder.JxlAnimatedImage(bytes)
+                } catch (_: Throwable) {
+                    null
+                }
+                if (animated != null && animated.numberOfFrames > 1) {
+                    val maxEdge = maxOf(mScreenWidth, mScreenHeight, 1)
+                    val drawable = JxlAnimatedDrawable(animated, maxEdge)
+                    activity?.runOnUiThread {
+                        if (!isAdded) {
+                            drawable.release()
+                            return@runOnUiThread
+                        }
+                        showZoomableDrawable(drawable)
+                        drawable.start()
+                    }
+                    return@ensureBackgroundThread
+                }
+                animated?.close()
+
                 val bitmap = JxlCoder.decode(bytes)
                 activity?.runOnUiThread {
                     if (!isAdded) {
                         return@runOnUiThread
                     }
                     binding.gesturesView.setImageBitmap(bitmap)
+                    binding.gesturesView.controller.settings.isZoomEnabled = true
                     applyProperColorMode(BitmapDrawable(resources, bitmap))
                 }
             } catch (_: OutOfMemoryError) {
@@ -511,11 +530,16 @@ class PhotoFragment : ViewPagerFragment() {
             if (drawable.intrinsicWidth == 0) {
                 loadWithGlide(path, addZoomableView)
             } else {
-                binding.gesturesView.setImageDrawable(drawable)
+                showZoomableDrawable(drawable)
             }
         } else {
             loadWithGlide(path, addZoomableView)
         }
+    }
+
+    private fun showZoomableDrawable(drawable: Drawable) {
+        binding.gesturesView.setImageDrawable(drawable)
+        binding.gesturesView.controller.settings.isZoomEnabled = true
     }
 
     private fun loadWithGlide(path: String, addZoomableView: Boolean) {
@@ -913,21 +937,20 @@ class PhotoFragment : ViewPagerFragment() {
     }
 
     private fun addZoomableView() {
-        val rotation = degreesForRotation(mImageOrientation)
         mIsSubsamplingVisible = true
         val config = requireContext().config
         val showHighestQuality = config.showHighestQuality
         val minTileDpi = if (showHighestQuality) -1 else getMinTileDpi()
 
         val bitmapDecoder = object : DecoderFactory<ImageDecoder> {
-            override fun make() = MyGlideImageDecoder(rotation, mMedium.getKey())
+            override fun make() = MyGlideImageDecoder(mImageOrientation, mMedium.getKey())
         }
 
         val regionDecoder = object : DecoderFactory<ImageRegionDecoder> {
-            override fun make() = PicassoRegionDecoder(showHighestQuality, mScreenWidth, mScreenHeight, minTileDpi)
+            override fun make() = PicassoRegionDecoder(showHighestQuality, mScreenWidth, mScreenHeight, minTileDpi, mImageOrientation)
         }
 
-        var newOrientation = (rotation + mCurrentRotationDegrees) % 360
+        var newOrientation = mCurrentRotationDegrees % 360
         if (newOrientation < 0) {
             newOrientation += 360
         }
@@ -955,8 +978,9 @@ class PhotoFragment : ViewPagerFragment() {
                         }
                     )
 
-                    val useWidth = if (mImageOrientation == ORIENTATION_ROTATE_90 || mImageOrientation == ORIENTATION_ROTATE_270) sHeight else sWidth
-                    val useHeight = if (mImageOrientation == ORIENTATION_ROTATE_90 || mImageOrientation == ORIENTATION_ROTATE_270) sWidth else sHeight
+                    val swapped = OrientationTransformation.whSwapped(mImageOrientation)
+                    val useWidth = if (swapped) sHeight else sWidth
+                    val useHeight = if (swapped) sWidth else sHeight
                     doubleTapZoomScale = getDoubleTapZoomScale(useWidth, useHeight)
                 }
 
@@ -968,9 +992,8 @@ class PhotoFragment : ViewPagerFragment() {
                 }
 
                 override fun onImageRotation(degrees: Int) {
-                    val fullRotation = (rotation + degrees) % 360
-                    val useWidth = if (fullRotation == 90 || fullRotation == 270) sHeight else sWidth
-                    val useHeight = if (fullRotation == 90 || fullRotation == 270) sWidth else sHeight
+                    val useWidth = if (degrees == 90 || degrees == 270) sHeight else sWidth
+                    val useHeight = if (degrees == 90 || degrees == 270) sWidth else sHeight
                     doubleTapZoomScale = getDoubleTapZoomScale(useWidth, useHeight)
                     mCurrentRotationDegrees = (mCurrentRotationDegrees + degrees) % 360
                     loadBitmap(false)
@@ -1138,8 +1161,17 @@ class PhotoFragment : ViewPagerFragment() {
     private fun setupGesturesViewStateListener() {
         binding.gesturesView.controller.addOnStateChangeListener(object : GestureController.OnStateChangeListener {
             override fun onStateChanged(state: State) {
-                if (!mHasInitialZoom) {
+                val settings = binding.gesturesView.controller.settings
+                if (settings.hasImageSize() && settings.hasViewportSize() && !mHasInitialZoom) {
+                    val zoomByWidth = settings.viewportWidth.toFloat() / settings.imageWidth
+                    val zoomByHeight = settings.viewportHeight.toFloat() / settings.imageHeight
+                    val fitZoom = maxOf(zoomByWidth, zoomByHeight)
                     mInitialZoom = state.zoom
+                    var target = fitZoom
+                    if (kotlin.math.abs(target - mInitialZoom) < MAX_ZOOM_EQUALITY_TOLERANCE) {
+                        target = mInitialZoom * DEFAULT_DOUBLE_TAP_ZOOM
+                    }
+                    settings.doubleTapZoom = target.coerceAtMost(settings.maxZoom)
                     mHasInitialZoom = true
                 }
                 mCurrentGestureViewZoom = state.zoom

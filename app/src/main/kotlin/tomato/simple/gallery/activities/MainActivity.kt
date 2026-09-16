@@ -387,6 +387,7 @@ class MainActivity : SimpleActivity(), DirectoryOperationsListener {
                 R.id.temporarily_show_excluded -> tryToggleShowExcluded()
                 R.id.create_new_folder -> createNewFolder()
                 R.id.open_recycle_bin -> openRecycleBin()
+                R.id.find_duplicates -> startActivity(Intent(this, DuplicateFinderActivity::class.java).putExtra(DIRECTORY, SHOW_ALL))
                 R.id.column_count -> changeColumnCount()
                 R.id.set_as_default_folder -> setAsDefaultFolder()
                 R.id.more_apps_from_us -> launchMoreAppsFromUsIntent()

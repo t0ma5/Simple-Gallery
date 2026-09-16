@@ -8,6 +8,7 @@ androidx-swiperefreshlayout = "1.1.0"
 androidx-constraintlayout = "2.2.1"
 androidx-documentfile = "1.1.0"
 androidx-print = "1.1.0"
+androidx-emoji2-emojipicker = "1.6.0"
 #exif
 exif = "1.0.1"
 #Room
@@ -39,16 +40,18 @@ app-build-javaVersion = "VERSION_17"
 app-build-kotlinJVMTarget = "17"
 #versioning
 app-version-appId = "tomato.simple.gallery"
-app-version-versionCode = "399"
-app-version-versionName = "6.30"
+app-version-versionCode = "400"
+app-version-versionName = "6.31"
 subsamplingScaleImageView = "80efdaa570"
 [libraries]
 #AndroidX
 androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3Exoplayer" }
+androidx-media3-transformer = { module = "androidx.media3:media3-transformer", version.ref = "media3Exoplayer" }
 androidx-swiperefreshlayout = { module = "androidx.swiperefreshlayout:swiperefreshlayout", version.ref = "androidx-swiperefreshlayout" }
 androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "androidx-constraintlayout" }
 androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "androidx-documentfile" }
 androidx-print = { module = "androidx.print:print", version.ref = "androidx-print" }
+androidx-emoji2-emojipicker = { module = "androidx.emoji2:emoji2-emojipicker", version.ref = "androidx-emoji2-emojipicker" }
 #exif
 exif = { module = "it.sephiroth.android.exif:library", version.ref = "exif" }
 #Room

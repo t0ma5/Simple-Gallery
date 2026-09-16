@@ -1,6 +1,22 @@
 Changelog
 ==========
 
+Version 6.31 *(2026-09-16)*
+----------------------------
+
+ * Grid scroll-back after the viewer; tap-the-star favorites; favorites-only folder filter
+ * Opening a folder after starring no longer shows “no media” or closes the album
+ * Settings: Show filenames; Find duplicates sits above Settings; black fullscreen background defaults on
+ * Tags: save to Room; tap × on a chip to remove; folder and global search match tag names
+ * Editor no longer toasts IllegalArgumentException on open (in-app edit skips FileProvider)
+ * Editor Add text uses a one-line outlined field; sticker button uses a sticky-note icon
+ * Comma-separated tags save as separate tags
+ * Properties on Favorites and Recycle Bin; EXIF orientation in the viewer and region zoom
+ * Editor undo last tool (3 snapshots); WebP pinch-zoom; animated JPEG XL playback
+ * Optional Android Trash (API 30+) and MediaStore IS_FAVORITE
+ * Trim video, save current frame, tags (searchable), duplicate finder, 2–4 photo collages
+ * Room v11 media_tags; Media3 Transformer; translations for new strings; unit tests for hasher and EXIF matrix
+
 Version 6.30 *(2026-09-12)*
 ----------------------------
 
@@ -8,6 +24,7 @@ Version 6.30 *(2026-09-12)*
  * Recycle Bin moved out of the app files root; Android backup of the bin, database, and PIN hashes is off
  * JPEG optimize writes atomically, skips Ultra HDR/container photos, and restores SAF copies on failure
  * Editor Draw/Text keep full resolution; text and stickers rotate 360°; Adjust preview uses a color matrix; rotation no longer wipes unsaved work
+ * Editor sticker picker is a 6-column emoji grid plus More for the system emoji picker
  * Motion Photo Container:Item XMP parsed per item; extracted clips are deleted after playback
  * 16 KB page-size native libs; FOSS APKs named `Simple-Gallery_<version>-FOSS-<abi>.apk` (arm64-v8a, armeabi-v7a, x86_64, universal); okio CVE bump, unit tests, and translations for new strings
  * Optional stacks toggle, strip metadata on share, and recycle-bin / favorites lock filtering

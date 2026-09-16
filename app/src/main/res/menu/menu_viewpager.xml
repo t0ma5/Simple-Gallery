@@ -142,6 +142,21 @@
         android:title="@string/optimize_jpeg"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menu_add_tag"
+        android:showAsAction="never"
+        android:title="@string/add_tag"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_trim_video"
+        android:showAsAction="never"
+        android:title="@string/trim_video"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_save_frame"
+        android:showAsAction="never"
+        android:title="@string/save_frame"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_save_motion_video"
         android:showAsAction="never"
         android:title="@string/save_motion_photo_video"

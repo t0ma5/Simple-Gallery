@@ -67,6 +67,62 @@ val Context.directoryDB: DirectoryDao get() = GalleryDatabase.getInstance(applic
 
 val Context.favoritesDB: FavoritesDao get() = GalleryDatabase.getInstance(applicationContext).FavoritesDao()
 
+val Context.tagsDB: MediaTagsDao get() = GalleryDatabase.getInstance(applicationContext).MediaTagsDao()
+
+fun Context.pathsMatchingTagQuery(query: String): Set<String> {
+    if (query.isBlank()) {
+        return emptySet()
+    }
+    return try {
+        tagsDB.getPathsMatchingTag(query.trim()).map { it.lowercase() }.toHashSet()
+    } catch (_: Exception) {
+        emptySet()
+    }
+}
+
+fun Context.saveMediaTag(path: String, tag: String): Boolean {
+    val parts = TagInput.split(tag)
+    if (path.isEmpty() || parts.isEmpty()) {
+        return false
+    }
+    return try {
+        parts.forEach { tagsDB.insert(MediaTag(null, path, it)) }
+        true
+    } catch (_: Exception) {
+        false
+    }
+}
+
+fun Context.deleteMediaTag(path: String, tag: String): Boolean {
+    val parts = TagInput.split(tag)
+    if (path.isEmpty() || parts.isEmpty()) {
+        return false
+    }
+    return try {
+        parts.forEach { tagsDB.deleteTag(path, it) }
+        true
+    } catch (_: Exception) {
+        false
+    }
+}
+
+fun Context.tagsForPath(path: String): List<String> {
+    if (path.isEmpty()) {
+        return emptyList()
+    }
+    return try {
+        val stored = tagsDB.getTagsForPath(path)
+        val expanded = TagInput.expand(stored)
+        if (expanded != stored) {
+            tagsDB.deleteTagsForPath(path)
+            expanded.forEach { tagsDB.insert(MediaTag(null, path, it)) }
+        }
+        expanded
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
 val Context.dateTakensDB: DateTakensDao get() = GalleryDatabase.getInstance(applicationContext).DateTakensDao()
 
 val Context.recycleBin: File get() = File(filesDir, "recycle_bin").also { it.mkdirs() }
@@ -852,16 +908,26 @@ fun Context.getFavoritePaths(): ArrayList<String> {
 
 fun Context.getFavoriteFromPath(path: String) = Favorite(null, path, path.getFilenameFromPath(), path.getParentPath())
 
-fun Context.updateFavorite(path: String, isFavorite: Boolean) {
-    try {
+fun Context.updateFavoriteLocal(path: String, isFavorite: Boolean): Boolean {
+    return try {
         if (isFavorite) {
             favoritesDB.insert(getFavoriteFromPath(path))
         } else {
             favoritesDB.deleteFavoritePath(path)
         }
+        mediaDB.updateFavorite(path, isFavorite)
+        true
     } catch (e: Exception) {
-        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+        try {
+            toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+        } catch (_: Exception) {
+        }
+        false
     }
+}
+
+fun Context.updateFavorite(path: String, isFavorite: Boolean) {
+    updateFavoriteLocal(path, isFavorite)
 }
 
 // remove the "recycle_bin" from the file path prefix, replace it with real bin path /data/user...

@@ -365,6 +365,21 @@
             </RelativeLayout>
 
             <RelativeLayout
+                android:id="@+id/settings_show_filenames_holder"
+                style="@style/SettingsHolderCheckboxStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <com.simplemobiletools.commons.views.MyAppCompatCheckbox
+                    android:id="@+id/settings_show_filenames"
+                    style="@style/SettingsCheckboxStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/show_filenames" />
+
+            </RelativeLayout>
+
+            <RelativeLayout
                 android:id="@+id/settings_file_thumbnail_style_holder"
                 style="@style/SettingsHolderTextViewOneLinerStyle"
                 android:layout_width="match_parent"
@@ -960,6 +975,21 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/move_items_into_recycle_bin" />
+
+            </RelativeLayout>
+
+            <RelativeLayout
+                android:id="@+id/settings_use_system_trash_holder"
+                style="@style/SettingsHolderCheckboxStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <com.simplemobiletools.commons.views.MyAppCompatCheckbox
+                    android:id="@+id/settings_use_system_trash"
+                    style="@style/SettingsCheckboxStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/use_system_trash" />
 
             </RelativeLayout>
 

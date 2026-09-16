@@ -13,7 +13,11 @@ class FilterThumbnailsManager {
 
     fun processThumbs(): ArrayList<FilterItem> {
         for (filterItem in filterThumbnails) {
-            filterItem.bitmap = filterItem.filter.processFilter(Bitmap.createBitmap(filterItem.bitmap))
+            val src = filterItem.bitmap
+            if (src.isRecycled || src.width <= 0 || src.height <= 0) {
+                continue
+            }
+            filterItem.bitmap = filterItem.filter.processFilter(Bitmap.createBitmap(src))
             processedThumbnails.add(filterItem)
         }
         return processedThumbnails

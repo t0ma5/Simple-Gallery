@@ -98,9 +98,14 @@ class SearchActivity : SimpleActivity(), MediaOperationsListener {
     private fun textChanged(text: String) {
         ensureBackgroundThread {
             try {
-                val filtered = mAllMedia.filter { it is Medium && it.name.contains(text, true) } as ArrayList
+                val tagPaths = pathsMatchingTagQuery(text)
+                val filtered = ArrayList(
+                    mAllMedia.filter {
+                        it is Medium && (it.name.contains(text, true) || tagPaths.contains(it.path.lowercase()))
+                    }
+                )
                 filtered.sortBy { it is Medium && !it.name.startsWith(text, true) }
-                val grouped = MediaFetcher(applicationContext).groupMedia(filtered as ArrayList<Medium>, "")
+                val grouped = MediaFetcher(applicationContext).groupMedia(ArrayList(filtered.filterIsInstance<Medium>()), "")
                 runOnUiThread {
                     if (grouped.isEmpty()) {
                         binding.searchEmptyTextPlaceholder.text = getString(com.simplemobiletools.commons.R.string.no_items_found)

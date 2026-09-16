@@ -81,6 +81,7 @@ class SettingsActivity : SimpleActivity() {
         setupUltraHdrRendering()
         setupCropThumbnails()
         setupAnimateGifs()
+        setupShowFilenames()
         setupDarkBackground()
         setupScrollHorizontally()
         setupScreenRotation()
@@ -113,6 +114,7 @@ class SettingsActivity : SimpleActivity() {
         setupSkipDeleteConfirmation()
         setupManageBottomActions()
         setupUseRecycleBin()
+        setupUseSystemTrash()
         setupShowRecycleBin()
         setupShowRecycleBinLast()
         setupEmptyRecycleBin()
@@ -350,6 +352,14 @@ class SettingsActivity : SimpleActivity() {
         binding.settingsAnimateGifsHolder.setOnClickListener {
             binding.settingsAnimateGifs.toggle()
             config.animateGifs = binding.settingsAnimateGifs.isChecked
+        }
+    }
+
+    private fun setupShowFilenames() {
+        binding.settingsShowFilenames.isChecked = config.displayFileNames
+        binding.settingsShowFilenamesHolder.setOnClickListener {
+            binding.settingsShowFilenames.toggle()
+            config.displayFileNames = binding.settingsShowFilenames.isChecked
         }
     }
 
@@ -709,6 +719,15 @@ class SettingsActivity : SimpleActivity() {
                     config.visibleBottomActions = DEFAULT_BOTTOM_ACTIONS
                 }
             }
+        }
+    }
+
+    private fun setupUseSystemTrash() {
+        binding.settingsUseSystemTrashHolder.beVisibleIf(isRPlus())
+        binding.settingsUseSystemTrash.isChecked = config.useSystemTrash
+        binding.settingsUseSystemTrashHolder.setOnClickListener {
+            binding.settingsUseSystemTrash.toggle()
+            config.useSystemTrash = binding.settingsUseSystemTrash.isChecked
         }
     }
 

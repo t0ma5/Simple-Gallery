@@ -141,6 +141,7 @@
     <string name="sticker">Sticker</string>
     <string name="add_text">Add text</string>
     <string name="add_sticker">Add sticker</string>
+    <string name="more_emojis">More</string>
     <string name="font">Font</string>
     <string name="font_sans" translatable="false">Sans</string>
     <string name="font_serif" translatable="false">Serif</string>
@@ -259,6 +260,7 @@
     <string name="allow_zooming_videos">Allow zooming videos with double tapping them</string>
     <string name="folder_thumbnail_style">Folder thumbnail style</string>
     <string name="file_thumbnail_style">File thumbnail style</string>
+    <string name="show_filenames">Show filenames</string>
     <string name="mark_favorite_items">Mark favorite items</string>
     <string name="thumbnail_spacing">Thumbnail spacing</string>
     <string name="show_file_count_line">Show file count on a separate line</string>
@@ -470,4 +472,35 @@
     <string name="metadata_remove_failed">Could not remove metadata</string>
     <string name="toggle_gyro">Look around with the gyroscope</string>
     <string name="gyro_unavailable">This device has no gyroscope</string>
+    <string name="show_favorites_only">Show favorites only</string>
+    <string name="use_system_trash">Use Android Trash instead of the app Recycle Bin</string>
+    <string name="undo_last_tool">Undo last tool</string>
+    <string name="nothing_to_undo">Nothing to undo</string>
+    <string name="add_tag">Add tag</string>
+    <string name="tags">Tags</string>
+    <string name="tag_hint">Tag name / Comma separated</string>
+    <string name="tag_added">Tag added</string>
+    <string name="tag_removed">Tag removed</string>
+    <string name="tag_exists">That tag is already on this file</string>
+    <string name="current_tags">Current tags</string>
+    <string name="remove_tag_hint">Tap × to remove</string>
+    <string name="find_duplicates">Find duplicates</string>
+    <string name="no_duplicates">No duplicates found</string>
+    <string name="keep_one_delete_rest">Keep the first file, tap to delete the rest</string>
+    <string name="delete_duplicates">Delete extra copies?</string>
+    <string name="duplicates_scanning">Scanning for duplicates…</string>
+    <string name="create_collage">Create collage</string>
+    <string name="collage_horizontal">Side by side</string>
+    <string name="collage_vertical">Stacked</string>
+    <string name="collage_2x2">2×2 grid</string>
+    <string name="collage_saved">Collage saved</string>
+    <string name="collage_need_images">Select 2 to 4 photos</string>
+    <string name="trim_video">Trim video</string>
+    <string name="trim_start">Start</string>
+    <string name="trim_end">End</string>
+    <string name="video_trimmed">Trimmed video saved</string>
+    <string name="trim_failed">Could not trim the video</string>
+    <string name="save_frame">Save current frame</string>
+    <string name="frame_saved">Frame saved</string>
+    <string name="frame_save_failed">Could not save the frame</string>
 </resources>

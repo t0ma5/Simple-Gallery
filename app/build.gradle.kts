@@ -14,6 +14,7 @@ val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
+val localArm64 = (findProperty("localArm64") as? String).equals("true", ignoreCase = true)
 
 android {
     compileSdk = project.libs.versions.app.build.compileSDKVersion.get().toInt()
@@ -25,7 +26,9 @@ android {
         versionName = project.libs.versions.app.version.versionName.get()
         versionCode = project.libs.versions.app.version.versionCode.get().toInt()
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+            if (!localArm64) {
+                abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+            }
         }
         externalNativeBuild {
             cmake {
@@ -90,8 +93,13 @@ android {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = true
+            if (localArm64) {
+                include("arm64-v8a")
+                isUniversalApk = false
+            } else {
+                include("arm64-v8a", "armeabi-v7a", "x86_64")
+                isUniversalApk = true
+            }
         }
     }
 
@@ -130,7 +138,12 @@ tasks.configureEach {
     doLast {
         val version = libs.versions.app.version.versionName.get()
         val dir = layout.buildDirectory.dir("outputs/apk/foss/release").get().asFile
-        listOf("arm64-v8a", "armeabi-v7a", "x86_64", "universal").forEach { abi ->
+        val abis = if (localArm64) {
+            listOf("arm64-v8a")
+        } else {
+            listOf("arm64-v8a", "armeabi-v7a", "x86_64", "universal")
+        }
+        abis.forEach { abi ->
             val dest = dir.resolve("Simple-Gallery_${version}-FOSS-${abi}.apk")
             val src = dir.listFiles()
                 ?.filter { it.isFile && it.extension == "apk" && it.name.contains(abi) }
@@ -156,7 +169,9 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.print)
+    implementation(libs.androidx.emoji2.emojipicker)
     implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.transformer)
     implementation(libs.sanselan)
     implementation(libs.imagefilters)
     implementation(libs.androidsvg.aar)

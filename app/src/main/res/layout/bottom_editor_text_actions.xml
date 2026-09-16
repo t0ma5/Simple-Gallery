@@ -30,7 +30,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/add_sticker"
             android:padding="@dimen/medium_margin"
-            android:src="@drawable/ic_portrait_photo_vector"
+            android:src="@drawable/ic_sticker_vector"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/bottom_text_font"
             app:layout_constraintStart_toEndOf="@+id/bottom_text_add"

@@ -1,5 +1,6 @@
 package tomato.simple.gallery.activities
 
+import android.content.Intent
 import android.database.ContentObserver
 import android.net.Uri
 import android.os.Bundle
@@ -19,6 +20,7 @@ import com.simplemobiletools.commons.helpers.isPiePlus
 import tomato.simple.gallery.R
 import tomato.simple.gallery.extensions.addPathToDB
 import tomato.simple.gallery.extensions.config
+import tomato.simple.gallery.extensions.deleteDBPath
 import tomato.simple.gallery.extensions.updateDirectoryPath
 import tomato.simple.gallery.helpers.AppLock
 
@@ -82,6 +84,26 @@ open class SimpleActivity : BaseSimpleActivity() {
     )
 
     override fun getAppLauncherName() = getString(R.string.app_launcher_name)
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == tomato.simple.gallery.helpers.REQUEST_SYSTEM_TRASH) {
+            val ok = resultCode == RESULT_OK
+            val cb = tomato.simple.gallery.extensions.pendingSystemTrashCallback
+            val paths = tomato.simple.gallery.extensions.pendingSystemTrashPaths
+            tomato.simple.gallery.extensions.pendingSystemTrashCallback = null
+            tomato.simple.gallery.extensions.pendingSystemTrashPaths = null
+            if (ok && paths != null) {
+                ensureBackgroundThread {
+                    paths.forEach { deleteDBPath(it) }
+                    runOnUiThread { cb?.invoke(true) }
+                }
+            } else {
+                cb?.invoke(false)
+            }
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
 
     protected fun checkNotchSupport() {
         if (isPiePlus()) {

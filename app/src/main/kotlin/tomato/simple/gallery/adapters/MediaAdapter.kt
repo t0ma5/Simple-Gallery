@@ -19,11 +19,14 @@ import com.simplemobiletools.commons.dialogs.ConfirmationDialog
 import com.simplemobiletools.commons.dialogs.PropertiesDialog
 import com.simplemobiletools.commons.dialogs.RenameDialog
 import com.simplemobiletools.commons.dialogs.RenameItemDialog
+import com.simplemobiletools.commons.dialogs.RadioGroupDialog
 import com.simplemobiletools.commons.extensions.*
 import com.simplemobiletools.commons.helpers.*
 import com.simplemobiletools.commons.models.FileDirItem
+import com.simplemobiletools.commons.models.RadioItem
 import com.simplemobiletools.commons.views.MyRecyclerView
 import tomato.simple.gallery.R
+import tomato.simple.gallery.activities.MediaActivity
 import tomato.simple.gallery.activities.ViewPagerActivity
 import tomato.simple.gallery.databinding.*
 import tomato.simple.gallery.dialogs.DeleteWithRememberDialog
@@ -144,6 +147,8 @@ class MediaAdapter(
             findItem(R.id.cab_set_as).isVisible = isOneItemSelected
             findItem(R.id.cab_resize).isVisible = canResize(selectedItems)
             findItem(R.id.cab_optimize_jpegs).isVisible = JpegOptim.isAvailable && !isInRecycleBin && selectedItems.any { it.path.isJpg() }
+            findItem(R.id.cab_add_tag).isVisible = !isInRecycleBin
+            findItem(R.id.cab_create_collage).isVisible = !isInRecycleBin && selectedItems.count { it.isImage() } in 2..4
             findItem(R.id.cab_confirm_selection).isVisible = isAGetIntent && allowMultiplePicks && selectedKeys.isNotEmpty()
             findItem(R.id.cab_restore_recycle_bin_files).isVisible = selectedPaths.all { it.startsWith(activity.recycleBinPath) }
             findItem(R.id.cab_create_shortcut).isVisible = isOreoPlus() && isOneItemSelected
@@ -183,6 +188,8 @@ class MediaAdapter(
             R.id.cab_set_as -> setAs()
             R.id.cab_resize -> resize()
             R.id.cab_optimize_jpegs -> optimizeJpegs()
+            R.id.cab_add_tag -> addTag()
+            R.id.cab_create_collage -> createCollage()
             R.id.cab_delete -> checkDeleteConfirmation()
         }
     }
@@ -350,8 +357,91 @@ class MediaAdapter(
                 activity.updateFavorite(it.path, add)
             }
             activity.runOnUiThread {
-                listener?.refreshItems()
+                notifyDataSetChanged()
                 finishActMode()
+            }
+        }
+    }
+
+    private fun addTag() {
+        val selected = getSelectedItems()
+        ensureBackgroundThread {
+            val existing = try {
+                selected.flatMap { activity.tagsForPath(it.path) }
+                    .distinctBy { it.lowercase() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            activity.runOnUiThread {
+                tomato.simple.gallery.dialogs.AddTagDialog(
+                    activity,
+                    existing,
+                    onRemove = { tag ->
+                        ensureBackgroundThread {
+                            val removed = selected.count { activity.deleteMediaTag(it.path, tag) }
+                            activity.runOnUiThread {
+                                activity.toast(
+                                    if (removed > 0) R.string.tag_removed
+                                    else com.simplemobiletools.commons.R.string.unknown_error_occurred
+                                )
+                            }
+                        }
+                    }
+                ) { tag ->
+                    ensureBackgroundThread {
+                        val saved = selected.count { activity.saveMediaTag(it.path, tag) }
+                        activity.runOnUiThread {
+                            if (saved > 0) {
+                                activity.toast(R.string.tag_added)
+                            } else {
+                                activity.toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                            }
+                            finishActMode()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun createCollage() {
+        val images = getSelectedItems().filter { it.isImage() }.take(4)
+        if (images.size < 2) {
+            activity.toast(R.string.collage_need_images)
+            return
+        }
+        val items = arrayListOf(
+            RadioItem(0, activity.getString(R.string.collage_horizontal)),
+            RadioItem(1, activity.getString(R.string.collage_vertical)),
+            RadioItem(2, activity.getString(R.string.collage_2x2))
+        )
+        RadioGroupDialog(activity, items, 0) { picked ->
+            val layout = picked as Int
+            ensureBackgroundThread {
+                try {
+                    val bitmaps = images.mapNotNull { medium ->
+                        CollageBuilder.decodeDownsampled(medium.path)
+                    }
+                    if (bitmaps.size < 2) {
+                        activity.runOnUiThread { activity.toast(R.string.collage_need_images) }
+                        return@ensureBackgroundThread
+                    }
+                    val collage = CollageBuilder.compose(bitmaps, layout)
+                    val saved = MediaFileWriter.saveJpegNextTo(activity, images.first().path, "collage", collage)
+                    bitmaps.forEach { if (!it.isRecycled) it.recycle() }
+                    if (collage !== bitmaps.firstOrNull() && !collage.isRecycled) {
+                        collage.recycle()
+                    }
+                    activity.runOnUiThread {
+                        activity.toast(if (saved != null) R.string.collage_saved else com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                        listener?.refreshItems()
+                        finishActMode()
+                    }
+                } catch (e: OutOfMemoryError) {
+                    activity.runOnUiThread { activity.toast(com.simplemobiletools.commons.R.string.out_of_memory_error) }
+                } catch (e: Exception) {
+                    activity.runOnUiThread { activity.showErrorToast(e) }
+                }
             }
         }
     }
@@ -688,7 +778,29 @@ class MediaAdapter(
 
             mediaItemHolder.setPadding(padding, padding, padding, padding)
 
-            favorite.beVisibleIf(medium.isFavorite && config.markFavoriteItems)
+            favorite.beVisibleIf(config.markFavoriteItems && !medium.getIsInRecycleBin())
+            if (config.markFavoriteItems && !medium.getIsInRecycleBin()) {
+                favorite.setImageResource(
+                    if (medium.isFavorite) com.simplemobiletools.commons.R.drawable.ic_star_vector
+                    else com.simplemobiletools.commons.R.drawable.ic_star_outline_vector
+                )
+                favorite.setOnClickListener {
+                    val add = !medium.isFavorite
+                    medium.isFavorite = add
+                    favorite.setImageResource(
+                        if (add) com.simplemobiletools.commons.R.drawable.ic_star_vector
+                        else com.simplemobiletools.commons.R.drawable.ic_star_outline_vector
+                    )
+                    ensureBackgroundThread {
+                        activity.updateFavorite(medium.path, add)
+                        if (!add && (activity as? MediaActivity)?.mShowFavoritesOnly == true) {
+                            activity.runOnUiThread { listener?.refreshItems() }
+                        }
+                    }
+                }
+            } else {
+                favorite.setOnClickListener(null)
+            }
 
             playPortraitOutline?.beVisibleIf(medium.isVideo() || medium.isPortrait())
             if (medium.isVideo()) {

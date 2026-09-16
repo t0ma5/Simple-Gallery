@@ -16,7 +16,7 @@ import tomato.simple.gallery.models.ThumbnailItem
 
 class GetMediaAsynctask(
     val context: Context, val mPath: String, val isPickImage: Boolean = false, val isPickVideo: Boolean = false,
-    val showAll: Boolean, val callback: (media: ArrayList<ThumbnailItem>) -> Unit
+    val showAll: Boolean, val favoritesOnly: Boolean = false, val callback: (media: ArrayList<ThumbnailItem>) -> Unit
 ) {
     private val mediaFetcher = MediaFetcher(context)
     @Volatile
@@ -27,7 +27,11 @@ class GetMediaAsynctask(
             if (cancelled) {
                 return@ensureBackgroundThread
             }
-            val media = fetch()
+            val media = try {
+                fetch()
+            } catch (_: Exception) {
+                ArrayList()
+            }
             if (!cancelled) {
                 Handler(Looper.getMainLooper()).post { callback(media) }
             }
@@ -75,7 +79,13 @@ class GetMediaAsynctask(
             )
         }
 
-        return mediaFetcher.groupMedia(media, pathToUse)
+        val filtered = if (favoritesOnly && mPath != FAVORITES) {
+            ArrayList(media.filter { it.isFavorite })
+        } else {
+            media
+        }
+
+        return mediaFetcher.groupMedia(filtered, pathToUse)
     }
 
     fun stopFetching() {

@@ -192,6 +192,9 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 findItem(R.id.menu_print).isVisible = currentMedium.isImage() || currentMedium.isRaw()
                 findItem(R.id.menu_resize).isVisible = visibleBottomActions and BOTTOM_ACTION_RESIZE == 0 && currentMedium.isImage()
                 findItem(R.id.menu_optimize_jpeg).isVisible = JpegOptim.isAvailable && currentMedium.path.isJpg()
+                findItem(R.id.menu_add_tag).isVisible = !currentMedium.getIsInRecycleBin()
+                findItem(R.id.menu_trim_video).isVisible = currentMedium.isVideo()
+                findItem(R.id.menu_save_frame).isVisible = currentMedium.isVideo()
                 findItem(R.id.menu_save_motion_video).isVisible = currentMedium.isImage() && (getCurrentPhotoFragment()?.hasMotionPhoto() == true)
                 findItem(R.id.menu_remove_location).isVisible = currentMedium.isImage() || currentMedium.isRaw()
                 findItem(R.id.menu_remove_metadata).isVisible = currentMedium.isImage() || currentMedium.isRaw()
@@ -270,6 +273,9 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
                 R.id.menu_create_shortcut -> createShortcut()
                 R.id.menu_resize -> resizeImage()
                 R.id.menu_optimize_jpeg -> optimizeJpeg()
+                R.id.menu_add_tag -> addTagToCurrent()
+                R.id.menu_trim_video -> trimCurrentVideo()
+                R.id.menu_save_frame -> saveCurrentVideoFrame()
                 R.id.menu_save_motion_video -> saveMotionPhotoVideo()
                 R.id.menu_remove_location -> stripMetadata(gpsOnly = true)
                 R.id.menu_remove_metadata -> stripMetadata(gpsOnly = false)
@@ -819,6 +825,18 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
         }
     }
 
+    override fun finish() {
+        val path = try {
+            getCurrentPath()
+        } catch (_: Exception) {
+            ""
+        }
+        if (path.isNotEmpty()) {
+            setResult(Activity.RESULT_OK, Intent().putExtra(PATH, path))
+        }
+        super.finish()
+    }
+
     private fun getCurrentPhotoFragment() = getCurrentFragment() as? PhotoFragment
 
     private fun getPortraitPath() = intent.getStringExtra(PORTRAIT_PATH) ?: ""
@@ -1007,7 +1025,66 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
             }
 
             runOnUiThread {
+                updateBottomActionIcons(medium)
                 refreshMenuItems()
+            }
+        }
+    }
+
+    private fun addTagToCurrent() {
+        val path = getCurrentPath()
+        if (path.isEmpty()) {
+            return
+        }
+        ensureBackgroundThread {
+            val existing = try {
+                tagsForPath(path)
+            } catch (_: Exception) {
+                emptyList()
+            }
+            runOnUiThread {
+                tomato.simple.gallery.dialogs.AddTagDialog(
+                    this,
+                    existing,
+                    onRemove = { tag ->
+                        ensureBackgroundThread {
+                            val removed = deleteMediaTag(path, tag)
+                            runOnUiThread {
+                                toast(if (removed) R.string.tag_removed else com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                            }
+                        }
+                    }
+                ) { tag ->
+                    ensureBackgroundThread {
+                        val saved = saveMediaTag(path, tag)
+                        runOnUiThread {
+                            toast(if (saved) R.string.tag_added else com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun trimCurrentVideo() {
+        val path = getCurrentPath()
+        if (path.isEmpty()) {
+            return
+        }
+        startActivity(Intent(this, TrimVideoActivity::class.java).putExtra(PATH, path))
+    }
+
+    private fun saveCurrentVideoFrame() {
+        val fragment = getCurrentFragment() as? tomato.simple.gallery.fragments.VideoFragment
+        val bitmap = fragment?.captureFrame()
+        if (bitmap == null) {
+            toast(R.string.frame_save_failed)
+            return
+        }
+        ensureBackgroundThread {
+            val saved = MediaFileWriter.saveJpegNextTo(this, getCurrentPath(), "frame", bitmap)
+            runOnUiThread {
+                toast(if (saved != null) R.string.frame_saved else R.string.frame_save_failed)
             }
         }
     }
@@ -1188,6 +1265,30 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
         }
 
         val fileDirItem = currentMedium.toFileDirItem()
+        if (shouldUseSystemTrash() && !skipRecycleBin && !getCurrentMedium()!!.getIsInRecycleBin()) {
+            checkManageMediaOrHandleSAFDialogSdk30(fileDirItem.path) {
+                if (!it) {
+                    return@checkManageMediaOrHandleSAFDialogSdk30
+                }
+                trashPathsWithSystem(arrayListOf(path)) { ok ->
+                    if (ok) {
+                        mIgnoredPaths.add(fileDirItem.path)
+                        val media = mMediaFiles.filter { !mIgnoredPaths.contains(it.path) } as ArrayList<Medium>
+                        runOnUiThread {
+                            if (media.isNotEmpty()) {
+                                refreshUI(media, false)
+                            } else {
+                                finish()
+                            }
+                        }
+                    } else {
+                        toast(com.simplemobiletools.commons.R.string.unknown_error_occurred)
+                    }
+                }
+            }
+            return
+        }
+
         if (config.useRecycleBin && !skipRecycleBin && !getCurrentMedium()!!.getIsInRecycleBin()) {
             checkManageMediaOrHandleSAFDialogSdk30(fileDirItem.path) {
                 if (!it) {
@@ -1254,13 +1355,15 @@ class ViewPagerActivity : SimpleActivity(), ViewPager.OnPageChangeListener, View
     }
 
     private fun isDirEmpty(media: ArrayList<Medium>): Boolean {
-        return if (media.isEmpty()) {
-            deleteDirectoryIfEmpty()
-            finish()
-            true
-        } else {
-            false
+        if (media.isNotEmpty()) {
+            return false
         }
+        if (mMediaFiles.isNotEmpty() && mPath.isNotEmpty() && getDoesFilePathExist(mPath)) {
+            return false
+        }
+        deleteDirectoryIfEmpty()
+        finish()
+        return true
     }
 
     private fun checkMediaManagementAndRename() {

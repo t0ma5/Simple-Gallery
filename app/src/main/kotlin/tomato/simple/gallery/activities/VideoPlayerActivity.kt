@@ -25,6 +25,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.simplemobiletools.commons.extensions.*
+import com.simplemobiletools.commons.helpers.ensureBackgroundThread
 import tomato.simple.gallery.R
 import tomato.simple.gallery.databinding.ActivityVideoPlayerBinding
 import tomato.simple.gallery.extensions.*
@@ -153,6 +154,7 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
                 }
                 R.id.menu_open_with -> openPath(mUri!!.toString(), true)
                 R.id.menu_share -> shareMediumPath(mUri!!.toString())
+                R.id.menu_save_frame -> saveCurrentFrame()
                 else -> return@setOnMenuItemClickListener false
             }
             return@setOnMenuItemClickListener true
@@ -160,6 +162,29 @@ open class VideoPlayerActivity : SimpleActivity(), SeekBar.OnSeekBarChangeListen
 
         binding.videoToolbar.setNavigationOnClickListener {
             finish()
+        }
+    }
+
+    private fun saveCurrentFrame() {
+        val bitmap = try {
+            binding.videoSurface.getBitmap()
+        } catch (_: Exception) {
+            null
+        }
+        if (bitmap == null) {
+            toast(R.string.frame_save_failed)
+            return
+        }
+        val path = intent.getStringExtra(PATH) ?: getRealPathFromURI(mUri!!) ?: mUri?.path
+        if (path.isNullOrEmpty()) {
+            toast(R.string.frame_save_failed)
+            return
+        }
+        ensureBackgroundThread {
+            val saved = MediaFileWriter.saveJpegNextTo(this, path, "frame", bitmap)
+            runOnUiThread {
+                toast(if (saved != null) R.string.frame_saved else R.string.frame_save_failed)
+            }
         }
     }
 

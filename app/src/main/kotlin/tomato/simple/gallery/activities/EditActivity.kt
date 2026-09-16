@@ -23,6 +23,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.DecodeFormat
+import com.bumptech.glide.load.resource.bitmap.Downsampler
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
@@ -101,6 +102,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private var filterInitialBitmap: Bitmap? = null
     private var originalUri: Uri? = null
     private var workingBitmap: Bitmap? = null
+    private val toolUndoStack = ArrayList<Bitmap>(3)
     private var adjustSourceBitmap: Bitmap? = null
     private var adjustPreviewBitmap: Bitmap? = null
     private var overwriteRequested = false
@@ -124,7 +126,17 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                 return@handlePermission
             }
             ensureAppUnlocked {
-                initEditActivity()
+                try {
+                    initEditActivity()
+                } catch (e: IllegalArgumentException) {
+                    toast(R.string.invalid_image_path)
+                    finish()
+                    return@ensureAppUnlocked
+                } catch (e: Exception) {
+                    showErrorToast(e)
+                    finish()
+                    return@ensureAppUnlocked
+                }
                 onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
                     override fun handleOnBackPressed() {
                         if (hasUnsavedEdits) {
@@ -173,6 +185,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             when (menuItem.itemId) {
                 R.id.save_as -> startSaveFlow(overwrite = false)
                 R.id.overwrite_original -> startSaveFlow(overwrite = true)
+                R.id.undo_last_tool -> undoLastTool()
                 R.id.edit -> editWith()
                 R.id.share -> shareImage()
                 else -> return@setOnMenuItemClickListener false
@@ -278,6 +291,8 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         }
 
         val options = RequestOptions()
+            .format(DecodeFormat.PREFER_ARGB_8888)
+            .set(Downsampler.ALLOW_HARDWARE_CONFIG, false)
             .skipMemoryCache(true)
             .diskCacheStrategy(DiskCacheStrategy.NONE)
             .override(editorDecodeSize)
@@ -304,7 +319,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                     dataSource: DataSource,
                     isFirstResource: Boolean
                 ): Boolean {
-                    val copy = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, true)
+                    val copy = mutableArgbCopy(bitmap) ?: bitmap
                     if (workingBitmap == null) {
                         workingBitmap = copy
                     }
@@ -341,12 +356,6 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             beVisible()
             scaleType = CropImageView.ScaleType.FIT_CENTER
             setOnCropImageCompleteListener(this@EditActivity)
-            val stacked = usableWorkingBitmap()
-            if (stacked != null) {
-                setImageBitmap(stacked)
-            } else {
-                setImageUriAsync(uri)
-            }
             guidelines = CropImageView.Guidelines.ON
 
             if (isCropIntent && shouldCropSquare()) {
@@ -354,6 +363,30 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                 setFixedAspectRatio(true)
                 binding.bottomEditorCropRotateActions.bottomAspectRatio.beGone()
             }
+
+            val applySource = {
+                val stacked = usableWorkingBitmap()
+                if (stacked != null && (stacked.isRecycled || stacked.width <= 0 || stacked.height <= 0)) {
+                    // skip empty bitmaps; CropImageView throws "width must be > 0"
+                } else {
+                    try {
+                        if (stacked != null) {
+                            setImageBitmap(stacked)
+                        } else {
+                            setImageUriAsync(uri)
+                        }
+                    } catch (_: IllegalArgumentException) {
+                    }
+                }
+            }
+            fun applyWhenSized(attempt: Int = 0) {
+                if (width > 0 && height > 0) {
+                    applySource()
+                } else if (attempt < 8) {
+                    post { applyWhenSized(attempt + 1) }
+                }
+            }
+            applyWhenSized()
         }
     }
 
@@ -377,6 +410,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private fun fillCanvasBackground() {
         val options = RequestOptions()
             .format(DecodeFormat.PREFER_ARGB_8888)
+            .set(Downsampler.ALLOW_HARDWARE_CONFIG, false)
             .skipMemoryCache(true)
             .diskCacheStrategy(DiskCacheStrategy.NONE)
             .fitCenter()
@@ -443,6 +477,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private fun fillOverlayBackground() {
         val options = RequestOptions()
             .format(DecodeFormat.PREFER_ARGB_8888)
+            .set(Downsampler.ALLOW_HARDWARE_CONFIG, false)
             .skipMemoryCache(true)
             .diskCacheStrategy(DiskCacheStrategy.NONE)
             .fitCenter()
@@ -1062,11 +1097,11 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
 
         if (currPrimaryAction == PRIMARY_ACTION_FILTER && binding.bottomEditorFilterActions.bottomActionsFilterList.adapter == null) {
             ensureBackgroundThread {
-                val thumbnailSize = resources.getDimension(R.dimen.bottom_filters_thumbnail_size).toInt()
+                val thumbnailSize = resources.getDimension(R.dimen.bottom_filters_thumbnail_size).toInt().coerceAtLeast(1)
 
                 val bitmap = try {
                     val stacked = usableWorkingBitmap()
-                    if (stacked != null) {
+                    if (stacked != null && stacked.width > 0 && stacked.height > 0) {
                         Bitmap.createScaledBitmap(stacked, thumbnailSize, thumbnailSize, true)
                     } else {
                         Glide.with(this)
@@ -1153,7 +1188,10 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                     else -> Pair(lastOtherAspectRatio!!.first, lastOtherAspectRatio!!.second)
                 }
 
-                setAspectRatio(newAspectRatio.first.toInt(), newAspectRatio.second.toInt())
+                setAspectRatio(
+                    newAspectRatio.first.toInt().coerceAtLeast(1),
+                    newAspectRatio.second.toInt().coerceAtLeast(1)
+                )
             }
         }
     }
@@ -1387,15 +1425,30 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         return if (bitmap != null && !bitmap.isRecycled) bitmap else null
     }
 
+    private fun mutableArgbCopy(bitmap: Bitmap): Bitmap? {
+        if (bitmap.isRecycled) {
+            return null
+        }
+        return try {
+            bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun getSourceBitmapForFilter(): Bitmap {
         val stacked = usableWorkingBitmap()
         if (stacked != null) {
-            val config = stacked.config ?: Bitmap.Config.ARGB_8888
-            return stacked.copy(config, true)
+            return mutableArgbCopy(stacked) ?: stacked
         }
         return Glide.with(applicationContext)
             .asBitmap()
             .load(uri)
+            .apply(
+                RequestOptions()
+                    .format(DecodeFormat.PREFER_ARGB_8888)
+                    .set(Downsampler.ALLOW_HARDWARE_CONFIG, false)
+            )
             .submit(editorDecodeSize, editorDecodeSize)
             .get()
     }
@@ -1435,13 +1488,42 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         view.requestLayout()
     }
 
-    private fun replaceWorkingBitmap(bitmap: Bitmap) {
+    private fun replaceWorkingBitmap(bitmap: Bitmap, recordUndo: Boolean = true) {
         val previous = workingBitmap
+        if (recordUndo && previous != null && previous !== bitmap && !previous.isRecycled) {
+            val copy = try {
+                mutableArgbCopy(previous)
+            } catch (_: OutOfMemoryError) {
+                null
+            }
+            if (copy != null) {
+                while (toolUndoStack.size >= 3) {
+                    val oldest = toolUndoStack.removeAt(0)
+                    if (!oldest.isRecycled) {
+                        oldest.recycle()
+                    }
+                }
+                toolUndoStack.add(copy)
+            }
+        }
         workingBitmap = bitmap
         hasUnsavedEdits = true
         if (previous != null && previous !== bitmap && previous !== filterInitialBitmap && !previous.isRecycled) {
             previous.recycle()
         }
+    }
+
+    private fun undoLastTool() {
+        if (toolUndoStack.isEmpty()) {
+            toast(R.string.nothing_to_undo)
+            return
+        }
+        val restored = toolUndoStack.removeAt(toolUndoStack.lastIndex)
+        replaceWorkingBitmap(restored, recordUndo = false)
+        invalidateToolCaches()
+        currPrimaryAction = PRIMARY_ACTION_NONE
+        updatePrimaryActionButtons()
+        loadDefaultImageView()
     }
 
     private fun invalidateToolCaches() {
@@ -1497,7 +1579,7 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                             val adjusted = currentAdjustBitmap()
                             val keep = if (adjusted != null && !adjusted.isRecycled) {
                                 if (adjusted === adjustSourceBitmap || adjusted === workingBitmap || adjusted === filterInitialBitmap) {
-                                    adjusted.copy(adjusted.config ?: Bitmap.Config.ARGB_8888, true)
+                                    adjusted.copy(Bitmap.Config.ARGB_8888, true)
                                 } else {
                                     adjusted
                                 }

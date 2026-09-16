@@ -1,0 +1,11 @@
+• Scroll-back after the viewer; tap-the-star favorites; favorites-only filter
+• Folders still list photos after starring (no more empty “no media” close)
+• Settings toggle for filenames; Find duplicates above Settings; black fullscreen background on by default
+• Folder menu: Settings/About removed; Show hidden / excluded / favorites only last
+• Tags save and show up in folder/global search; comma splits into separate tags; tap × on a chip to remove
+• Editor open no longer toasts IllegalArgumentException
+• Add text dialog is a one-line outlined field; sticker button is a note icon, not a portrait
+• Properties on Favorites and Recycle Bin; honour EXIF orientation
+• Editor undo last tool; WebP pinch-zoom; animated JPEG XL
+• Optional Android Trash and MediaStore favorites on Android 11+
+• Trim video, save frame, tags, duplicate finder, 2–4 photo collages

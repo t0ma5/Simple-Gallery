@@ -166,6 +166,21 @@
             android:theme="@style/TranslucentTheme" />
 
         <activity
+            android:name=".activities.TrimVideoActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:exported="false"
+            android:label="@string/trim_video"
+            android:parentActivityName=".activities.ViewPagerActivity"
+            android:theme="@style/AppTheme" />
+
+        <activity
+            android:name=".activities.DuplicateFinderActivity"
+            android:configChanges="orientation"
+            android:exported="false"
+            android:label="@string/find_duplicates"
+            android:parentActivityName=".activities.MainActivity" />
+
+        <activity
             android:name=".activities.IncludedFoldersActivity"
             android:configChanges="orientation"
             android:exported="false"

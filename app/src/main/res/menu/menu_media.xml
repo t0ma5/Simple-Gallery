@@ -35,57 +35,24 @@
         android:title="@string/change_view_type"
         app:showAsAction="never" />
     <item
+        android:id="@+id/group"
+        android:showAsAction="never"
+        android:title="@string/group_by"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/create_new_folder"
         android:showAsAction="never"
         android:title="@string/create_new_folder"
         app:showAsAction="never" />
-    <group android:checkableBehavior="all">
-        <item
-            android:id="@+id/temporarily_show_hidden"
-            android:checkable="true"
-            android:showAsAction="never"
-            android:title="@string/show_hidden"
-            app:showAsAction="never" />
-    </group>
     <item
-        android:id="@+id/settings"
-        android:icon="@drawable/ic_settings_cog_vector"
-        android:title="@string/settings"
-        app:showAsAction="ifRoom" />
-    <item
-        android:id="@+id/about"
-        android:icon="@drawable/ic_info_vector"
-        android:title="@string/about"
-        app:showAsAction="ifRoom" />
-    <item
-        android:id="@+id/empty_recycle_bin"
+        android:id="@+id/find_duplicates"
         android:showAsAction="never"
-        android:title="@string/empty_recycle_bin"
+        android:title="@string/find_duplicates"
         app:showAsAction="never" />
     <item
-        android:id="@+id/empty_disable_recycle_bin"
+        android:id="@+id/slideshow"
         android:showAsAction="never"
-        android:title="@string/empty_and_disable_recycle_bin"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/open_recycle_bin"
-        android:showAsAction="never"
-        android:title="@string/open_the_recycle_bin"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/restore_all_files"
-        android:showAsAction="never"
-        android:title="@string/restore_all_files"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/open_camera"
-        android:icon="@drawable/ic_camera_vector"
-        android:title="@string/open_camera"
-        app:showAsAction="ifRoom" />
-    <item
-        android:id="@+id/group"
-        android:showAsAction="never"
-        android:title="@string/group_by"
+        android:title="@string/slideshow"
         app:showAsAction="never" />
     <item
         android:id="@+id/set_as_default_folder"
@@ -98,8 +65,48 @@
         android:title="@string/unset_as_default_folder"
         app:showAsAction="never" />
     <item
-        android:id="@+id/slideshow"
+        android:id="@+id/open_recycle_bin"
         android:showAsAction="never"
-        android:title="@string/slideshow"
+        android:title="@string/open_the_recycle_bin"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/empty_recycle_bin"
+        android:showAsAction="never"
+        android:title="@string/empty_recycle_bin"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/empty_disable_recycle_bin"
+        android:showAsAction="never"
+        android:title="@string/empty_and_disable_recycle_bin"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/restore_all_files"
+        android:showAsAction="never"
+        android:title="@string/restore_all_files"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/open_camera"
+        android:icon="@drawable/ic_camera_vector"
+        android:title="@string/open_camera"
+        app:showAsAction="ifRoom" />
+    <group android:checkableBehavior="all">
+        <item
+            android:id="@+id/temporarily_show_hidden"
+            android:checkable="true"
+            android:showAsAction="never"
+            android:title="@string/show_hidden"
+            app:showAsAction="never" />
+        <item
+            android:id="@+id/temporarily_show_excluded"
+            android:checkable="true"
+            android:showAsAction="never"
+            android:title="@string/show_excluded"
+            app:showAsAction="never" />
+        <item
+            android:id="@+id/show_favorites_only"
+            android:checkable="true"
+            android:title="@string/show_favorites_only"
+            android:showAsAction="never"
+            app:showAsAction="never" />
+    </group>
 </menu>
