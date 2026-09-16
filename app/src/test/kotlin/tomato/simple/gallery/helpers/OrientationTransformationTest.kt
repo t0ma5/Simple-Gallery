@@ -1,6 +1,7 @@
 package tomato.simple.gallery.helpers
 
 import androidx.exifinterface.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL
+import androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL
 import androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90
 import androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSPOSE
 import org.junit.Assert.assertFalse
