@@ -453,6 +453,15 @@ def main() -> None:
                 "val color_primary = Color(0xFFD3332F)\n"
                 "val color_primary_dark = Color(0xFFB71C1C)\n",
             ),
+            (
+                "val md_grey_800_dark = Color(0xFF2D2D2D)\n",
+                "val md_grey_800_dark = Color(0xFF2D2D2D)\n"
+                "val md_grey_900_darker = Color(0xFF111111)\n",
+            ),
+            (
+                "val theme_dark_background_color = md_grey_800_dark\n",
+                "val theme_dark_background_color = md_grey_900_darker\n",
+            ),
         ],
     )
     patch(
@@ -463,6 +472,15 @@ def main() -> None:
                 '    <color name="color_primary_dark">#FFD76D00</color>\n',
                 '    <color name="color_primary">#FFD3332F</color>\n'
                 '    <color name="color_primary_dark">#FFB71C1C</color>\n',
+            ),
+            (
+                '    <color name="md_grey_800_dark">#2D2D2D</color>\n',
+                '    <color name="md_grey_800_dark">#2D2D2D</color>\n'
+                '    <color name="md_grey_900_darker">#111111</color>\n',
+            ),
+            (
+                '    <color name="theme_dark_background_color">@color/md_grey_800_dark</color>\n',
+                '    <color name="theme_dark_background_color">@color/md_grey_900_darker</color>\n',
             ),
         ],
     )

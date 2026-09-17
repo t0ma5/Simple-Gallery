@@ -181,7 +181,7 @@ class Config(context: Context) : BaseConfig(context) {
         set(showThumbnailFileTypes) = prefs.edit().putBoolean(SHOW_THUMBNAIL_FILE_TYPES, showThumbnailFileTypes).apply()
 
     var markFavoriteItems: Boolean
-        get() = prefs.getBoolean(MARK_FAVORITE_ITEMS, true)
+        get() = prefs.getBoolean(MARK_FAVORITE_ITEMS, false)
         set(markFavoriteItems) = prefs.edit().putBoolean(MARK_FAVORITE_ITEMS, markFavoriteItems).apply()
 
     var screenRotation: Int

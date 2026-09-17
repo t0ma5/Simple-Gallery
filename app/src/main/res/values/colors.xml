@@ -5,7 +5,7 @@
     <color name="color_primary">#D3332F</color>
     <color name="color_primary_dark">#B71C1C</color>
     <color name="default_text_color">#EEEEEE</color>
-    <color name="default_background_color">#2D2D2D</color>
+    <color name="default_background_color">#111111</color>
     <color name="default_primary_color">#D3332F</color>
     <color name="default_accent_color">#D3332F</color>
     <color name="default_app_icon_color">#D3332F</color>

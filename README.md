@@ -48,6 +48,8 @@ The Simple Gallery Pro workflow, plus a FOSS editor, AVIF/JXL, motion photos, an
 - **Scroll-back** — Closing the viewer returns the grid to the photo you were on.
 - **Instant favorite star** — Tap the star on a thumbnail or in the viewer; the overlay updates without a reload.
 - **Show filenames** — Off by default. Settings → Thumbnails, or the label icon in a folder.
+- **Clean thumbnails** — The favorite star overlay is off by default. Turn it back on in Settings → Thumbnails → File thumbnail style → Mark favorite items.
+- **Darker dark theme** — Dark and Dark red backgrounds are `#111111` instead of `#2D2D2D`. Existing installs are moved over automatically.
 - **Favorites only** — Overflow toggle to hide everything that is not a favorite. It is session-only, so other folders keep their photos.
 - **Properties** — Works on the Favorites and Recycle Bin folders.
 - **Tags** — Add or remove tags from the grid or viewer (tap × on a chip). Commas make separate tags. Search matches tag names.

@@ -1,3 +1,5 @@
+• Favorite star overlay on thumbnails is off by default (Settings → Thumbnails → File thumbnail style)
+• Dark and Dark red theme background is now #111111; existing installs are migrated on launch
 • Scroll-back after the viewer; tap-the-star favorites; favorites-only filter
 • Folders still list photos after starring (no more empty “no media” close)
 • Settings toggle for filenames; Find duplicates above Settings; black fullscreen background on by default

@@ -127,6 +127,17 @@ val Context.dateTakensDB: DateTakensDao get() = GalleryDatabase.getInstance(appl
 
 val Context.recycleBin: File get() = File(filesDir, "recycle_bin").also { it.mkdirs() }
 
+// Dark theme background moved from #2D2D2D to #111111. Existing installs have the old value
+// stored in prefs; move them to the new one so the theme picker keeps showing "Dark red".
+private const val LEGACY_DARK_BACKGROUND_COLOR = 0xFF2D2D2D.toInt()
+private const val NEW_DARK_BACKGROUND_COLOR = 0xFF111111.toInt()
+
+fun Context.migrateDarkBackgroundColor() {
+    if (config.backgroundColor == LEGACY_DARK_BACKGROUND_COLOR) {
+        config.backgroundColor = NEW_DARK_BACKGROUND_COLOR
+    }
+}
+
 fun Context.migrateLegacyRecycleBin() {
     val dest = recycleBin
     val legacyStorage = File(filesDir, "storage")
