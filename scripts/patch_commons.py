@@ -380,6 +380,79 @@ def main() -> None:
                 "val Context.recycleBinPath: String get() = filesDir.absolutePath\n",
                 "val Context.recycleBinPath: String get() = java.io.File(filesDir, \"recycle_bin\").absolutePath\n",
             ),
+            # Fossify Gallery #1038 / commons #339: never build content://media/.../0 uris.
+            (
+                "                val id = cursor.getLongValue(Images.Media._ID)\n"
+                "                if (id != 0L) {\n"
+                "                    val path = cursor.getStringValue(Images.Media.DATA)\n"
+                "                    ids[path] = id\n"
+                "                }\n",
+                "                val id = cursor.getLongValue(Images.Media._ID)\n"
+                "                val path = cursor.getStringValueOrNull(Images.Media.DATA)\n"
+                "                if (id > 0L && path != null) {\n"
+                "                    ids[path] = id\n"
+                "                }\n",
+            ),
+            (
+                "fun Context.getFileUrisFromFileDirItems(fileDirItems: List<FileDirItem>): List<Uri> {\n"
+                "    val fileUris = getUrisPathsFromFileDirItems(fileDirItems).second\n"
+                "    if (fileUris.isEmpty()) {\n"
+                "        fileDirItems.map { fileDirItem ->\n"
+                "            fileUris.add(fileDirItem.assembleContentUri())\n"
+                "        }\n"
+                "    }\n",
+                "// Files that are not indexed by MediaStore yield no uri. Never fall back to id 0, since\n"
+                "// MediaStore.createWriteRequest() rejects content://media/external/images/media/0.\n"
+                "fun Context.getFileUrisFromFileDirItems(fileDirItems: List<FileDirItem>): List<Uri> {\n"
+                "    val fileUris = getUrisPathsFromFileDirItems(fileDirItems).second\n"
+                "    if (fileUris.isEmpty()) {\n"
+                "        fileDirItems.forEach { fileDirItem ->\n"
+                "            fileDirItem.assembleContentUri()?.let { fileUris.add(it) }\n"
+                "        }\n"
+                "    }\n",
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/models/FileDirItem.kt",
+        [
+            (
+                "import android.content.Context\n",
+                "import android.content.ContentUris\nimport android.content.Context\n",
+            ),
+            (
+                "    fun assembleContentUri(): Uri {\n"
+                "        val uri = when {\n",
+                "    fun assembleContentUri(): Uri? {\n"
+                "        if (mediaStoreId <= 0) {\n"
+                "            return null\n"
+                "        }\n\n"
+                "        val uri = when {\n",
+            ),
+            (
+                "        return Uri.withAppendedPath(uri, mediaStoreId.toString())\n",
+                "        return ContentUris.withAppendedId(uri, mediaStoreId)\n",
+            ),
+        ],
+    )
+    patch(
+        "commons/src/main/kotlin/com/simplemobiletools/commons/activities/BaseSimpleActivity.kt",
+        [
+            (
+                "    fun updateSDK30Uris(uris: List<Uri>, callback: (success: Boolean) -> Unit) {\n"
+                "        hideKeyboard()\n"
+                "        if (isRPlus()) {\n"
+                "            funAfterUpdate30File = callback\n",
+                "    fun updateSDK30Uris(uris: List<Uri>, callback: (success: Boolean) -> Unit) {\n"
+                "        hideKeyboard()\n"
+                "        if (isRPlus()) {\n"
+                "            if (uris.isEmpty()) {\n"
+                "                // nothing is indexed by MediaStore, so there is no grant to ask for; let the caller try the write\n"
+                "                callback(true)\n"
+                "                return\n"
+                "            }\n\n"
+                "            funAfterUpdate30File = callback\n",
+            ),
         ],
     )
 

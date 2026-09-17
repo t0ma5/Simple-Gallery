@@ -858,9 +858,9 @@ class MediaAdapter(
             }
 
             val roundedCorners = when {
-                isListViewType -> ROUNDED_CORNERS_NONE
-                config.fileRoundedCorners -> ROUNDED_CORNERS_BIG
-                else -> ROUNDED_CORNERS_NONE
+                !config.fileRoundedCorners -> ROUNDED_CORNERS_NONE
+                isListViewType -> ROUNDED_CORNERS_SMALL
+                else -> ROUNDED_CORNERS_BIG
             }
 
             if (loadImageInstantly) {

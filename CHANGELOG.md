@@ -6,6 +6,8 @@ Version 6.31 *(2026-09-16)*
 
  * Favorite star overlay on thumbnails is off by default (Settings → Thumbnails → File thumbnail style → Mark favorite items)
  * Dark and Dark red theme background is #111111 instead of #2D2D2D; existing installs are migrated on launch
+ * Save-over-original on Android 11+ no longer asks for a write grant on an invalid MediaStore uri when the file is not indexed
+ * List view thumbnails follow the Rounded corners / Square style like the grid does
  * Grid scroll-back after the viewer; tap-the-star favorites; favorites-only folder filter
  * Opening a folder after starring no longer shows “no media” or closes the album
  * Settings: Show filenames; Find duplicates sits above Settings; black fullscreen background defaults on
