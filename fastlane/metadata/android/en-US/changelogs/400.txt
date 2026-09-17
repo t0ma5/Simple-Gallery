@@ -9,3 +9,4 @@
 • Editor undo last tool; WebP pinch-zoom; animated JPEG XL
 • Optional Android Trash and MediaStore favorites on Android 11+
 • Trim video, save frame, tags, duplicate finder, 2–4 photo collages
+• Trim video and 360° panorama toolbars sit below the status bar

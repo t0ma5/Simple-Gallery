@@ -15,6 +15,7 @@ Version 6.31 *(2026-09-16)*
  * Editor undo last tool (3 snapshots); WebP pinch-zoom; animated JPEG XL playback
  * Optional Android Trash (API 30+) and MediaStore IS_FAVORITE
  * Trim video, save current frame, tags (searchable), duplicate finder, 2–4 photo collages
+ * Trim video and 360° panorama toolbars sit below the status bar (same padding as Find duplicates)
  * Room v11 media_tags; Media3 Transformer; translations for new strings; unit tests for hasher and EXIF matrix
 
 Version 6.30 *(2026-09-12)*

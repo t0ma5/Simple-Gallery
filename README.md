@@ -31,14 +31,14 @@ The Simple Gallery Pro workflow, plus a FOSS editor, AVIF/JXL, motion photos, an
 - **FOSS photo editor** — Crop, rotate, resize, draw, filters, tone sliders, and text/emoji stickers. Tools stack in one session. Undo last tool (up to 3). No proprietary SDK.
 - **Editor stickers** — 6-column emoji grid (arrows, markers, faces) plus More for the system emoji picker.
 - **JPEG optimize** — Native jpegoptim: lossless Huffman or lossy (default 85). EXIF kept; file replaced only if smaller. Batch from the grid.
-- **Video trim** — Cut a clip to a start/end range and save it next to the original.
+- **Video trim** — Cut a clip to a start/end range and save it next to the original. Toolbar sits below the status bar.
 - **Save frame** — Grab the current video frame as a JPEG from the viewer or in-app player.
 - **Collages** — CAB on 2–4 photos: side by side, stacked, or 2×2.
 
 **Formats**
 - **AVIF, JPEG XL, Ultra HDR** — Grid, viewer, and “open with”. Animated JXL plays in the viewer. Wide-color display with a settings toggle.
 - **Motion photos** — Play Google Motion Photos, Samsung Live Photos, and Micro Videos; save the clip as an MP4.
-- **360° and video** — OpenGL photosphere viewer (touch, pinch, gyroscope). In-app player with speed, mute, long-press 2×, and exact seek.
+- **360° and video** — OpenGL photosphere viewer (touch, pinch, gyroscope). Toolbar sits below the status bar. In-app player with speed, mute, long-press 2×, and exact seek.
 - **EXIF orientation** — Viewer and region zoom honour the embedded orientation tag.
 - **WebP pinch-zoom** — Animated and still WebP zoom in the viewer.
 

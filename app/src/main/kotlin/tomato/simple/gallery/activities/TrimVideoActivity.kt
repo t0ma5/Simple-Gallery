@@ -17,6 +17,7 @@ import tomato.simple.gallery.databinding.ActivityTrimVideoBinding
 import com.simplemobiletools.commons.extensions.viewBinding
 import tomato.simple.gallery.helpers.PATH
 import tomato.simple.gallery.helpers.VideoTrimHelper
+import tomato.simple.gallery.extensions.setupEdgeToEdge
 import java.io.File
 
 @UnstableApi
@@ -30,8 +31,10 @@ class TrimVideoActivity : SimpleActivity(), TextureView.SurfaceTextureListener {
         isMaterialActivity = true
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        setupToolbar(binding.trimToolbar, NavigationIcon.Arrow)
-        binding.trimToolbar.title = getString(R.string.trim_video)
+        setupEdgeToEdge(
+            padTopSystem = listOf(binding.trimAppBar),
+            padBottomSystem = listOf(binding.trimHolder)
+        )
         binding.trimToolbar.inflateMenu(R.menu.menu_trim_video)
         binding.trimToolbar.setOnMenuItemClickListener {
             if (it.itemId == R.id.save_trim) {
@@ -50,6 +53,11 @@ class TrimVideoActivity : SimpleActivity(), TextureView.SurfaceTextureListener {
         binding.trimSurface.surfaceTextureListener = this
         binding.trimStart.setOnSeekBarChangeListener(seekListener { previewStart() })
         binding.trimEnd.setOnSeekBarChangeListener(seekListener { previewEnd() })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        setupToolbar(binding.trimToolbar, NavigationIcon.Arrow)
     }
 
     override fun onDestroy() {

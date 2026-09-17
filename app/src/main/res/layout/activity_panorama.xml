@@ -10,25 +10,38 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/panorama_toolbar"
+    <FrameLayout
+        android:id="@+id/panorama_toolbar_holder"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@drawable/gradient_background_flipped"
-        app:navigationIcon="@drawable/ic_arrow_left_vector"
-        app:titleTextColor="@android:color/white" />
+        android:layout_height="wrap_content"
+        android:background="@drawable/gradient_background_flipped">
 
-    <ImageView
-        android:id="@+id/panorama_gyro"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/panorama_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@android:color/transparent"
+            app:navigationIcon="@drawable/ic_arrow_left_vector"
+            app:titleTextColor="@android:color/white" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/panorama_gyro_holder"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_margin="24dp"
-        android:alpha="0.45"
-        android:background="@drawable/circle_black_background"
-        android:contentDescription="@string/toggle_gyro"
-        android:padding="10dp"
-        android:src="@drawable/ic_orientation_auto_vector" />
+        android:layout_alignParentBottom="true">
+
+        <ImageView
+            android:id="@+id/panorama_gyro"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_margin="24dp"
+            android:alpha="0.45"
+            android:background="@drawable/circle_black_background"
+            android:contentDescription="@string/toggle_gyro"
+            android:padding="10dp"
+            android:src="@drawable/ic_orientation_auto_vector" />
+    </FrameLayout>
 
 </RelativeLayout>

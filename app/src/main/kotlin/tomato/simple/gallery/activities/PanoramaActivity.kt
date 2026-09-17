@@ -19,6 +19,7 @@ import tomato.simple.gallery.databinding.ActivityPanoramaBinding
 import com.simplemobiletools.commons.extensions.isVideoFast
 import tomato.simple.gallery.helpers.PATH
 import tomato.simple.gallery.panorama.PanoramaGLSurfaceView
+import tomato.simple.gallery.extensions.setupEdgeToEdge
 import java.io.File
 import kotlin.math.abs
 
@@ -34,6 +35,10 @@ class PanoramaActivity : SimpleActivity(), SensorEventListener {
         showTransparentTop = true
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        setupEdgeToEdge(
+            padTopSystem = listOf(binding.panoramaToolbarHolder),
+            padBottomSystem = listOf(binding.panoramaGyroHolder)
+        )
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val path = intent.getStringExtra(PATH) ?: ""
