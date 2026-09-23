@@ -30,6 +30,7 @@ The Simple Gallery Pro workflow, plus a FOSS editor, AVIF/JXL, motion photos, an
 **Edit**
 - **FOSS photo editor** — Crop, rotate, resize, draw, filters, tone sliders, and text/emoji stickers. Tools stack in one session. Undo last tool (up to 3). No proprietary SDK.
 - **Editor stickers** — 6-column emoji grid (arrows, markers, faces) plus More for the system emoji picker.
+- **Lossless JPEG rotate** — Viewer rotate/save and editor rotate-only rewrite DCT coefficients (mozjpeg). File size stays about the same.
 - **JPEG optimize** — Native jpegoptim: lossless Huffman or lossy (default 85). EXIF kept; file replaced only if smaller. Batch from the grid.
 - **Video trim** — Cut a clip to a start/end range and save it next to the original. Toolbar sits below the status bar.
 - **Save frame** — Grab the current video frame as a JPEG from the viewer or in-app player.
@@ -74,7 +75,7 @@ Release APKs come from `assembleFossRelease` (local and GitHub Actions). Names:
 
 | Item | Value |
 | --- | --- |
-| App version | 6.31 (versionCode 400) |
+| App version | 6.31.1 (versionCode 401) |
 | minSdk | 26 |
 | targetSdk / compileSdk | 36 (Android 16) |
 | JVM bytecode | 17 |

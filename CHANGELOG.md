@@ -1,6 +1,14 @@
 Changelog
 ==========
 
+Version 6.31.1 *(2026-09-23)*
+----------------------------
+
+ * Viewer rotate/save and editor rotate-only keep JPEG size via lossless DCT rotation
+ * Fix ExifInterface saveAttributes crash on a truncated temp JPEG during Save as
+ * Editor rotate-only no longer re-encodes because the initial image load set workingBitmap
+ * When lossless rotate cannot run, JPEG saves match source quality and stay near original size
+
 Version 6.31 *(2026-09-16)*
 ----------------------------
 

@@ -1,0 +1,4 @@
+• Viewer rotate/save and editor rotate-only keep JPEG size (lossless DCT)
+• Fix ExifInterface crash on Save as of a rotated JPEG
+• Editor rotate-only no longer re-encodes the photo
+• Other JPEG saves match source quality instead of inflating at 90/100

@@ -49,6 +49,8 @@ import tomato.simple.gallery.dialogs.PickDirectoryDialog
 import tomato.simple.gallery.dialogs.ResizeMultipleImagesDialog
 import tomato.simple.gallery.dialogs.ResizeWithPathDialog
 import tomato.simple.gallery.helpers.DIRECTORY
+import tomato.simple.gallery.helpers.JpegQuality
+import tomato.simple.gallery.helpers.JpegTransform
 import tomato.simple.gallery.helpers.MetadataStripper
 import tomato.simple.gallery.helpers.RECYCLE_BIN
 import tomato.simple.gallery.helpers.REQUEST_FAVORITE_SYSTEM
@@ -850,13 +852,27 @@ fun BaseSimpleActivity.saveRotatedImageToFile(oldPath: String, newPath: String, 
 
             val oldLastModified = File(oldPath).lastModified()
             if (oldPath.isJpg()) {
+                // Release the truncating stream before saveAttributes(). An open handle makes that
+                // call fail, and the fallback then re-encodes a small JPEG into a much larger one.
+                it.close()
                 copyFile(oldPath, tmpPath)
-                saveExifRotation(ExifInterface(tmpPath), newDegrees)
-            } else {
-                val inputstream = getFileInputStreamSync(oldPath)
-                val bitmap = BitmapFactory.decodeStream(inputstream)
-                saveFile(tmpPath, bitmap, it as FileOutputStream, newDegrees)
+                if (!tryRewriteExifRotation(tmpPath, newDegrees) && !rotateJpegFallback(oldPath, tmpPath, newDegrees)) {
+                    if (showToasts) {
+                        toast(R.string.image_editing_failed)
+                    }
+                    return@getFileOutputStream
+                }
+                copyFile(tmpPath, newPath)
+                rescanPaths(arrayListOf(newPath))
+                fileRotatedSuccessfully(newPath, oldLastModified)
+                callback.invoke()
+                return@getFileOutputStream
             }
+
+            val inputstream = getFileInputStreamSync(oldPath)
+            val bitmap = BitmapFactory.decodeStream(inputstream)
+            inputstream?.close()
+            saveFile(tmpPath, bitmap, it as FileOutputStream, newDegrees, 90)
 
             copyFile(tmpPath, newPath)
             rescanPaths(arrayListOf(newPath))
@@ -901,6 +917,149 @@ fun Activity.tryRotateByExif(path: String, degrees: Int, showToasts: Boolean, ca
         }
         false
     }
+}
+
+private fun BaseSimpleActivity.tryRewriteExifRotation(path: String, degrees: Int): Boolean {
+    return try {
+        saveExifRotation(ExifInterface(path), degrees)
+        true
+    } catch (_: IOException) {
+        false
+    }
+}
+
+/**
+ * EXIF orientation rewrite failed (corrupt markers or non-JPEG bytes in a .jpg).
+ * First choice: lossless DCT rotate via mozjpeg — no quality or size change.
+ * Last resort: decode and re-encode near the source quality and size.
+ * [tmpPath] already holds a copy of the source bytes.
+ */
+private fun BaseSimpleActivity.rotateJpegFallback(sourcePath: String, tmpPath: String, extraDegrees: Int): Boolean {
+    val existingDegrees = readExifDegrees(tmpPath)
+    val totalDegrees = ((existingDegrees + extraDegrees) % 360 + 360) % 360
+    if (totalDegrees != 0 && tryLosslessJpegRotate(tmpPath, totalDegrees, resetOrientation = existingDegrees != 0)) {
+        return true
+    }
+    return writeRotatedBitmap(sourcePath, tmpPath, extraDegrees)
+}
+
+private fun readExifDegrees(path: String): Int {
+    return try {
+        ExifInterface(path)
+            .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+            .degreesFromOrientation()
+    } catch (_: Exception) {
+        0
+    }
+}
+
+private fun tryLosslessJpegRotate(path: String, degrees: Int, resetOrientation: Boolean): Boolean {
+    val rotated = File("$path.rot")
+    if (!JpegTransform.rotate(path, rotated.absolutePath, degrees)) {
+        rotated.delete()
+        return false
+    }
+    if (resetOrientation) {
+        // The transform rotated the pixels; a stale orientation tag would rotate them again.
+        try {
+            val exif = ExifInterface(rotated.absolutePath)
+            exif.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+            exif.saveAttributes()
+        } catch (_: Exception) {
+            rotated.delete()
+            return false
+        }
+    }
+    val dest = File(path)
+    if (!rotated.renameTo(dest)) {
+        try {
+            rotated.copyTo(dest, overwrite = true)
+        } catch (_: Exception) {
+            rotated.delete()
+            return false
+        } finally {
+            rotated.delete()
+        }
+    }
+    return true
+}
+
+private fun BaseSimpleActivity.writeRotatedBitmap(sourcePath: String, destPath: String, extraDegrees: Int): Boolean {
+    val existingDegrees = readExifDegrees(sourcePath)
+    val totalDegrees = ((existingDegrees + extraDegrees) % 360 + 360) % 360
+    val targetBytes = File(sourcePath).length()
+    val qualityGuess = peekJpegQuality(sourcePath)
+    val input = getFileInputStreamSync(sourcePath) ?: return false
+    return try {
+        val bitmap = BitmapFactory.decodeStream(input) ?: return false
+        val matrix = Matrix()
+        matrix.postRotate(totalDegrees.toFloat())
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        try {
+            val encoded = jpegBytesNearSize(rotated, targetBytes, qualityGuess)
+            FileOutputStream(File(destPath)).use { it.write(encoded) }
+        } finally {
+            if (rotated !== bitmap && !rotated.isRecycled) {
+                rotated.recycle()
+            }
+            if (!bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+        }
+        true
+    } finally {
+        input.close()
+    }
+}
+
+internal fun BaseSimpleActivity.peekJpegQuality(path: String): Int? {
+    val input = getFileInputStreamSync(path) ?: return null
+    return try {
+        JpegQuality.estimate(input.buffered())
+    } catch (_: Exception) {
+        null
+    } finally {
+        input.close()
+    }
+}
+
+internal fun jpegBytesNearSize(bitmap: Bitmap, targetBytes: Long, qualityGuess: Int?): ByteArray {
+    val firstQuality = qualityGuess ?: 85
+    val first = jpegBytes(bitmap, firstQuality)
+    if (targetBytes <= 0L || first.size <= targetBytes * 5 / 4) {
+        return first
+    }
+    // Floor 25: sources compressed harder than Android's encoder reaches at
+    // higher qualities (webp-recompressed, messenger downloads) need low values,
+    // and below ~25 artifacts outweigh any size win.
+    var low = 25
+    var high = (firstQuality - 1).coerceAtLeast(low)
+    var best = first
+    var bestDiff = kotlin.math.abs(first.size.toLong() - targetBytes)
+    repeat(7) {
+        if (low > high) {
+            return@repeat
+        }
+        val quality = (low + high) / 2
+        val encoded = jpegBytes(bitmap, quality)
+        val diff = kotlin.math.abs(encoded.size.toLong() - targetBytes)
+        if (diff < bestDiff) {
+            best = encoded
+            bestDiff = diff
+        }
+        if (encoded.size.toLong() > targetBytes) {
+            high = quality - 1
+        } else {
+            low = quality + 1
+        }
+    }
+    return best
+}
+
+private fun jpegBytes(bitmap: Bitmap, quality: Int): ByteArray {
+    val out = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.JPEG, quality.coerceIn(1, 100), out)
+    return out.toByteArray()
 }
 
 fun Activity.fileRotatedSuccessfully(path: String, lastModified: Long) {
@@ -1059,11 +1218,11 @@ fun BaseSimpleActivity.rescanPathsAndUpdateLastModified(paths: ArrayList<String>
     rescanPaths(paths, callback)
 }
 
-fun saveFile(path: String, bitmap: Bitmap, out: FileOutputStream, degrees: Int) {
+fun saveFile(path: String, bitmap: Bitmap, out: FileOutputStream, degrees: Int, quality: Int) {
     val matrix = Matrix()
     matrix.postRotate(degrees.toFloat())
     val bmp = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-    bmp.compress(path.getCompressionFormat(), 90, out)
+    bmp.compress(path.getCompressionFormat(), quality, out)
 }
 
 fun Activity.getShortcutImage(tmb: String, drawable: Drawable, callback: () -> Unit) {

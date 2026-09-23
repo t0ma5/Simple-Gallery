@@ -53,6 +53,9 @@ import tomato.simple.gallery.extensions.fixDateTaken
 import tomato.simple.gallery.extensions.openEditor
 import tomato.simple.gallery.extensions.setupEdgeToEdge
 import tomato.simple.gallery.extensions.exifUriForPath
+import tomato.simple.gallery.extensions.jpegBytesNearSize
+import tomato.simple.gallery.extensions.peekJpegQuality
+import tomato.simple.gallery.extensions.saveRotatedImageToFile
 import tomato.simple.gallery.extensions.writeExif
 import tomato.simple.gallery.helpers.*
 import tomato.simple.gallery.models.FilterItem
@@ -510,6 +513,10 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     private fun startSaveFlow(overwrite: Boolean) {
         overwriteRequested = overwrite
         setOldExif()
+        if (rotationOnlyDegrees() != 0) {
+            saveRotationOnly(overwrite)
+            return
+        }
         when {
             binding.cropImageView.isVisible() -> binding.cropImageView.croppedImageAsync()
             binding.editorDrawCanvas.isVisible() -> saveEditedBitmap(
@@ -528,6 +535,60 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             )
             currPrimaryAction == PRIMARY_ACTION_ADJUST -> saveEditedBitmap(currentAdjustBitmap() ?: return)
             else -> saveFilteredImage()
+        }
+    }
+
+    /**
+     * Returns the crop tool's rotation when the only pending edit is a rotation of a
+     * local JPEG: no crop, no flip, no resize, no committed tools, not a crop intent.
+     * Those saves go through the viewer's rotate path (EXIF or lossless DCT), so the
+     * file is not decoded and re-encoded. Returns 0 otherwise.
+     */
+    private fun rotationOnlyDegrees(): Int {
+        // workingBitmap is also set by the initial Glide load, so it does not mean
+        // "the user edited something". Committed edits set hasUnsavedEdits or fill
+        // the undo stack; only those block the lossless path.
+        if (isCropIntent || !binding.cropImageView.isVisible() || hasUnsavedEdits || toolUndoStack.isNotEmpty()) {
+            return 0
+        }
+        if (resizeWidth > 0 || resizeHeight > 0) {
+            return 0
+        }
+        val view = binding.cropImageView
+        if (view.isFlippedHorizontally || view.isFlippedVertically) {
+            return 0
+        }
+        val degrees = ((view.rotatedDegrees % 360) + 360) % 360
+        if (degrees == 0) {
+            return 0
+        }
+        if (view.cropRect != view.wholeImageRect) {
+            return 0
+        }
+        val path = sourceImagePath() ?: return 0
+        return if (path.isJpg()) degrees else 0
+    }
+
+    private fun saveRotationOnly(overwrite: Boolean) {
+        val degrees = rotationOnlyDegrees()
+        val sourcePath = sourceImagePath() ?: return
+        val finishSaved: () -> Unit = {
+            runOnUiThread {
+                setResult(Activity.RESULT_OK, intent)
+                hasUnsavedEdits = false
+                finish()
+            }
+        }
+        if (overwrite) {
+            ensureBackgroundThread {
+                saveRotatedImageToFile(sourcePath, sourcePath, degrees, true, finishSaved)
+            }
+        } else {
+            SaveAsDialog(this, sourcePath, false) { newPath ->
+                ensureBackgroundThread {
+                    saveRotatedImageToFile(sourcePath, newPath, degrees, true, finishSaved)
+                }
+            }
         }
     }
 
@@ -591,10 +652,11 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
         }
         ensureBackgroundThread {
             try {
+                val profile = jpegSaveProfile()
                 contentResolver.openOutputStream(uri, "wt")?.use { out ->
                     val format = applicationContext.getFilenameFromContentUri(uri)?.getCompressionFormat()
                         ?: CompressFormat.JPEG
-                    bitmap.compress(format, 90, out)
+                    writeCompressed(bitmap, format, profile, out)
                 } ?: throw IllegalStateException("Cannot open $uri")
                 writeExif(oldExif, uri)
                 runOnUiThread {
@@ -1294,11 +1356,12 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
                     var inputStream: InputStream? = null
                     var outputStream: OutputStream? = null
                     try {
-                        val stream = ByteArrayOutputStream()
-                        bitmap.compress(CompressFormat.JPEG, 100, stream)
-                        inputStream = ByteArrayInputStream(stream.toByteArray())
-                        outputStream = contentResolver.openOutputStream(saveUri, "wt")
-                        inputStream.copyTo(outputStream!!)
+                        val profile = jpegSaveProfile()
+                    val stream = ByteArrayOutputStream()
+                    stream.write(jpegBytesNearSize(bitmap, profile.targetBytesFor(bitmap), profile.quality))
+                    inputStream = ByteArrayInputStream(stream.toByteArray())
+                    outputStream = contentResolver.openOutputStream(saveUri, "wt")
+                    inputStream.copyTo(outputStream!!)
                     } catch (e: Exception) {
                         showErrorToast(e)
                         return
@@ -1354,13 +1417,14 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
             ensureBackgroundThread {
                 val file = File(path)
                 val fileDirItem = FileDirItem(path, path.getFilenameFromPath())
+                val profile = jpegSaveProfile()
                 try {
                     val out = FileOutputStream(file)
-                    saveBitmap(file, bitmap, out, showSavingToast)
+                    saveBitmap(file, bitmap, out, showSavingToast, profile)
                 } catch (e: Exception) {
                     getFileOutputStream(fileDirItem, true) {
                         if (it != null) {
-                            saveBitmap(file, bitmap, it, showSavingToast)
+                            saveBitmap(file, bitmap, it, showSavingToast, profile)
                         } else {
                             toast(R.string.image_editing_failed)
                         }
@@ -1375,24 +1439,64 @@ class EditActivity : SimpleActivity(), CropImageView.OnCropImageCompleteListener
     }
 
     @TargetApi(Build.VERSION_CODES.N)
-    private fun saveBitmap(file: File, bitmap: Bitmap, out: OutputStream, showSavingToast: Boolean) {
+    private fun saveBitmap(file: File, bitmap: Bitmap, out: OutputStream, showSavingToast: Boolean, profile: JpegSaveProfile) {
         if (showSavingToast) {
             toast(com.simplemobiletools.commons.R.string.saving)
         }
 
         out.use {
-            if (resizeWidth > 0 && resizeHeight > 0) {
-                val resized = Bitmap.createScaledBitmap(bitmap, resizeWidth, resizeHeight, true)
-                resized.compress(file.absolutePath.getCompressionFormat(), 90, it)
+            val image = if (resizeWidth > 0 && resizeHeight > 0) {
+                Bitmap.createScaledBitmap(bitmap, resizeWidth, resizeHeight, true)
             } else {
-                bitmap.compress(file.absolutePath.getCompressionFormat(), 90, it)
+                bitmap
             }
+            writeCompressed(image, file.absolutePath.getCompressionFormat(), profile, it)
         }
 
         writeExif(oldExif, exifUriForPath(file.absolutePath))
 
         setResult(Activity.RESULT_OK, intent)
         scanFinalPath(file.absolutePath)
+    }
+
+    private fun sourceImagePath(): String? {
+        uri?.takeIf { it.scheme == "file" }?.path?.takeIf { it.isNotEmpty() }?.let { return it }
+        intent.getStringExtra(REAL_FILE_PATH)?.takeIf { it.isNotEmpty() }?.let { return it }
+        return uri?.let { applicationContext.getRealPathFromURI(it) }?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun jpegSaveProfile(): JpegSaveProfile {
+        val path = sourceImagePath() ?: return JpegSaveProfile(0L, null, 0L)
+        val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        try {
+            android.graphics.BitmapFactory.decodeFile(path, options)
+        } catch (_: Exception) {
+        }
+        val srcPixels = if (options.outWidth > 0 && options.outHeight > 0) {
+            options.outWidth.toLong() * options.outHeight.toLong()
+        } else {
+            0L
+        }
+        return JpegSaveProfile(File(path).length(), peekJpegQuality(path), srcPixels)
+    }
+
+    private fun writeCompressed(bitmap: Bitmap, format: CompressFormat, profile: JpegSaveProfile, out: OutputStream) {
+        if (format == CompressFormat.JPEG) {
+            out.write(jpegBytesNearSize(bitmap, profile.targetBytesFor(bitmap), profile.quality))
+        } else {
+            bitmap.compress(format, 90, out)
+        }
+    }
+
+    private data class JpegSaveProfile(val targetBytes: Long, val quality: Int?, val srcPixels: Long) {
+        /** Scales the source size to the output pixel count, so a crop targets a proportionally smaller file. */
+        fun targetBytesFor(bitmap: Bitmap): Long {
+            if (targetBytes <= 0L || srcPixels <= 0L) {
+                return targetBytes
+            }
+            val outPixels = bitmap.width.toLong() * bitmap.height.toLong()
+            return targetBytes * outPixels / srcPixels
+        }
     }
 
     private fun editWith() {

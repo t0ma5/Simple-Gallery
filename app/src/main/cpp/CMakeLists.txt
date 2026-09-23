@@ -25,6 +25,8 @@ FetchContent_MakeAvailable(mozjpeg)
 
 add_library(jpegoptim-jni SHARED
     jpegoptim_jni.c
+    jpegrotate_jni.c
+    ${mozjpeg_SOURCE_DIR}/transupp.c
     jpegoptim/jpegoptim.c
     jpegoptim/jpegdest.c
     jpegoptim/jpegsrc.c
