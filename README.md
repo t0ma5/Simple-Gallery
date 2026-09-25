@@ -44,6 +44,7 @@ The Simple Gallery Pro workflow, plus a FOSS editor, AVIF/JXL, motion photos, an
 - **WebP pinch-zoom** — Animated and still WebP zoom in the viewer.
 
 **Organize**
+- **Thumbnail stays with its file** — A recycled grid cell no longer shows another file's thumbnail while the real one is still loading.
 - **Stacks** — Optional RAW+JPEG, bursts, and edited copies in the grid, with a strip in the viewer.
 - **Folder tree** — Grid, List, or Tree. Show hidden and Show excluded stay on until you turn them off.
 - **Scroll-back** — Closing the viewer returns the grid to the photo you were on.
@@ -75,7 +76,7 @@ Release APKs come from `assembleFossRelease` (local and GitHub Actions). Names:
 
 | Item | Value |
 | --- | --- |
-| App version | 6.31.1 (versionCode 401) |
+| App version | 6.31.2 (versionCode 402) |
 | minSdk | 26 |
 | targetSdk / compileSdk | 36 (Android 16) |
 | JVM bytecode | 17 |

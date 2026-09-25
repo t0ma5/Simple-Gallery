@@ -213,6 +213,7 @@ class MediaAdapter(
             visibleItemPaths.remove(itemView.allViews.firstOrNull { it.id == R.id.medium_name }?.tag)
             val tmb = itemView.allViews.firstOrNull { it.id == R.id.medium_thumbnail }
             if (tmb != null) {
+                tmb.setTag(R.id.medium_thumbnail, null)
                 Glide.with(activity).clear(tmb)
             }
         }
@@ -863,14 +864,21 @@ class MediaAdapter(
                 else -> ROUNDED_CORNERS_BIG
             }
 
+            mediumThumbnail.setTag(R.id.medium_thumbnail, medium.path)
             if (loadImageInstantly) {
                 activity.loadImage(
                     medium.type, path, mediumThumbnail, scrollHorizontally, animateGifs, isListViewType || cropThumbnails, roundedCorners, medium.getKey(), rotatedImagePaths
                 )
             } else {
+                if (!activity.isDestroyed) {
+                    Glide.with(activity).clear(mediumThumbnail)
+                }
                 mediumThumbnail.setImageDrawable(null)
                 mediumThumbnail.isHorizontalScrolling = scrollHorizontally
                 delayHandler.postDelayed({
+                    if (mediumThumbnail.getTag(R.id.medium_thumbnail) != medium.path) {
+                        return@postDelayed
+                    }
                     val isVisible = visibleItemPaths.contains(medium.path)
                     if (isVisible) {
                         activity.loadImage(

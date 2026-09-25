@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+Version 6.31.2 *(2026-09-25)*
+----------------------------
+
+ * Grid thumbnails stay bound to the file in that cell. A slow video thumbnail can no longer keep showing the previous file, which led to deleting the wrong item.
+
 Version 6.31.1 *(2026-09-23)*
 ----------------------------
 

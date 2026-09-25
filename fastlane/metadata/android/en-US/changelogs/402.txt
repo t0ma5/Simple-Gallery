@@ -1,0 +1,2 @@
+• Grid thumbnails stay on the file in that cell
+• A slow video thumbnail can no longer show the previous file
